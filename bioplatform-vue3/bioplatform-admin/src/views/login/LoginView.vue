@@ -36,7 +36,7 @@
         <el-form-item>
           <div class="login-options">
             <el-checkbox v-model="rememberMe">记住我</el-checkbox>
-            <el-link type="primary" :underline="false">忘记密码？</el-link>
+            <el-link type="primary" :underline="false" @click="handleForgotPassword">忘记密码？</el-link>
           </div>
         </el-form-item>
 
@@ -86,6 +86,10 @@ const loginRules: FormRules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
   ]
+}
+
+const handleForgotPassword = () => {
+  ElMessage.info('请联系系统管理员在“用户管理”中重置密码，默认会重置为 123456')
 }
 
 const handleLogin = async () => {

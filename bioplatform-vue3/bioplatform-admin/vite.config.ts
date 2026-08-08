@@ -24,12 +24,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('@element-plus/icons-vue')) return 'ep-icons'
-          if (id.includes('element-plus')) {
-            const match = id.match(/element-plus\/es\/components\/([^/]+)/)
-            if (match?.[1]) return `ep-${match[1]}`
-            if (id.includes('element-plus/theme-chalk')) return 'ep-style'
-            return 'element-plus'
-          }
+          if (id.includes('element-plus')) return 'element-plus'
           if (id.includes('vue-router')) return 'vue-router'
           if (id.includes('vue-i18n')) return 'vue-i18n'
           if (id.includes('pinia')) return 'pinia'

@@ -8,7 +8,7 @@ import App from './App.vue'
 const app = createApp(App)
 
 const pinia = createPinia()
-pinia.use(piniaPluginPersistedstate())
+pinia.use(piniaPluginPersistedstate)
 
 // Register all Element Plus icons
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {

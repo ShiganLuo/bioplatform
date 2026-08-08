@@ -8,5 +8,6 @@ declare module '*.vue' {
 
 declare module 'pinia-plugin-persistedstate' {
   import { PiniaPlugin } from 'pinia'
-  export default function piniaPluginPersistedstate(): PiniaPlugin
+  const piniaPluginPersistedstate: PiniaPlugin
+  export default piniaPluginPersistedstate
 }

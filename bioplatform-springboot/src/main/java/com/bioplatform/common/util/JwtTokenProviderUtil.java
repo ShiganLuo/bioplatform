@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.io.DecodingException;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 /**
@@ -39,7 +41,14 @@ public class JwtTokenProviderUtil {
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-expiry-ms:3600000}") long accessTokenExpiryMs,
             @Value("${jwt.refresh-token-expiry-ms:604800000}") long refreshTokenExpiryMs) {
-        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+        } catch (IllegalArgumentException | DecodingException ex) {
+            keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+            log.warn("jwt.secret 不是 Base64，已回退为 UTF-8 原文密钥；建议后续改为 Base64 编码");
+        }
+        this.secretKey = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiryMs = accessTokenExpiryMs;
         this.refreshTokenExpiryMs = refreshTokenExpiryMs;
     }

@@ -31,6 +31,8 @@ pagehelper:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    disable-swagger-default-url: true
+    url: /v3/api-docs
     tags-sorter: alpha
     operations-sorter: alpha
   api-docs:

@@ -10,6 +10,7 @@ export const useUserStore = defineStore(
     const userInfo = ref<UserInfo | null>(null)
 
     const isLoggedIn = computed(() => !!token.value)
+    const isAuthenticated = isLoggedIn
     const username = computed(() => userInfo.value?.username || '')
     const nickname = computed(() => userInfo.value?.nickName || userInfo.value?.username || '')
 
@@ -66,6 +67,7 @@ export const useUserStore = defineStore(
       token,
       userInfo,
       isLoggedIn,
+      isAuthenticated,
       username,
       nickname,
       login,

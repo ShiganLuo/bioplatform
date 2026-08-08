@@ -2,7 +2,6 @@ package com.bioplatform.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
@@ -26,17 +25,22 @@ import java.text.SimpleDateFormat;
 public class RedisConfig {
 
     /**
-     * 配置ObjectMapper（用于Redis序列化）
+     * 配置ObjectMapper（仅用于Redis序列化）
      * 设置日期格式、类型信息等
      * 
      * @return 配置好的ObjectMapper实例
      */
-    @Bean
-    public ObjectMapper redisObjectMapper() {
+    private ObjectMapper redisObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         
         // 设置所有属性可见
-        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        objectMapper.setVisibility(objectMapper.getSerializationConfig()
+            .getDefaultVisibilityChecker()
+            .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+            .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withIsGetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
         
         // 启用类型信息，保存完整类名（用于反序列化时还原对象类型）
         objectMapper.activateDefaultTyping(
