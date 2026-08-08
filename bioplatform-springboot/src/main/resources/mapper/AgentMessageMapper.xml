@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.AgentMessageMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.AgentMessage">
+        <id column="id" property="id"/>
+        <result column="conversation_id" property="conversationId"/>
+        <result column="role" property="role"/>
+        <result column="content" property="content"/>
+        <result column="tool_calls_json" property="toolCallsJson"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `conversation_id`, `role`, `content`, `tool_calls_json`, `created_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `agent_messages` (`conversation_id`, `role`, `content`, `tool_calls_json`)
+        VALUES (#{conversationId}, #{role}, #{content}, #{toolCallsJson})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_messages`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_messages`
+        <where>
+            <if test="conversationId != null">
+                AND `conversation_id` = #{conversationId}
+            </if>
+            <if test="role != null and role != ''">
+                AND `role` = #{role}
+            </if>
+        </where>
+        ORDER BY `created_at` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `agent_messages`
+        <set>
+            <if test="content != null">`content` = #{content},</if>
+            <if test="toolCallsJson != null">`tool_calls_json` = #{toolCallsJson},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `agent_messages` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <select id="selectByConversationId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_messages`
+        WHERE `conversation_id` = #{conversationId}
+        <if test="role != null and role != ''">
+            AND `role` = #{role}
+        </if>
+        ORDER BY `created_at` ASC
+    </select>
+
+    <!-- Select last N messages for a conversation (for context window) -->
+    <select id="selectRecentByConversationId" resultMap="BaseResultMap">
+        SELECT * FROM (
+            SELECT <include refid="Base_Column_List"/>
+            FROM `agent_messages`
+            WHERE `conversation_id` = #{conversationId}
+            ORDER BY `created_at` DESC
+            LIMIT #{limit}
+        ) AS recent
+        ORDER BY `created_at` ASC
+    </select>
+
+</mapper>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.PipelineMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.Pipeline">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="category" property="category"/>
+        <result column="config_json" property="configJson"/>
+        <result column="docker_image" property="dockerImage"/>
+        <result column="timeout" property="timeout"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `name`, `description`, `category`, `config_json`,
+        `docker_image`, `timeout`, `owner_id`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `pipelines` (`name`, `description`, `category`, `config_json`,
+                                 `docker_image`, `timeout`, `owner_id`)
+        VALUES (#{name}, #{description}, #{category}, #{configJson},
+                #{dockerImage}, #{timeout}, #{ownerId})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipelines`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipelines`
+        <where>
+            <if test="name != null and name != ''">
+                AND `name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND `category` = #{category}
+            </if>
+            <if test="ownerId != null">
+                AND `owner_id` = #{ownerId}
+            </if>
+        </where>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE `pipelines`
+        <set>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="description != null">`description` = #{description},</if>
+            <if test="category != null">`category` = #{category},</if>
+            <if test="configJson != null">`config_json` = #{configJson},</if>
+            <if test="dockerImage != null">`docker_image` = #{dockerImage},</if>
+            <if test="timeout != null">`timeout` = #{timeout},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `pipelines` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <select id="selectByCategory" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipelines`
+        WHERE `category` = #{category}
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="selectByOwnerId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipelines`
+        WHERE `owner_id` = #{ownerId}
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="searchByName" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipelines`
+        WHERE `name` LIKE CONCAT('%', #{name}, '%')
+        <if test="category != null and category != ''">
+            AND `category` = #{category}
+        </if>
+        <if test="ownerId != null">
+            AND `owner_id` = #{ownerId}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+</mapper>

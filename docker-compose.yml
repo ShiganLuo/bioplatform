@@ -1,0 +1,133 @@
+# ============================================================
+# 生物信息学云平台 - Docker Compose 编排文件
+# 版本：v1.0
+# 说明：定义平台所有服务的容器编排配置
+#       包括：MySQL、Redis、Spring Boot后端、管理后台前端、公开前端
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ==================== MySQL 数据库服务 ====================
+  # 使用 MySQL 8.0.33，存储平台所有业务数据
+  # 数据持久化到 Docker 卷 mysql_data，初始化脚本从 ./database/ 目录加载
+  mysql:
+    image: mysql:8.0.33
+    container_name: bioplatform-mysql
+    restart: always
+    ports:
+      - "3308:3306"  # 映射到宿主机3308端口，避免与本地MySQL冲突
+    environment:
+      MYSQL_ROOT_PASSWORD: bioplatform123  # root用户密码（生产环境务必修改）
+      MYSQL_DATABASE: bioplatform          # 自动创建的数据库名
+      TZ: Asia/Shanghai                    # 时区设置
+    volumes:
+      - mysql_data:/var/lib/mysql                              # 数据持久化
+      - ./database:/docker-entrypoint-initdb.d:ro             # 初始化SQL脚本
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --lower-case-table-names=1
+    networks:
+      - bioplatform_net
+    # 健康检查：确保MySQL完全就绪后其他服务才启动
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbioplatform123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ==================== Redis 缓存服务 ====================
+  # 使用 Redis 7.0 Alpine 镜像，用于缓存、会话管理、消息队列等
+  redis:
+    image: redis:7.0.10-alpine
+    container_name: bioplatform-redis
+    restart: always
+    ports:
+      - "6380:6379"  # 映射到宿主机6380端口，避免与本地Redis冲突
+    volumes:
+      - redis_data:/data  # 数据持久化
+    command: redis-server --appendonly yes  # 开启AOF持久化
+    networks:
+      - bioplatform_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== Spring Boot 后端服务 ====================
+  # 生物信息学云平台后端API服务
+  # 依赖MySQL和Redis，需等待两者健康检查通过后才启动
+  backend:
+    build:
+      context: ./bioplatform-springboot
+      dockerfile: Dockerfile
+    container_name: bioplatform-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker   # 激活Docker环境配置
+      DB_PASSWORD: bioplatform123       # 数据库密码（与MySQL一致）
+      JWT_SECRET: REDACTED_DOCKER_JWT_SECRET  # JWT密钥
+      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Djava.security.egd=file:/dev/./urandom"
+      TZ: Asia/Shanghai
+    volumes:
+      - /home/luosg/uploads/bioplatform:/data/bioplatform/uploads  # 文件上传目录映射
+    depends_on:
+      mysql:
+        condition: service_healthy  # 等待MySQL健康后再启动
+      redis:
+        condition: service_healthy  # 等待Redis健康后再启动
+    networks:
+      - bioplatform_net
+
+  # ==================== 管理后台前端（Admin） ====================
+  # Vue3 + Element Plus 管理后台界面
+  # 基于Nginx提供静态文件服务，反向代理API请求到后端
+  admin:
+    build:
+      context: ./bioplatform-vue3/bioplatform-admin
+      dockerfile: Dockerfile
+    container_name: bioplatform-admin
+    restart: always
+    ports:
+      - "8081:80"  # 管理后台通过8081端口访问
+    depends_on:
+      - backend
+    networks:
+      - bioplatform_net
+
+  # ==================== 公开前端（Front） ====================
+  # Vue3 公开用户界面（面向普通用户的前端）
+  # 基于Nginx提供静态文件服务，反向代理API请求到后端
+  front:
+    build:
+      context: ./bioplatform-vue3/bioplatform-front
+      dockerfile: Dockerfile
+    container_name: bioplatform-front
+    restart: always
+    ports:
+      - "80:80"  # 公开前端通过80端口访问（默认HTTP端口）
+    depends_on:
+      - backend
+    networks:
+      - bioplatform_net
+
+# ==================== 网络配置 ====================
+# 使用bridge网络模式，所有服务在同一网络中可通过服务名互相访问
+# 例如：后端连接MySQL时使用 host=mysql:3306
+networks:
+  bioplatform_net:
+    driver: bridge
+
+# ==================== 数据卷配置 ====================
+# 命名卷实现数据持久化，容器重建后数据不会丢失
+volumes:
+  mysql_data:
+    name: bioplatform_mysql_data
+  redis_data:
+    name: bioplatform_redis_data

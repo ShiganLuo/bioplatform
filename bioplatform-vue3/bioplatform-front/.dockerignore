@@ -1,0 +1,33 @@
+# ============================================================
+# 生物信息学云平台 - Vue3 公开前端 .dockerignore
+# 排除不需要的文件，优化 Docker 构建上下文
+# ============================================================
+
+# 构建输出（在容器内重新构建）
+dist/
+node_modules/
+
+# IDE 配置文件
+.idea/
+*.iml
+.vscode/
+
+# Git 版本控制
+.git/
+.gitignore
+
+# 日志文件
+*.log
+npm-debug.log*
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+coverage/
+
+# Docker 相关（避免递归）
+docker-compose*.yml
+.dockerignore
+Dockerfile

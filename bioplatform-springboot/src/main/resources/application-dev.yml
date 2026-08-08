@@ -1,0 +1,85 @@
+# 开发环境配置
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3308/bioplatform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: root
+    password: bioplatform123  # Docker Compose设置的密码
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      password: ""  # 开发环境Redis无密码
+      timeout: 3000ms
+      database: 0
+  servlet:
+    multipart:
+      enabled: true  # 开启文件上传
+      max-file-size: 50MB  # 单个文件最大大小
+      max-request-size: 100MB  # 单次请求最大大小
+    static-path-pattern: /static/**
+
+## JWT配置
+security:
+  jwt:
+    whitelist:
+      # 公开接口
+      - /api/front/**
+      - /api/admin/auth/login
+      - /api/admin/auth/refreshToken
+      - /api/admin/users/register
+      # API文档
+      - /swagger-ui.html
+      - /swagger-ui/**
+      - /v3/api-docs/**
+      - /doc.html
+      - /webjars/**
+      - /favicon.ico
+      # WebSocket
+      - /ws/**
+    tokenHeader: Authorization  # JWT存储的请求头
+    tokenHead: "Bearer "  # 令牌前缀
+    secret: "REDACTED_DEV_JWT_SECRET"  # JWT密钥（至少32字符）
+    accessTokenExpiration: 3600000  # Access Token过期时间：1小时（毫秒）
+    refreshTokenExpiration: 1209600000  # Refresh Token过期时间：14天（毫秒）
+
+## JWT密钥配置（JwtTokenProviderUtil使用）
+jwt:
+  secret: "YmlvcGxhdEZvcm0tZGV2LXNlY3JldC1rZXktZm9yLWp3dC0yMDI0LWF0LWxlYXN0LTMyLWNoYXJz"  # Base64编码的密钥
+  access-token-expiry-ms: 3600000  # Access Token过期时间：1小时（毫秒）
+  refresh-token-expiry-ms: 1209600000  # Refresh Token过期时间：14天（毫秒）
+
+## 文件上传配置
+app:
+  upload:
+    dir: /home/luosg/uploads/bioplatform  # 文件存储根目录
+    ipPrefix: http://localhost:8080  # 文件访问URL前缀
+  # 生物信息学数据文件配置
+  bio-data:
+    fasta-dir: /home/luosg/uploads/bioplatform/fasta  # FASTA文件目录
+    vcf-dir: /home/luosg/uploads/bioplatform/vcf  # VCF文件目录
+    bam-dir: /home/luosg/uploads/bioplatform/bam  # BAM文件目录
+    result-dir: /home/luosg/uploads/bioplatform/results  # 分析结果目录
+
+## LLM大模型配置（占位，后续接入时填入实际配置）
+llm:
+  enabled: false  # 是否启用LLM功能
+  provider: openai  # 模型提供商：openai / zhipu / qwen
+  api-key: ""  # API密钥（请勿提交到版本控制）
+  base-url: https://api.openai.com/v1  # API基础地址
+  model: gpt-4  # 默认使用的模型
+  max-tokens: 4096  # 最大token数
+  temperature: 0.7  # 生成温度
+  timeout: 60000  # 请求超时时间（毫秒）
+
+## Knife4j配置
+knife4j:
+  enable: true  # 开启Knife4j增强功能
+
+## MyBatis SQL日志（开发环境开启）
+logging:
+  level:
+    com.bioplatform.mapper: DEBUG

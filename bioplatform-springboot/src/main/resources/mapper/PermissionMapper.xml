@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.PermissionMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.Permission">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="permission" property="permission"/>
+        <result column="type" property="type"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="path" property="path"/>
+        <result column="order_num" property="orderNum"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <resultMap id="PermissionTreeMap" type="com.bioplatform.entity.Permission" extends="BaseResultMap">
+        <collection property="children" ofType="com.bioplatform.entity.Permission"
+                    column="id" select="selectChildrenById"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `name`, `permission`, `type`, `parent_id`,
+        `path`, `order_num`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `permissions` (`name`, `permission`, `type`, `parent_id`, `path`, `order_num`)
+        VALUES (#{name}, #{permission}, #{type}, #{parentId}, #{path}, #{orderNum})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `permissions`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `permissions`
+        <where>
+            <if test="name != null and name != ''">
+                AND `name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="type != null">
+                AND `type` = #{type}
+            </if>
+            <if test="parentId != null">
+                AND `parent_id` = #{parentId}
+            </if>
+        </where>
+        ORDER BY `order_num` ASC, `id` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `permissions`
+        <set>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="permission != null and permission != ''">`permission` = #{permission},</if>
+            <if test="type != null">`type` = #{type},</if>
+            <if test="parentId != null">`parent_id` = #{parentId},</if>
+            <if test="path != null">`path` = #{path},</if>
+            <if test="orderNum != null">`order_num` = #{orderNum},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `permissions` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== RBAC Queries ==================== -->
+
+    <!-- Select permissions for a given role (via role_permissions join) -->
+    <select id="selectByRoleId" resultMap="BaseResultMap">
+        SELECT p.`id`, p.`name`, p.`permission`, p.`type`, p.`parent_id`,
+               p.`path`, p.`order_num`, p.`created_at`, p.`updated_at`
+        FROM `permissions` p
+        INNER JOIN `role_permissions` rp ON rp.`permission_id` = p.`id`
+        WHERE rp.`role_id` = #{roleId}
+        ORDER BY p.`order_num` ASC, p.`id` ASC
+    </select>
+
+    <!-- Select top-level root permissions (parent_id = 0) for tree construction -->
+    <select id="selectTree" resultMap="PermissionTreeMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `permissions`
+        WHERE `parent_id` = 0
+        ORDER BY `order_num` ASC, `id` ASC
+    </select>
+
+    <!-- Recursive child select for tree -->
+    <select id="selectChildrenById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `permissions`
+        WHERE `parent_id` = #{id}
+        ORDER BY `order_num` ASC, `id` ASC
+    </select>
+
+    <!-- Select by type (1=menu, 2=button, 3=api) -->
+    <select id="selectByType" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `permissions`
+        WHERE `type` = #{type}
+        ORDER BY `order_num` ASC, `id` ASC
+    </select>
+
+</mapper>

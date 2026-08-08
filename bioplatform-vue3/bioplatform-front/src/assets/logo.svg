@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <circle cx="100" cy="100" r="90" fill="#409EFF" opacity="0.1"/>
+  <circle cx="100" cy="100" r="70" fill="#409EFF" opacity="0.15"/>
+  <circle cx="100" cy="100" r="50" fill="#409EFF" opacity="0.2"/>
+  <text x="100" y="90" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#409EFF">BP</text>
+  <text x="100" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#606266">BioPlatform</text>
+</svg>

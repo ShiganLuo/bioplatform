@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.RoleMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.Role">
+        <id column="id" property="id"/>
+        <result column="role_name" property="roleName"/>
+        <result column="role_desc" property="roleDesc"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <resultMap id="RoleWithPermissionsMap" type="com.bioplatform.entity.Role" extends="BaseResultMap">
+        <collection property="permissions" ofType="com.bioplatform.entity.Permission" column="id"
+                    select="com.bioplatform.mapper.PermissionMapper.selectByRoleId"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `role_name`, `role_desc`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `roles` (`role_name`, `role_desc`)
+        VALUES (#{roleName}, #{roleDesc})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `roles`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `roles`
+        <where>
+            <if test="roleName != null and roleName != ''">
+                AND `role_name` LIKE CONCAT('%', #{roleName}, '%')
+            </if>
+        </where>
+        ORDER BY `id` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `roles`
+        <set>
+            <if test="roleName != null and roleName != ''">`role_name` = #{roleName},</if>
+            <if test="roleDesc != null">`role_desc` = #{roleDesc},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `roles` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== RBAC Queries ==================== -->
+
+    <!-- Select roles for a given user (via user_roles join) -->
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT r.`id`, r.`role_name`, r.`role_desc`, r.`created_at`, r.`updated_at`
+        FROM `roles` r
+        INNER JOIN `user_roles` ur ON ur.`role_id` = r.`id`
+        WHERE ur.`user_id` = #{userId}
+        ORDER BY r.`id` ASC
+    </select>
+
+    <!-- Select roles with nested permissions collection (n+1 style, used by nested select) -->
+    <select id="selectRolesWithPermissions" resultMap="RoleWithPermissionsMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `roles`
+        ORDER BY `id` ASC
+    </select>
+
+</mapper>

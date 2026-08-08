@@ -1,0 +1,54 @@
+# 主配置文件 - 生物信息学云平台
+# 公共配置，所有环境共享
+spring:
+  profiles:
+    active: dev  # 默认加载开发环境配置
+  application:
+    name: bioplatform
+  # Jackson序列化配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss  # 日期格式化
+    time-zone: Asia/Shanghai  # 时区设置
+    default-property-inclusion: non_null  # 忽略null字段
+    serialization:
+      write-dates-as-timestamps: false  # 日期不输出时间戳
+
+## MyBatis配置（第三方库，位于顶层）
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml  # Mapper XML文件位置
+  type-aliases-package: com.bioplatform.entity  # 类型别名包路径
+  configuration:
+    map-underscore-to-camel-case: true  # 下划线转驼峰命名映射
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+## PageHelper分页插件配置
+pagehelper:
+  helper-dialect: mysql  # 数据库方言
+  reasonable: false  # 分页合理化参数
+  support-methods-arguments: true  # 支持通过Mapper接口参数传递分页参数
+
+## Knife4j/SpringDoc API文档配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: "default"
+      paths-to-match: "/**"
+      packages-to-scan:
+        - com.bioplatform.controller.admin
+        - com.bioplatform.controller.front
+  default-flat-param-object: true
+
+## 日志配置
+logging:
+  level:
+    root: INFO
+    com.bioplatform: DEBUG
+    org.springframework: WARN
+    com.bioplatform.mapper: DEBUG  # SQL日志（开发环境可开启）
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

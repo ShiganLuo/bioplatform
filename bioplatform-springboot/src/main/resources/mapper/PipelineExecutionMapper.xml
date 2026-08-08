@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.PipelineExecutionMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.PipelineExecution">
+        <id column="id" property="id"/>
+        <result column="pipeline_id" property="pipelineId"/>
+        <result column="project_id" property="projectId"/>
+        <result column="user_id" property="userId"/>
+        <result column="status" property="status"/>
+        <result column="input_params" property="inputParams"/>
+        <result column="output_path" property="outputPath"/>
+        <result column="error_log" property="errorLog"/>
+        <result column="started_at" property="startedAt"/>
+        <result column="finished_at" property="finishedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `pipeline_id`, `project_id`, `user_id`, `status`,
+        `input_params`, `output_path`, `error_log`,
+        `started_at`, `finished_at`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `pipeline_executions` (`pipeline_id`, `project_id`, `user_id`, `status`,
+                                          `input_params`, `output_path`)
+        VALUES (#{pipelineId}, #{projectId}, #{userId}, #{status},
+                #{inputParams}, #{outputPath})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        <where>
+            <if test="status != null and status != ''">
+                AND `status` = #{status}
+            </if>
+            <if test="userId != null">
+                AND `user_id` = #{userId}
+            </if>
+            <if test="projectId != null">
+                AND `project_id` = #{projectId}
+            </if>
+            <if test="pipelineId != null">
+                AND `pipeline_id` = #{pipelineId}
+            </if>
+        </where>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE `pipeline_executions`
+        <set>
+            <if test="status != null and status != ''">`status` = #{status},</if>
+            <if test="outputPath != null">`output_path` = #{outputPath},</if>
+            <if test="errorLog != null">`error_log` = #{errorLog},</if>
+            <if test="startedAt != null">`started_at` = #{startedAt},</if>
+            <if test="finishedAt != null">`finished_at` = #{finishedAt},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `pipeline_executions` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `project_id` = #{projectId}
+        <if test="status != null and status != ''">
+            AND `status` = #{status}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `user_id` = #{userId}
+        <if test="status != null and status != ''">
+            AND `status` = #{status}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="selectByPipelineId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `pipeline_id` = #{pipelineId}
+        <if test="status != null and status != ''">
+            AND `status` = #{status}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="countByStatus" resultType="map">
+        SELECT `status`, COUNT(*) AS `count`
+        FROM `pipeline_executions`
+        GROUP BY `status`
+    </select>
+
+</mapper>

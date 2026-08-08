@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.AgentToolMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.AgentTool">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="category" property="category"/>
+        <result column="enabled" property="enabled"/>
+        <result column="config_json" property="configJson"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `name`, `description`, `category`, `enabled`,
+        `config_json`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `agent_tools` (`name`, `description`, `category`, `enabled`, `config_json`)
+        VALUES (#{name}, #{description}, #{category}, #{enabled}, #{configJson})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_tools`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_tools`
+        <where>
+            <if test="name != null and name != ''">
+                AND `name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND `category` = #{category}
+            </if>
+            <if test="enabled != null">
+                AND `enabled` = #{enabled}
+            </if>
+        </where>
+        ORDER BY `category` ASC, `name` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `agent_tools`
+        <set>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="description != null">`description` = #{description},</if>
+            <if test="category != null">`category` = #{category},</if>
+            <if test="enabled != null">`enabled` = #{enabled},</if>
+            <if test="configJson != null">`config_json` = #{configJson},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `agent_tools` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <select id="selectEnabled" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_tools`
+        WHERE `enabled` = 1
+        ORDER BY `category` ASC, `name` ASC
+    </select>
+
+    <select id="selectByCategory" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `agent_tools`
+        WHERE `category` = #{category}
+        ORDER BY `name` ASC
+    </select>
+
+</mapper>

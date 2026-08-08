@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.User">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="email" property="email"/>
+        <result column="password" property="password"/>
+        <result column="nick_name" property="nickName"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="phone" property="phone"/>
+        <result column="status" property="status"/>
+        <result column="last_login_at" property="lastLoginAt"/>
+        <result column="login_attempts" property="loginAttempts"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `username`, `email`, `password`, `nick_name`, `avatar_url`,
+        `phone`, `status`, `last_login_at`, `login_attempts`,
+        `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `users` (`username`, `email`, `password`, `nick_name`, `avatar_url`,
+                             `phone`, `status`)
+        VALUES (#{username}, #{email}, #{password}, #{nickName}, #{avatarUrl},
+                #{phone}, #{status})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `users`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `users`
+        <where>
+            <if test="username != null and username != ''">
+                AND `username` LIKE CONCAT('%', #{username}, '%')
+            </if>
+            <if test="email != null and email != ''">
+                AND `email` LIKE CONCAT('%', #{email}, '%')
+            </if>
+            <if test="status != null">
+                AND `status` = #{status}
+            </if>
+        </where>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE `users`
+        <set>
+            <if test="username != null and username != ''">`username` = #{username},</if>
+            <if test="email != null and email != ''">`email` = #{email},</if>
+            <if test="password != null and password != ''">`password` = #{password},</if>
+            <if test="nickName != null">`nick_name` = #{nickName},</if>
+            <if test="avatarUrl != null">`avatar_url` = #{avatarUrl},</if>
+            <if test="phone != null">`phone` = #{phone},</if>
+            <if test="status != null">`status` = #{status},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `users` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Auth / Login ==================== -->
+
+    <select id="selectByUsernameOrEmail" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `users`
+        WHERE `username` = #{usernameOrEmail}
+           OR `email` = #{usernameOrEmail}
+    </select>
+
+    <select id="selectByUsername" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `users`
+        WHERE `username` = #{username}
+    </select>
+
+    <select id="selectByEmail" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `users`
+        WHERE `email` = #{email}
+    </select>
+
+    <update id="incrementLoginAttempts">
+        UPDATE `users`
+        SET `login_attempts` = `login_attempts` + 1
+        WHERE `id` = #{id}
+    </update>
+
+    <update id="resetLoginAttempts">
+        UPDATE `users`
+        SET `login_attempts` = 0,
+            `last_login_at`  = NOW(6)
+        WHERE `id` = #{id}
+    </update>
+
+    <select id="countAll" resultType="int">
+        SELECT COUNT(*)
+        FROM `users`
+        <where>
+            <if test="status != null">
+                AND `status` = #{status}
+            </if>
+        </where>
+    </select>
+
+</mapper>

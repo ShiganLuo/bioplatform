@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.ProjectMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.Project">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="organism" property="organism"/>
+        <result column="genome_version" property="genomeVersion"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="status" property="status"/>
+        <result column="private" property="isPrivate"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `name`, `description`, `organism`, `genome_version`,
+        `owner_id`, `status`, `private`, `created_at`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `projects` (`name`, `description`, `organism`, `genome_version`,
+                                `owner_id`, `status`, `private`)
+        VALUES (#{name}, #{description}, #{organism}, #{genomeVersion},
+                #{ownerId}, #{status}, #{isPrivate})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        <where>
+            <if test="name != null and name != ''">
+                AND `name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="ownerId != null">
+                AND `owner_id` = #{ownerId}
+            </if>
+            <if test="organism != null and organism != ''">
+                AND `organism` = #{organism}
+            </if>
+            <if test="status != null">
+                AND `status` = #{status}
+            </if>
+            <if test="isPrivate != null">
+                AND `private` = #{isPrivate}
+            </if>
+        </where>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE `projects`
+        <set>
+            <if test="name != null and name != ''">`name` = #{name},</if>
+            <if test="description != null">`description` = #{description},</if>
+            <if test="organism != null">`organism` = #{organism},</if>
+            <if test="genomeVersion != null">`genome_version` = #{genomeVersion},</if>
+            <if test="status != null">`status` = #{status},</if>
+            <if test="isPrivate != null">`private` = #{isPrivate},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `projects` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <select id="selectByOwnerId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        WHERE `owner_id` = #{ownerId}
+        <if test="status != null">
+            AND `status` = #{status}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="searchByName" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        WHERE `name` LIKE CONCAT('%', #{name}, '%')
+        <if test="ownerId != null">
+            AND `owner_id` = #{ownerId}
+        </if>
+        <if test="status != null">
+            AND `status` = #{status}
+        </if>
+        ORDER BY `created_at` DESC
+    </select>
+
+    <select id="countByOwnerId" resultType="int">
+        SELECT COUNT(*)
+        FROM `projects`
+        WHERE `owner_id` = #{ownerId}
+    </select>
+
+    <select id="selectPublic" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        WHERE `private` = 0
+          AND `status` = 1
+        ORDER BY `created_at` DESC
+    </select>
+
+</mapper>

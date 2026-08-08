@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.SystemConfigMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.SystemConfig">
+        <id column="id" property="id"/>
+        <result column="config_key" property="configKey"/>
+        <result column="config_value" property="configValue"/>
+        <result column="config_desc" property="configDesc"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `config_key`, `config_value`, `config_desc`, `updated_at`
+    </sql>
+
+    <!-- ==================== Basic CRUD ==================== -->
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `system_configs` (`config_key`, `config_value`, `config_desc`)
+        VALUES (#{configKey}, #{configValue}, #{configDesc})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `system_configs`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `system_configs`
+        <where>
+            <if test="configKey != null and configKey != ''">
+                AND `config_key` LIKE CONCAT('%', #{configKey}, '%')
+            </if>
+        </where>
+        ORDER BY `id` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `system_configs`
+        <set>
+            <if test="configKey != null and configKey != ''">`config_key` = #{configKey},</if>
+            <if test="configValue != null">`config_value` = #{configValue},</if>
+            <if test="configDesc != null">`config_desc` = #{configDesc},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `system_configs` WHERE `id` = #{id}
+    </delete>
+
+    <!-- ==================== Custom Queries ==================== -->
+
+    <!-- Select a single config by key -->
+    <select id="selectByKey" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `system_configs`
+        WHERE `config_key` = #{configKey}
+    </select>
+
+    <!-- Upsert: INSERT ON DUPLICATE KEY UPDATE -->
+    <insert id="upsertByKey">
+        INSERT INTO `system_configs` (`config_key`, `config_value`, `config_desc`)
+        VALUES (#{configKey}, #{configValue}, #{configDesc})
+        ON DUPLICATE KEY UPDATE
+            `config_value` = VALUES(`config_value`),
+            `config_desc`  = VALUES(`config_desc`)
+    </insert>
+
+</mapper>
