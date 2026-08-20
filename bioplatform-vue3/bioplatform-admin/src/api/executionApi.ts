@@ -33,7 +33,7 @@ export interface PageResult<T> {
 }
 
 export function listExecutions(params: ExecutionQuery) {
-  return http.get<PageResult<Execution>>('/api/executions', { params })
+  return http.get<PageResult<Execution>>('/api/admin/executions/list', { params })
 }
 
 export function getExecution(id: number) {
@@ -41,7 +41,7 @@ export function getExecution(id: number) {
 }
 
 export function cancelExecution(id: number) {
-  return http.post(`/api/admin/executions/${id}/cancel`)
+  return http.put(`/api/admin/executions/${id}/cancel`)
 }
 
 export function getExecutionLogs(id: number) {

@@ -29,7 +29,7 @@ export function getConfigs(category?: string) {
 }
 
 export function updateConfig(id: number, data: Partial<SystemConfig>) {
-  return http.put<SystemConfig>(`/api/admin/system/configs/${id}`, data)
+  return http.put<SystemConfig>(`/api/admin/system/configs`, data)
 }
 
 export function getDashboard() {

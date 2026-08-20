@@ -4,6 +4,8 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserCreateRequest;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserListDTO;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserResetPasswordRequest;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserUpdateRequest;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginResponse;
 import com.bioplatform.dto.front.FrontUserDTO.FrontRegisterRequest;
@@ -11,7 +13,9 @@ import com.bioplatform.dto.front.FrontUserDTO.FrontUserInfoDTO;
 import com.bioplatform.entity.User;
 import com.bioplatform.enums.RoleTypeEnum;
 import com.bioplatform.exception.DuplicateUserException;
+import com.bioplatform.entity.Role;
 import com.bioplatform.mapper.UserMapper;
+import com.bioplatform.mapper.RoleMapper;
 import com.bioplatform.mapper.UserRoleMapper;
 import com.bioplatform.entity.UserRole;
 import com.bioplatform.common.util.JwtTokenProviderUtil;
@@ -23,7 +27,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -37,15 +47,18 @@ public class UserServiceImpl implements UserService {
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final PasswordEncoder passwordEncoder;
 
     public UserServiceImpl(UserMapper userMapper,
+                           RoleMapper roleMapper,
                            UserRoleMapper userRoleMapper,
                            JwtTokenProviderUtil jwtTokenProviderUtil,
                            PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
+        this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.passwordEncoder = passwordEncoder;
@@ -121,13 +134,7 @@ public class UserServiceImpl implements UserService {
 
         userMapper.insert(user);
 
-        // 分配默认角色 ROLE_USER
-        // 需要查询ROLE_USER的ID，这里假设ID为1，实际应该从数据库查询
-        // 简化处理：直接使用角色名称对应的ID
-        UserRole userRole = new UserRole();
-        userRole.setUserId(user.getId());
-        userRole.setRoleId(1L); // ROLE_USER的ID，默认为1
-        userRoleMapper.insert(userRole);
+        assignRoles(user.getId(), null, true);
 
         log.info("用户注册成功: {}", user.getUsername());
 
@@ -150,31 +157,66 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void updateUser(User user) {
+    @Transactional
+    public void updateUser(AdminUserUpdateRequest request) {
+        User user = userMapper.selectById(request.id());
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+
+        if (request.email() != null && !request.email().isBlank()) {
+            User existingUser = userMapper.selectByEmail(request.email());
+            if (existingUser != null && !Objects.equals(existingUser.getId(), request.id())) {
+                throw new DuplicateUserException("邮箱已被注册");
+            }
+            user.setEmail(request.email());
+        }
+
+        user.setNickName(request.nickname());
+        user.setPhone(request.phone());
+        if (request.status() != null) {
+            user.setStatus(request.status());
+        }
         userMapper.updateById(user);
+
+        if (request.roles() != null) {
+            assignRoles(user.getId(), request.roles(), false);
+        }
     }
 
     @Override
-    public PageResult<AdminUserListDTO> listUsers(PageResult<?> query) {
-        // 使用PageHelper进行分页查询
+    public PageResult<AdminUserListDTO> listUsers(int pageNum, int pageSize, String keyword, Integer status) {
         User userParam = new User();
-        PageHelper.startPage(1, 10); // 默认分页参数，实际应该从query获取
+        userParam.setUsername(keyword);
+        userParam.setEmail(keyword);
+        userParam.setStatus(status);
+
+        PageHelper.startPage(pageNum, pageSize);
         List<User> users = userMapper.selectAll(userParam);
         PageInfo<User> pageInfo = new PageInfo<>(users);
 
-        // 转换为DTO
+        Map<Long, List<String>> roleNameMap = users.stream()
+                .collect(Collectors.toMap(
+                        User::getId,
+                        user -> roleMapper.selectByUserId(user.getId()).stream()
+                                .map(Role::getRoleName)
+                                .collect(Collectors.toList())
+                ));
+
         List<AdminUserListDTO> dtoList = users.stream()
                 .map(u -> new AdminUserListDTO(
                         u.getId(),
                         u.getUsername(),
-                        u.getEmail(),
                         u.getNickName(),
+                        u.getEmail(),
+                        u.getPhone(),
+                        roleNameMap.getOrDefault(u.getId(), List.of()),
                         u.getStatus(),
                         u.getCreatedAt()
                 ))
                 .collect(Collectors.toList());
 
-        return PageResult.of(pageInfo.getTotal(), (int) pageInfo.getPageNum(), (int) pageInfo.getPageSize(), dtoList);
+        return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, dtoList);
     }
 
     @Override
@@ -197,17 +239,14 @@ public class UserServiceImpl implements UserService {
         user.setUsername(request.username());
         user.setEmail(request.email());
         user.setPassword(passwordEncoder.encode(request.password()));
-        user.setNickName(request.nickName());
-        user.setStatus(1); // 默认启用
+        user.setNickName(request.nickname());
+        user.setPhone(request.phone());
+        user.setStatus(1);
         user.setLoginAttempts(0);
 
         userMapper.insert(user);
 
-        // 分配默认角色 ROLE_USER
-        UserRole userRole = new UserRole();
-        userRole.setUserId(user.getId());
-        userRole.setRoleId(1L); // ROLE_USER的ID，默认为1
-        userRoleMapper.insert(userRole);
+        assignRoles(user.getId(), request.roles(), true);
 
         log.info("管理员创建用户成功: {}", user.getUsername());
     }
@@ -224,4 +263,77 @@ public class UserServiceImpl implements UserService {
 
         log.info("更新用户状态: userId={}, status={}", id, status);
     }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long id) {
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+
+        userRoleMapper.deleteByUserId(id);
+        userMapper.deleteById(id);
+        log.info("删除用户: userId={}", id);
+    }
+
+    @Override
+    public void resetUserPassword(AdminUserResetPasswordRequest request) {
+        User user = userMapper.selectById(request.id());
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        userMapper.updateById(user);
+        log.info("重置用户密码: userId={}", request.id());
+
+    }
+
+    private void assignRoles(Long userId, List<String> requestedRoles, boolean fallbackToDefaultUserRole) {
+        List<String> normalizedRoles = normalizeRoles(requestedRoles);
+        if (normalizedRoles.isEmpty() && fallbackToDefaultUserRole) {
+            normalizedRoles = List.of(RoleTypeEnum.USER.getRoleName());
+        }
+
+        userRoleMapper.deleteByUserId(userId);
+        if (normalizedRoles.isEmpty()) {
+            return;
+        }
+
+        List<UserRole> userRoles = new ArrayList<>();
+        for (String roleName : normalizedRoles) {
+            Role role = roleMapper.selectByRoleName(roleName);
+            if (role == null) {
+                throw new IllegalArgumentException("角色不存在: " + roleName);
+            }
+            UserRole userRole = new UserRole();
+            userRole.setUserId(userId);
+            userRole.setRoleId(role.getId());
+            userRoles.add(userRole);
+        }
+
+        userRoleMapper.batchInsert(userRoles);
+    }
+
+    private List<String> normalizeRoles(List<String> requestedRoles) {
+        if (requestedRoles == null) {
+            return List.of();
+        }
+
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String role : requestedRoles) {
+            if (role == null || role.isBlank()) {
+                continue;
+            }
+
+            String upper = role.trim().toUpperCase(Locale.ROOT);
+            if (!upper.startsWith("ROLE_")) {
+                upper = "ROLE_" + upper;
+            }
+            normalized.add(upper);
+        }
+
+        return List.copyOf(normalized);
+    }
+
 }

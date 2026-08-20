@@ -2,69 +2,31 @@
   <div class="dashboard-container">
     <!-- Stat Cards -->
     <el-row :gutter="20" class="stat-cards">
-      <el-col :span="6">
+      <el-col :span="6" v-for="card in statCards" :key="card.title">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-info">
-              <span class="stat-title">用户总数</span>
-              <span class="stat-value">{{ dashboardData.totalUsers }}</span>
+              <span class="stat-title">{{ card.title }}</span>
+              <span class="stat-value">{{ card.value }}</span>
             </div>
-            <el-icon class="stat-icon" :style="{ color: '#409eff' }">
-              <User />
-            </el-icon>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <span class="stat-title">项目总数</span>
-              <span class="stat-value">{{ dashboardData.totalProjects }}</span>
+            <div class="stat-icon-wrapper" :style="{ background: card.bg }">
+              <el-icon class="stat-icon" :style="{ color: card.color }">
+                <component :is="card.icon" />
+              </el-icon>
             </div>
-            <el-icon class="stat-icon" :style="{ color: '#67c23a' }">
-              <Folder />
-            </el-icon>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <span class="stat-title">流程总数</span>
-              <span class="stat-value">{{ dashboardData.totalPipelines }}</span>
-            </div>
-            <el-icon class="stat-icon" :style="{ color: '#e6a23c' }">
-              <Connection />
-            </el-icon>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-info">
-              <span class="stat-title">执行总数</span>
-              <span class="stat-value">{{ dashboardData.totalExecutions }}</span>
-            </div>
-            <el-icon class="stat-icon" :style="{ color: '#f56c6c' }">
-              <Monitor />
-            </el-icon>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" style="margin-top: 20px;">
+    <el-row :gutter="20" class="content-row">
       <!-- Recent Executions -->
       <el-col :span="16">
-        <el-card>
+        <el-card class="table-card">
           <template #header>
-            <span>最近执行记录</span>
+            <div class="card-header">
+              <span>最近执行记录</span>
+            </div>
           </template>
 
           <el-table :data="dashboardData.recentExecutions" style="width: 100%">
@@ -72,7 +34,7 @@
             <el-table-column prop="projectName" label="项目名称" />
             <el-table-column prop="status" label="状态">
               <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)">
+                <el-tag :type="getStatusType(row.status)" effect="light" round>
                   {{ getStatusLabel(row.status) }}
                 </el-tag>
               </template>
@@ -85,9 +47,11 @@
 
       <!-- System Info -->
       <el-col :span="8">
-        <el-card>
+        <el-card class="info-card">
           <template #header>
-            <span>系统信息</span>
+            <div class="card-header">
+              <span>系统信息</span>
+            </div>
           </template>
 
           <div class="system-info">
@@ -104,6 +68,7 @@
               <el-progress
                 :percentage="dashboardData.systemInfo?.cpuUsage || 0"
                 :color="getProgressColor(dashboardData.systemInfo?.cpuUsage || 0)"
+                :stroke-width="8"
               />
             </div>
             <div class="info-item">
@@ -111,6 +76,7 @@
               <el-progress
                 :percentage="dashboardData.systemInfo?.memoryUsage || 0"
                 :color="getProgressColor(dashboardData.systemInfo?.memoryUsage || 0)"
+                :stroke-width="8"
               />
             </div>
             <div class="info-item">
@@ -118,6 +84,7 @@
               <el-progress
                 :percentage="dashboardData.systemInfo?.diskUsage || 0"
                 :color="getProgressColor(dashboardData.systemInfo?.diskUsage || 0)"
+                :stroke-width="8"
               />
             </div>
           </div>
@@ -128,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { User, Folder, Connection, Monitor } from '@element-plus/icons-vue'
 import { getDashboard } from '@/api/systemApi'
 
@@ -146,6 +113,13 @@ const dashboardData = ref({
     diskUsage: 0
   }
 })
+
+const statCards = computed(() => [
+  { title: '用户总数', value: dashboardData.value.totalUsers, icon: User, color: '#409eff', bg: 'linear-gradient(135deg, #ecf5ff, #d9ecff)' },
+  { title: '项目总数', value: dashboardData.value.totalProjects, icon: Folder, color: '#67c23a', bg: 'linear-gradient(135deg, #f0f9eb, #e1f3d8)' },
+  { title: '流程总数', value: dashboardData.value.totalPipelines, icon: Connection, color: '#e6a23c', bg: 'linear-gradient(135deg, #fdf6ec, #faecd8)' },
+  { title: '执行总数', value: dashboardData.value.totalExecutions, icon: Monitor, color: '#f56c6c', bg: 'linear-gradient(135deg, #fef0f0, #fde2e2)' },
+])
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
@@ -178,7 +152,6 @@ const getProgressColor = (percentage: number) => {
 onMounted(async () => {
   try {
     const res = await getDashboard()
-    // API returns {code, message, result: {userCount, projectCount, ...}}
     const data = res.result || res
     dashboardData.value = {
       totalUsers: data.userCount || 0,
@@ -205,8 +178,16 @@ onMounted(async () => {
   padding: 0;
 }
 
+/* ===== Stat Cards ===== */
 .stat-card {
-  height: 100px;
+  border-radius: 12px;
+  border: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 .stat-content {
@@ -223,24 +204,52 @@ onMounted(async () => {
 .stat-title {
   font-size: 14px;
   color: #909399;
+  font-weight: 500;
 }
 
 .stat-value {
   font-size: 28px;
-  font-weight: bold;
+  font-weight: 700;
   color: #303133;
   margin-top: 8px;
 }
 
-.stat-icon {
-  font-size: 48px;
-  opacity: 0.8;
+.stat-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+.stat-icon {
+  font-size: 28px;
+}
+
+/* ===== Content Row ===== */
+.content-row {
+  margin-top: 20px;
+}
+
+.table-card,
+.info-card {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.card-header {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+/* ===== System Info ===== */
 .system-info {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .info-item {
@@ -250,12 +259,14 @@ onMounted(async () => {
 }
 
 .info-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #909399;
+  font-weight: 500;
 }
 
 .info-value {
   font-size: 14px;
   color: #303133;
+  font-weight: 500;
 }
 </style>

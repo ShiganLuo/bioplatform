@@ -137,7 +137,7 @@ const features = [
 ]
 
 function showLogin() {
-  window.dispatchEvent(new Event('show-login-modal'))
+  window.dispatchEvent(new CustomEvent('show-login-modal', { detail: 'register' }))
 }
 
 onMounted(async () => {

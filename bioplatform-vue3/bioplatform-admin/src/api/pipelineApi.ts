@@ -28,7 +28,7 @@ export interface PageResult<T> {
 }
 
 export function listPipelines(params: PipelineQuery) {
-  return http.get<PageResult<Pipeline>>('/api/pipelines', { params })
+  return http.get<PageResult<Pipeline>>('/api/admin/pipelines/list', { params })
 }
 
 export function getPipeline(id: number) {
@@ -36,11 +36,11 @@ export function getPipeline(id: number) {
 }
 
 export function createPipeline(data: Partial<Pipeline>) {
-  return http.post<Pipeline>('/api/pipelines', data)
+  return http.post<Pipeline>('/api/admin/pipelines/create', data)
 }
 
 export function updatePipeline(id: number, data: Partial<Pipeline>) {
-  return http.put<Pipeline>(`/api/admin/pipelines/${id}`, data)
+  return http.put<Pipeline>(`/api/admin/pipelines/update`, { id, ...data })
 }
 
 export function deletePipeline(id: number) {

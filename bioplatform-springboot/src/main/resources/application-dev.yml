@@ -8,6 +8,14 @@ spring:
     username: root
     password: bioplatform123  # Docker Compose设置的密码
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 3
+      idle-timeout: 600000
+      max-lifetime: 1200000      # 必须比MySQL wait_timeout 1800s至少短30s
+      connection-timeout: 30000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
   data:
     redis:
       host: localhost

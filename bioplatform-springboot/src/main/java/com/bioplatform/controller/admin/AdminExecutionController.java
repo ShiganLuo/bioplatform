@@ -64,4 +64,13 @@ public class AdminExecutionController {
         pipelineExecutionService.cancelExecution(id);
         return ApiResponse.success();
     }
+
+    /**
+     * Get execution logs.
+     */
+    @GetMapping("/{id}/logs")
+    public ApiResponse<String> getLogs(@PathVariable Long id) {
+        String logs = pipelineExecutionService.getExecutionLogs(id);
+        return ApiResponse.success(logs);
+    }
 }

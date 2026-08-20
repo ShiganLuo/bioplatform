@@ -113,4 +113,15 @@
         ORDER BY `created_at` DESC
     </select>
 
+    <select id="sumFileSizeByUser" resultType="long">
+        SELECT COALESCE(SUM(`file_size`), 0)
+        FROM `data_files`
+        WHERE `uploaded_by` = #{userId}
+    </select>
+
+    <select id="sumTotalFileSize" resultType="long">
+        SELECT COALESCE(SUM(`file_size`), 0)
+        FROM `data_files`
+    </select>
+
 </mapper>

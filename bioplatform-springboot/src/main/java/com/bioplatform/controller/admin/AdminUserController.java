@@ -2,14 +2,14 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserCreateRequest;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserResetPasswordRequest;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserListDTO;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserStatusUpdateRequest;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserUpdateRequest;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 /**
  * Admin user management controller.
@@ -35,9 +35,7 @@ public class AdminUserController {
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status) {
-        // Build a PageResult query object to pass pagination params
-        PageResult<AdminUserListDTO> result = userService.listUsers(
-                PageResult.of(0, pageNum, pageSize, java.util.List.of()));
+        PageResult<AdminUserListDTO> result = userService.listUsers(pageNum, pageSize, keyword, status);
         return ApiResponse.success(result);
     }
 
@@ -57,16 +55,7 @@ public class AdminUserController {
     @PutMapping("/update")
     @OperLog(module = "用户管理", operation = "更新用户")
     public ApiResponse<Void> update(@RequestBody @Valid AdminUserUpdateRequest request) {
-        // Build a User entity from the request
-        com.bioplatform.entity.User user = new com.bioplatform.entity.User();
-        user.setId(request.id());
-        if (request.nickName() != null) {
-            user.setNickName(request.nickName());
-        }
-        if (request.status() != null) {
-            user.setStatus(request.status());
-        }
-        userService.updateUser(user);
+        userService.updateUser(request);
         return ApiResponse.success();
     }
 
@@ -75,10 +64,28 @@ public class AdminUserController {
      */
     @PutMapping("/status")
     @OperLog(module = "用户管理", operation = "更新用户状态")
-    public ApiResponse<Void> updateStatus(@RequestBody Map<String, Object> params) {
-        Long id = Long.valueOf(params.get("id").toString());
-        Integer status = Integer.valueOf(params.get("status").toString());
-        userService.updateUserStatus(id, status);
+    public ApiResponse<Void> updateStatus(@RequestBody @Valid AdminUserStatusUpdateRequest request) {
+        userService.updateUserStatus(request.id(), request.status());
+        return ApiResponse.success();
+    }
+
+    /**
+     * Delete a user.
+     */
+    @DeleteMapping("/{id}")
+    @OperLog(module = "用户管理", operation = "删除用户")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ApiResponse.success();
+    }
+
+    /**
+     * Reset user password.
+     */
+    @PutMapping("/reset-password")
+    @OperLog(module = "用户管理", operation = "重置用户密码")
+    public ApiResponse<Void> resetPassword(@RequestBody @Valid AdminUserResetPasswordRequest request) {
+        userService.resetUserPassword(request);
         return ApiResponse.success();
     }
 }

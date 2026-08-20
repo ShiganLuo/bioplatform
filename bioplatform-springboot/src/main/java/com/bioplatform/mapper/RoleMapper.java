@@ -24,6 +24,8 @@ public interface RoleMapper {
 
     int deleteById(@Param("id") Long id);
 
+    Role selectByRoleName(@Param("roleName") String roleName);
+
     List<Role> selectByUserId(@Param("userId") Long userId);
 
     List<Role> selectRolesWithPermissions();

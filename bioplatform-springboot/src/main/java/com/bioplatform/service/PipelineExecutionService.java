@@ -44,4 +44,12 @@ public interface PipelineExecutionService {
      * @param id 执行记录ID
      */
     void cancelExecution(Long id);
+
+    /**
+     * 获取执行日志
+     *
+     * @param id 执行记录ID
+     * @return 日志内容
+     */
+    String getExecutionLogs(Long id);
 }

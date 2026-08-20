@@ -97,13 +97,29 @@ public class JwtTokenProviderUtil {
         } catch (MalformedJwtException e) {
             log.error("Malformed JWT token: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            log.error("Expired JWT token: {}", e.getMessage());
+            log.debug("JWT token expired: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
             log.error("Unsupported JWT token: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
             log.error("JWT claims string is empty: {}", e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Check if token will expire within the given milliseconds.
+     * Returns true if token is already expired or will expire soon.
+     */
+    public boolean isTokenExpiringSoon(String token, long withinMs) {
+        try {
+            Claims claims = parseClaims(token);
+            Date expiration = claims.getExpiration();
+            return expiration.getTime() - System.currentTimeMillis() < withinMs;
+        } catch (ExpiredJwtException e) {
+            return true;
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     private String generateToken(Long userId, String username, String tokenType, long expiryMs) {

@@ -58,6 +58,31 @@ const axiosInstance: AxiosInstance = axios.create({
 let isRefreshing = false
 let requests: (() => void)[] = []
 
+/** 解析 JWT payload（不验证签名，仅读取过期时间） */
+function parseJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const base64Url = token.split('.')[1]
+    if (!base64Url) return null
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    return JSON.parse(jsonPayload)
+  } catch {
+    return null
+  }
+}
+
+/** 检查 token 是否即将过期（默认 5 分钟内） */
+function isTokenExpiringSoon(token: string, withinMs: number = 5 * 60 * 1000): boolean {
+  const payload = parseJwtPayload(token)
+  if (!payload?.exp) return true
+  return payload.exp * 1000 - Date.now() < withinMs
+}
+
 /**
  * 从 localStorage 读取 bio_user 中存储的 accessToken
  * bio_user 是 pinia-plugin-persistedstate 的存储格式: { token, userInfo }
@@ -157,11 +182,35 @@ async function handleUnauthorized(
 // ============================================================
 
 axiosInstance.interceptors.request.use(
-  (request: InternalAxiosRequestConfig) => {
+  async (request: InternalAxiosRequestConfig) => {
     // 从 localStorage 读取 bio_user 中的 token（pinia-plugin-persistedstate 格式）
     const token = getStoredToken()
     if (token) {
-      request.headers.set('Authorization', `Bearer ${token}`)
+      // 主动刷新：token 即将过期时提前刷新，避免 401
+      if (isTokenExpiringSoon(token) && !isRefreshRequest(request)) {
+        if (!isRefreshing) {
+          isRefreshing = true
+          try {
+            const refreshRes = await axiosInstance.post('/api/admin/auth/refreshToken', {
+              token
+            })
+            const newAccessToken: string = refreshRes.data.result
+            const userStore = useUserStore()
+            userStore.token = newAccessToken
+            requests.forEach((cb) => cb())
+            requests = []
+          } catch (e) {
+            console.warn('Proactive token refresh failed, will retry on 401')
+          } finally {
+            isRefreshing = false
+          }
+        }
+      }
+      // 使用最新 token
+      const latestToken = getStoredToken()
+      if (latestToken) {
+        request.headers.set('Authorization', `Bearer ${latestToken}`)
+      }
     }
     return request
   },

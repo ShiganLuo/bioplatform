@@ -2,6 +2,8 @@ package com.bioplatform.service;
 
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserCreateRequest;
 import com.bioplatform.dto.admin.AdminUserDTO.AdminUserListDTO;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserResetPasswordRequest;
+import com.bioplatform.dto.admin.AdminUserDTO.AdminUserUpdateRequest;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginResponse;
 import com.bioplatform.dto.front.FrontUserDTO.FrontRegisterRequest;
@@ -53,7 +55,7 @@ public interface UserService {
      *
      * @param user 用户信息
      */
-    void updateUser(User user);
+    void updateUser(AdminUserUpdateRequest request);
 
     /**
      * 分页查询用户列表
@@ -61,7 +63,7 @@ public interface UserService {
      * @param query 分页查询参数
      * @return 分页结果
      */
-    PageResult<AdminUserListDTO> listUsers(PageResult<?> query);
+    PageResult<AdminUserListDTO> listUsers(int pageNum, int pageSize, String keyword, Integer status);
 
     /**
      * 管理员创建用户
@@ -77,4 +79,18 @@ public interface UserService {
      * @param status 状态（0=禁用 1=启用）
      */
     void updateUserStatus(Long id, Integer status);
+
+    /**
+     * 删除用户
+     *
+     * @param id 用户ID
+     */
+    void deleteUser(Long id);
+
+    /**
+     * 管理员重置用户密码
+     *
+     * @param request 重置密码请求
+     */
+    void resetUserPassword(AdminUserResetPasswordRequest request);
 }

@@ -5,10 +5,10 @@
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="用户名">
           <el-input
-            v-model="searchForm.username"
-            placeholder="请输入用户名"
-            clearable
-          />
+          v-model="searchForm.keyword"
+          placeholder="请输入用户名"
+          clearable
+        />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
@@ -168,7 +168,7 @@ const userList = ref<User[]>([])
 const formRef = ref<FormInstance>()
 
 const searchForm = reactive({
-  username: '',
+  keyword: '',
   status: null as number | null
 })
 
@@ -205,11 +205,11 @@ const loadUsers = async () => {
   loading.value = true
   try {
     const res = await listUsers({
-      page: pagination.page,
-      size: pagination.size,
+      pageNum: pagination.page,
+      pageSize: pagination.size,
       ...searchForm
     })
-    userList.value = res.records
+    userList.value = res.list
     pagination.total = res.total
   } catch (error) {
     console.error('Failed to load users:', error)
@@ -224,7 +224,7 @@ const handleSearch = () => {
 }
 
 const resetSearch = () => {
-  searchForm.username = ''
+  searchForm.keyword = ''
   searchForm.status = null
   handleSearch()
 }

@@ -18,6 +18,7 @@ CREATE TABLE `users` (
     `avatar_url`     VARCHAR(512) DEFAULT NULL,
     `phone`          VARCHAR(20)  DEFAULT NULL,
     `status`         TINYINT      NOT NULL DEFAULT 1 COMMENT '0=disabled 1=active',
+    `upload_quota`   BIGINT       NOT NULL DEFAULT 10737418240 COMMENT 'Upload quota in bytes, default 10GB',
     `last_login_at`  DATETIME(6)  DEFAULT NULL,
     `login_attempts` INT          NOT NULL DEFAULT 0,
     `created_at`     DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),

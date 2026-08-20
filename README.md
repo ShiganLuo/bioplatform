@@ -322,7 +322,7 @@ docker compose ps
 
 | 服务 | 地址 |
 |------|------|
-| 管理后台 | http://localhost:80 |
+| 管理后台 | http://localhost:8081 |
 | 用户门户 | http://localhost:80 |
 | 后端 API | http://localhost:8080 |
 | API 文档 (Knife4j) | http://localhost:8080/doc.html |
@@ -330,6 +330,12 @@ docker compose ps
 ### 方式二：本地开发
 
 #### 1. 初始化数据库
+
+也可以直接使用项目根目录脚本，仅启动源码调试依赖服务（MySQL/Redis）：
+
+```bash
+./docker-deploy.sh debug
+```
 
 ```bash
 # 登录 MySQL

@@ -2,8 +2,8 @@
   <el-container class="admin-layout">
     <!-- Sidebar -->
     <el-aside :width="isCollapse ? '64px' : '220px'" class="sidebar">
-      <div class="logo">
-        <img src="@/assets/logo.svg" alt="Logo" class="logo-img" v-if="!isCollapse" />
+      <div class="logo" @click="router.push('/dashboard')">
+        <el-icon :size="28" color="#409eff"><DataBoard /></el-icon>
         <span v-if="!isCollapse" class="logo-text">生信云平台</span>
       </div>
 
@@ -73,19 +73,16 @@
     </el-aside>
 
     <!-- Main Content -->
-    <el-container>
+    <el-container class="main-wrapper">
       <!-- Header -->
       <el-header class="header">
         <div class="header-left">
-          <el-icon
-            class="collapse-btn"
-            @click="isCollapse = !isCollapse"
-          >
+          <el-icon class="collapse-btn" @click="isCollapse = !isCollapse">
             <Fold v-if="!isCollapse" />
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentRoute.meta.title">
               {{ currentRoute.meta.title }}
             </el-breadcrumb-item>
@@ -96,7 +93,7 @@
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-avatar :size="32" :src="userStore.userInfo?.avatar">
-                {{ userStore.userInfo?.nickname?.charAt(0) || 'U' }}
+                {{ userStore.userInfo?.nickname?.charAt(0) || 'A' }}
               </el-avatar>
               <span class="username">{{ userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员' }}</span>
               <el-icon><ArrowDown /></el-icon>
@@ -136,7 +133,7 @@ import { useUserStore } from '@/stores/user'
 import {
   Odometer, Folder, Connection, Monitor, Document,
   ChatDotRound, Setting, User, Tools, DataLine, Tickets,
-  Fold, Expand, ArrowDown, SwitchButton
+  Fold, Expand, ArrowDown, SwitchButton, DataBoard
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -151,7 +148,6 @@ const currentRoute = computed(() => route)
 const handleCommand = (command: string) => {
   switch (command) {
     case 'profile':
-      // TODO: implement profile page
       break
     case 'settings':
       router.push('/system/config')
@@ -166,49 +162,106 @@ const handleCommand = (command: string) => {
 <style scoped>
 .admin-layout {
   height: 100vh;
+  background: #f5f7fa;
 }
 
+/* ===== Sidebar ===== */
 .sidebar {
-  background-color: #304156;
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
   transition: width 0.3s;
   overflow: hidden;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
 }
 
 .logo {
-  height: 60px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #263445;
-  color: #fff;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: opacity 0.2s;
 }
 
-.logo-img {
-  height: 32px;
-  margin-right: 8px;
+.logo:hover {
+  opacity: 0.8;
 }
 
 .logo-text {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 18px;
+  font-weight: 700;
   white-space: nowrap;
+  background: linear-gradient(135deg, #409eff, #67c23a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .sidebar-menu {
   border-right: none;
+  padding: 8px;
 }
 
 .sidebar-menu:not(.el-menu--collapse) {
-  width: 220px;
+  width: 212px;
 }
 
+/* Menu item styling */
+:deep(.el-menu-item) {
+  border-radius: 8px;
+  margin-bottom: 2px;
+  height: 44px;
+  line-height: 44px;
+  color: #606266;
+  transition: all 0.2s;
+}
+
+:deep(.el-menu-item:hover) {
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+:deep(.el-menu-item.is-active) {
+  background: linear-gradient(135deg, #409eff, #66b1ff);
+  color: #fff;
+  font-weight: 500;
+}
+
+:deep(.el-menu-item.is-active .el-icon) {
+  color: #fff;
+}
+
+:deep(.el-sub-menu__title) {
+  border-radius: 8px;
+  margin-bottom: 2px;
+  height: 44px;
+  line-height: 44px;
+  color: #606266;
+  transition: all 0.2s;
+}
+
+:deep(.el-sub-menu__title:hover) {
+  background: #ecf5ff;
+  color: #409eff;
+}
+
+:deep(.el-sub-menu .el-menu-item) {
+  padding-left: 52px !important;
+  min-width: auto;
+}
+
+/* ===== Header ===== */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e4e7ed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  padding: 0 24px;
+  height: 64px;
 }
 
 .header-left {
@@ -220,6 +273,8 @@ const handleCommand = (command: string) => {
 .collapse-btn {
   font-size: 20px;
   cursor: pointer;
+  color: #606266;
+  transition: color 0.2s;
 }
 
 .collapse-btn:hover {
@@ -236,15 +291,28 @@ const handleCommand = (command: string) => {
   align-items: center;
   cursor: pointer;
   gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.user-info:hover {
+  background: #f5f7fa;
 }
 
 .username {
   font-size: 14px;
-  color: #606266;
+  color: #303133;
+}
+
+/* ===== Main Content ===== */
+.main-wrapper {
+  background: #f5f7fa;
 }
 
 .main-content {
-  background-color: #f0f2f5;
-  padding: 20px;
+  background: #f5f7fa;
+  padding: 24px;
+  overflow-y: auto;
 }
 </style>

@@ -170,6 +170,53 @@ ENDPOINTS = {
         path="/api/admin/users/list",
         description="用户列表",
     ),
+    "admin.users.create": Endpoint(
+        method="POST",
+        path="/api/admin/users/create",
+        description="创建用户",
+        body={
+            "username": "testuser_{timestamp}",
+            "email": "testuser_{timestamp}@example.com",
+            "password": "test123456",
+            "nickname": "测试用户",
+            "phone": "13800000000",
+            "roles": ["user"],
+        },
+    ),
+    "admin.users.update": Endpoint(
+        method="PUT",
+        path="/api/admin/users/update",
+        description="更新用户",
+        body={
+            "id": "{user_id}",
+            "nickname": "测试用户-已更新",
+            "email": "updated_{timestamp}@example.com",
+            "phone": "13900000000",
+            "roles": ["user"],
+            "status": 1,
+        },
+        depends_on="admin.users.create",
+    ),
+    "admin.users.status": Endpoint(
+        method="PUT",
+        path="/api/admin/users/status",
+        description="更新用户状态",
+        body={"id": "{user_id}", "status": 0},
+        depends_on="admin.users.create",
+    ),
+    "admin.users.reset_password": Endpoint(
+        method="PUT",
+        path="/api/admin/users/reset-password",
+        description="重置用户密码",
+        body={"id": "{user_id}", "newPassword": "reset123456"},
+        depends_on="admin.users.create",
+    ),
+    "admin.users.delete": Endpoint(
+        method="DELETE",
+        path="/api/admin/users/{user_id}",
+        description="删除用户",
+        depends_on="admin.users.create",
+    ),
     "admin.roles.list": Endpoint(
         method="GET",
         path="/api/admin/roles/list",
@@ -238,6 +285,10 @@ TEST_ORDER = [
         "admin.executions.list",
         "admin.datafiles.list",
         "admin.users.list",
+        "admin.users.create",
+        "admin.users.update",
+        "admin.users.status",
+        "admin.users.reset_password",
         "admin.roles.list",
         "admin.system.configs",
         "admin.system.dashboard",
@@ -248,6 +299,7 @@ TEST_ORDER = [
 
     # 5. 清理（逆序删除）
     [
+        "admin.users.delete",
         "admin.pipelines.delete",
         "admin.projects.delete",
     ],

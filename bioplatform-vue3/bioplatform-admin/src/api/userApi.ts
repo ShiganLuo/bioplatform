@@ -10,37 +10,36 @@ export interface User {
   roles: string[]
   status: number
   createTime: string
-  updateTime: string
 }
 
 export interface UserQuery {
-  page?: number
-  size?: number
-  username?: string
+  pageNum?: number
+  pageSize?: number
+  keyword?: string
   status?: number
 }
 
 export interface PageResult<T> {
-  records: T[]
+  list: T[]
   total: number
-  page: number
-  size: number
+  pageNum: number
+  pageSize: number
 }
 
 export function listUsers(params: UserQuery) {
-  return http.get<PageResult<User>>('/api/users', { params })
+  return http.get<PageResult<User>>('/api/admin/users/list', { params })
 }
 
 export function createUser(data: Partial<User> & { password?: string }) {
-  return http.post<User>('/api/users', data)
+  return http.post<User>('/api/admin/users/create', data)
 }
 
 export function updateUser(id: number, data: Partial<User>) {
-  return http.put<User>(`/api/admin/users/${id}`, data)
+  return http.put<User>('/api/admin/users/update', { id, ...data })
 }
 
 export function updateUserStatus(id: number, status: number) {
-  return http.put(`/api/admin/users/${id}/status`, { status })
+  return http.put('/api/admin/users/status', { id, status })
 }
 
 export function deleteUser(id: number) {
@@ -48,5 +47,8 @@ export function deleteUser(id: number) {
 }
 
 export function resetPassword(id: number, password: string) {
-  return http.put(`/api/admin/users/${id}/password`, { password })
+  return http.put(`/api/admin/users/reset-password`, { 
+    "id": id,
+    "newPassword": password
+  })
 }

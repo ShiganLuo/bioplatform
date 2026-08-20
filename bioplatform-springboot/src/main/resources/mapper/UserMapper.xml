@@ -12,6 +12,7 @@
         <result column="avatar_url" property="avatarUrl"/>
         <result column="phone" property="phone"/>
         <result column="status" property="status"/>
+        <result column="upload_quota" property="uploadQuota"/>
         <result column="last_login_at" property="lastLoginAt"/>
         <result column="login_attempts" property="loginAttempts"/>
         <result column="created_at" property="createdAt"/>
@@ -20,7 +21,7 @@
 
     <sql id="Base_Column_List">
         `id`, `username`, `email`, `password`, `nick_name`, `avatar_url`,
-        `phone`, `status`, `last_login_at`, `login_attempts`,
+        `phone`, `status`, `upload_quota`, `last_login_at`, `login_attempts`,
         `created_at`, `updated_at`
     </sql>
 

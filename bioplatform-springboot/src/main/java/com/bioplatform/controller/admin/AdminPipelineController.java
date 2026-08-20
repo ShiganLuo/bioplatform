@@ -6,8 +6,11 @@ import com.bioplatform.dto.admin.AdminPipelineDTO.AdminPipelineCreateRequest;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.Pipeline;
+import com.bioplatform.entity.PipelineExecution;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * Admin pipeline management controller.
@@ -78,5 +81,21 @@ public class AdminPipelineController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         pipelineService.deletePipeline(id);
         return ApiResponse.success();
+    }
+
+    /**
+     * Execute a pipeline.
+     */
+    @PostMapping("/{id}/execute")
+    @OperLog(module = "流水线管理", operation = "执行流水线")
+    public ApiResponse<PipelineExecution> execute(@PathVariable Long id,
+                                                   @RequestBody(required = false) Map<String, Object> params) {
+        Long userId = LoginUserHolder.getCurrentUserId();
+        Long projectId = params != null && params.get("projectId") != null
+                ? Long.valueOf(params.get("projectId").toString()) : null;
+        String inputParams = params != null && params.get("inputParams") != null
+                ? params.get("inputParams").toString() : null;
+        PipelineExecution execution = pipelineService.executePipeline(id, projectId, inputParams, userId);
+        return ApiResponse.success(execution);
     }
 }

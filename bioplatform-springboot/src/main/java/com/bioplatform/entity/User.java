@@ -28,6 +28,9 @@ public class User {
     /** 状态：0=禁用 1=启用 */
     private Integer status;
 
+    /** 上传配额（字节），默认10GB */
+    private Long uploadQuota;
+
     private LocalDateTime lastLoginAt;
 
     /** 登录尝试次数 */

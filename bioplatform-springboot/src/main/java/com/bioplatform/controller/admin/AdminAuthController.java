@@ -86,4 +86,12 @@ public class AdminAuthController {
         );
         return ApiResponse.success(userInfoDTO);
     }
+
+    /**
+     * Admin logout.
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout() {
+        return ApiResponse.success();
+    }
 }

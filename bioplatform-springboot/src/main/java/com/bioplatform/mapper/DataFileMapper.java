@@ -29,4 +29,8 @@ public interface DataFileMapper {
     List<DataFile> searchByName(@Param("name") String name, @Param("projectId") Long projectId, @Param("fileType") String fileType);
 
     List<DataFile> selectByFileType(@Param("fileType") String fileType, @Param("projectId") Long projectId);
+
+    long sumFileSizeByUser(@Param("userId") Long userId);
+
+    long sumTotalFileSize();
 }

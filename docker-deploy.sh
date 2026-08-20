@@ -4,6 +4,7 @@
 # 用法：./docker-deploy.sh [command]
 # 命令：
 #   start   - 启动所有服务（后台运行）
+#   debug   - 仅启动调试依赖服务（MySQL/Redis）
 #   stop    - 停止所有服务
 #   restart - 重启所有服务
 #   rebuild - 重新构建所有镜像并启动
@@ -43,6 +44,19 @@ start_services() {
     echo "  - API文档：http://localhost:8080/doc.html"
     echo "  - MySQL：localhost:3308"
     echo "  - Redis：localhost:6380"
+}
+
+# 仅启动调试依赖服务（源码本地运行时使用）
+start_debug_dependencies() {
+    print_info "启动调试依赖服务（MySQL、Redis）..."
+    docker compose up -d mysql redis
+    print_success "调试依赖服务已启动"
+    echo ""
+    print_info "本地源码调试可连接："
+    echo "  - MySQL：localhost:3308"
+    echo "  - Redis：localhost:6380"
+    echo "  - 后端本地运行请使用 profile: dev"
+    echo "  - 前端本地运行请分别启动 admin/front 源码服务"
 }
 
 # 停止所有服务
@@ -140,6 +154,7 @@ show_help() {
     echo ""
     echo "可用命令："
     echo "  start     启动所有服务（后台运行）"
+    echo "  debug     仅启动调试依赖服务（MySQL/Redis）"
     echo "  stop      停止所有服务"
     echo "  restart   重启所有服务"
     echo "  rebuild   重新构建所有镜像并启动"
@@ -153,6 +168,9 @@ show_help() {
 case "${1:-help}" in
     start)
         start_services
+        ;;
+    debug)
+        start_debug_dependencies
         ;;
     stop)
         stop_services

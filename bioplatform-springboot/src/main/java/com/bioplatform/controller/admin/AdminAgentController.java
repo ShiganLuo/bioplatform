@@ -78,8 +78,21 @@ public class AdminAgentController {
     @OperLog(module = "AI Agent管理", operation = "发送消息")
     public ApiResponse<AgentMessage> chat(@RequestBody Map<String, Object> params) {
         Long userId = LoginUserHolder.getCurrentUserId();
+
+        if (params.get("conversationId") == null) {
+            return ApiResponse.error(400, "conversationId不能为空");
+        }
         Long conversationId = Long.valueOf(params.get("conversationId").toString());
-        String content = params.get("content").toString();
+
+        // 兼容前端传 message 或 content
+        Object contentObj = params.get("content");
+        if (contentObj == null) {
+            contentObj = params.get("message");
+        }
+        if (contentObj == null || contentObj.toString().isBlank()) {
+            return ApiResponse.error(400, "消息内容不能为空");
+        }
+        String content = contentObj.toString();
 
         AgentMessage response = agentService.sendMessage(conversationId, content, userId);
         return ApiResponse.success(response);

@@ -45,6 +45,14 @@ public class FrontAuthController {
     }
 
     /**
+     * User logout.
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout() {
+        return ApiResponse.success();
+    }
+
+    /**
      * Get current user info.
      */
     @GetMapping("/userInfo")

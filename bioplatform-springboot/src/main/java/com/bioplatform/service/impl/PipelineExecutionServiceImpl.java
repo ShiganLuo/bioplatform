@@ -70,4 +70,17 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
 
         log.info("取消执行成功: executionId={}", id);
     }
+
+    @Override
+    public String getExecutionLogs(Long id) {
+        PipelineExecution execution = pipelineExecutionMapper.selectById(id);
+        if (execution == null) {
+            throw new IllegalArgumentException("执行记录不存在");
+        }
+        // 返回错误日志（如果有），否则返回状态信息
+        if (execution.getErrorLog() != null && !execution.getErrorLog().isBlank()) {
+            return execution.getErrorLog();
+        }
+        return "执行状态: " + execution.getStatus() + "\n暂无详细日志";
+    }
 }

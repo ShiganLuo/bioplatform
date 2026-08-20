@@ -29,7 +29,7 @@ export interface PageResult<T> {
 }
 
 export function listProjects(params: ProjectQuery) {
-  return http.get<PageResult<Project>>('/api/projects', { params })
+  return http.get<PageResult<Project>>('/api/admin/projects/list', { params })
 }
 
 export function getProject(id: number) {
@@ -37,11 +37,11 @@ export function getProject(id: number) {
 }
 
 export function createProject(data: Partial<Project>) {
-  return http.post<Project>('/api/projects', data)
+  return http.post<Project>('/api/admin/projects/create', data)
 }
 
 export function updateProject(id: number, data: Partial<Project>) {
-  return http.put<Project>(`/api/admin/projects/${id}`, data)
+  return http.put<Project>('/api/admin/projects/update', { id, ...data })
 }
 
 export function deleteProject(id: number) {

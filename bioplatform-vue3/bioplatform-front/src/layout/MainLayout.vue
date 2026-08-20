@@ -115,12 +115,12 @@
     </footer>
 
     <!-- Login Modal -->
-    <LoginModal v-model:visible="showLoginModal" />
+    <LoginModal v-model:visible="showLoginModal" :mode="loginModalMode" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { DataBoard, Setting, SwitchButton, Menu, User, TrendCharts, Cpu, ChatDotRound, Document } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -131,7 +131,21 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const showLoginModal = ref(false)
+const loginModalMode = ref<'login' | 'register'>('login')
 const mobileMenuVisible = ref(false)
+
+function handleShowLoginModal(e: Event) {
+  const mode = (e as CustomEvent).detail
+  loginModalMode.value = mode || 'login'
+  showLoginModal.value = true
+}
+
+onMounted(() => {
+  window.addEventListener('show-login-modal', handleShowLoginModal)
+})
+onUnmounted(() => {
+  window.removeEventListener('show-login-modal', handleShowLoginModal)
+})
 
 const currentPath = computed(() => route.path)
 const currentYear = new Date().getFullYear()

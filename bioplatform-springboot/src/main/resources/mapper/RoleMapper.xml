@@ -33,6 +33,13 @@
         WHERE `id` = #{id}
     </select>
 
+    <select id="selectByRoleName" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `roles`
+        WHERE `role_name` = #{roleName}
+        LIMIT 1
+    </select>
+
     <select id="selectAll" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM `roles`

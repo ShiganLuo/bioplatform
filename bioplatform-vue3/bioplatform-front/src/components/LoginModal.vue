@@ -146,6 +146,7 @@ import { useUserStore } from '@/stores/user'
 
 const props = defineProps<{
   visible: boolean
+  mode?: 'login' | 'register'
 }>()
 
 const emit = defineEmits<{
@@ -153,7 +154,10 @@ const emit = defineEmits<{
 }>()
 
 const userStore = useUserStore()
-const isLogin = ref(true)
+const isLogin = ref(props.mode !== 'register')
+watch(() => props.mode, (val) => {
+  if (val) isLogin.value = val !== 'register'
+})
 const loading = ref(false)
 
 const dialogVisible = ref(props.visible)
@@ -227,7 +231,7 @@ async function handleLogin() {
       ElMessage.success('登录成功')
       handleClose()
     } catch {
-      // error handled by interceptor
+      ElMessage.error('登录失败，请检查用户名和密码')
     } finally {
       loading.value = false
     }

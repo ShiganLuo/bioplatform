@@ -42,6 +42,7 @@ class TestRunner:
         """替换路径中的占位符"""
         path = path.replace("{project_id}", str(self.created_ids.get("project_id", "")))
         path = path.replace("{pipeline_id}", str(self.created_ids.get("pipeline_id", "")))
+        path = path.replace("{user_id}", str(self.created_ids.get("user_id", "")))
         return path
 
     def _resolve_body(self, body: dict) -> dict:
@@ -57,6 +58,7 @@ class TestRunner:
                 v = v.replace("{timestamp}", str(int(time.time())))
                 v = v.replace("{project_id}", str(self.created_ids.get("project_id", "")))
                 v = v.replace("{pipeline_id}", str(self.created_ids.get("pipeline_id", "")))
+                v = v.replace("{user_id}", str(self.created_ids.get("user_id", "")))
                 if v == "None":
                     v = None
             elif v is None and k == "projectId":
@@ -86,12 +88,9 @@ class TestRunner:
 
     def _run_test(self, name: str, endpoint: Endpoint) -> bool:
         """执行单个测试"""
-        # 检查依赖
         if endpoint.depends_on:
-            # 从depends_on提取资源类型 (e.g., "admin.projects.create" -> "project")
             parts = endpoint.depends_on.split(".")
             resource_type = parts[1] if len(parts) > 1 else parts[0]
-            # 去掉复数s (projects -> project, pipelines -> pipeline)
             if resource_type.endswith("s"):
                 resource_type = resource_type[:-1]
             dep_key = f"{resource_type}_id"
@@ -101,7 +100,6 @@ class TestRunner:
                 return True
 
         try:
-            # 获取token
             token = None
             if endpoint.requires_auth:
                 if self.access_token:
@@ -112,26 +110,21 @@ class TestRunner:
                     self.errors.append(f"{name}: 无可用Token")
                     return False
 
-            # 特殊处理：未授权测试使用无效token
             if name == "auth.unauthorized":
                 token = "invalid-token-12345"
 
             resp = self._make_request(endpoint, token)
 
-            # 检查HTTP状态码
             if resp.status_code == 401 and endpoint.expected_code == 401:
                 print(f"  {Colors.GREEN}✓ PASS  {name}{Colors.RESET}")
                 self.results["pass"] += 1
                 return True
 
-            # 解析响应
             body = resp.json() if resp.status_code == 200 else {}
             api_code = body.get("code", resp.status_code)
 
-            # 检查结果
             success = api_code == endpoint.expected_code
             if success:
-                # 提取Token
                 if name == "auth.admin_login" or name == "auth.front_login":
                     result = body.get("result", {})
                     self.access_token = result.get("accessToken")
@@ -141,7 +134,6 @@ class TestRunner:
                     result = body.get("result", {})
                     self.access_token = result.get("accessToken")
 
-                # 记录创建的资源ID
                 if name == "admin.projects.create":
                     result = body.get("result", {})
                     self.created_ids["project_id"] = result.get("id")
@@ -150,7 +142,10 @@ class TestRunner:
                     result = body.get("result", {})
                     self.created_ids["pipeline_id"] = result.get("id")
 
-                # 自定义验证
+                if name == "admin.users.create":
+                    result = body.get("result", {})
+                    self.created_ids["user_id"] = result.get("id")
+
                 if name in EXPECTED_RESPONSE_FIELDS:
                     validator = EXPECTED_RESPONSE_FIELDS[name]
                     if not validator(body):
@@ -233,7 +228,6 @@ class TestRunner:
 
 
 def main():
-    # 支持命令行参数
     config = TestConfig()
     args = sys.argv[1:]
     i = 0

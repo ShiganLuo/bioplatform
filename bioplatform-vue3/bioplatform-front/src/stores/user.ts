@@ -52,15 +52,15 @@ export const useUserStore = defineStore(
     }
 
     // 退出登录
-    function logout() {
+    async function logout() {
+      try {
+        await logoutApi()
+      } catch {
+        // ignore logout errors
+      }
       token.value = ''
       userInfo.value = null
-      localStorage.removeItem('bio_token')
-      try {
-        logoutApi()
-      } catch {
-        // ignore
-      }
+      localStorage.removeItem('bio_user')
     }
 
     return {
