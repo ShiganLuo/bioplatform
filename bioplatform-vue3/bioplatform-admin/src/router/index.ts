@@ -28,6 +28,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '项目管理', icon: 'Folder' }
       },
       {
+        path: 'projects/:id',
+        name: 'ProjectDetail',
+        component: () => import('@/views/project/ProjectDetailView.vue'),
+        meta: { title: '项目详情', icon: 'Folder' }
+      },
+      {
         path: 'pipelines',
         name: 'Pipelines',
         component: () => import('@/views/pipeline/PipelineView.vue'),
@@ -62,6 +68,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SystemConfig',
         component: () => import('@/views/system/config/ConfigView.vue'),
         meta: { title: '系统配置', icon: 'Setting', parent: 'system' }
+      },
+      {
+        path: 'system/templates',
+        name: 'SystemTemplates',
+        component: () => import('@/views/system/template/TemplateView.vue'),
+        meta: { title: '流程模板', icon: 'Menu', parent: 'system' }
       },
       {
         path: 'monitor/logs',
@@ -106,4 +118,5 @@ router.beforeEach((to, from, next) => {
   next()
 })
 
+export { router }
 export default router

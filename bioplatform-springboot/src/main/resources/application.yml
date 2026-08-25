@@ -45,12 +45,4 @@ springdoc:
         - com.bioplatform.controller.front
   default-flat-param-object: true
 
-## 日志配置
-logging:
-  level:
-    root: INFO
-    com.bioplatform: DEBUG
-    org.springframework: WARN
-    com.bioplatform.mapper: DEBUG  # SQL日志（开发环境可开启）
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+## 日志配置（控制台 INFO，文件 DEBUG，详见 logback-spring.xml）

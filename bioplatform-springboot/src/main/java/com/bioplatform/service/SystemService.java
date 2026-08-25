@@ -14,11 +14,13 @@ public interface SystemService {
 
     /**
      * 根据配置键获取配置
-     *
-     * @param key 配置键
-     * @return 配置信息
      */
     SystemConfig getConfig(String key);
+
+    /**
+     * 获取配置解密后的原始值（内部调用 LLM 等场景使用）
+     */
+    String getConfigValue(String key);
 
     /**
      * 获取所有配置

@@ -23,16 +23,12 @@
         </div>
         <div class="hero-stats">
           <div class="stat-item">
-            <span class="stat-number">100+</span>
+            <span class="stat-number">{{ projectCount }}</span>
             <span class="stat-label">公开项目</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">50+</span>
+            <span class="stat-number">{{ pipelineCount }}</span>
             <span class="stat-label">分析流程</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-number">24/7</span>
-            <span class="stat-label">在线服务</span>
           </div>
         </div>
       </div>
@@ -98,12 +94,15 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { FolderOpened, ChatDotRound, DataBoard, Document, ArrowRight } from '@element-plus/icons-vue'
 import { listPublicProjects } from '@/api/projectApi'
+import { listPipelines } from '@/api/pipelineApi'
 import type { Project } from '@/api/projectApi'
 import ProjectCard from '@/components/ProjectCard.vue'
 
 const router = useRouter()
 const loadingProjects = ref(false)
 const recentProjects = ref<Project[]>([])
+const projectCount = ref(0)
+const pipelineCount = ref(0)
 
 const features = [
   {
@@ -143,9 +142,13 @@ function showLogin() {
 onMounted(async () => {
   loadingProjects.value = true
   try {
-    const res = await listPublicProjects({ pageNum: 1, pageSize: 6 })
-    const data = res as any
-    recentProjects.value = data.records || data.data?.records || []
+    const [projRes, pipeRes] = await Promise.all([
+      listPublicProjects({ page: 1, size: 6 }),
+      listPipelines({ page: 1, size: 1 })
+    ])
+    recentProjects.value = (projRes as any).records || []
+    projectCount.value = (projRes as any).total || 0
+    pipelineCount.value = (pipeRes as any).total || 0
   } catch {
     // silent
   } finally {

@@ -56,13 +56,13 @@ public class AdminDataFileController {
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
             @RequestParam(required = false) Long projectId,
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize) {
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
         PageResult result;
         if (projectId != null) {
-            result = dataFileService.listByProjectId(projectId, pageNum, pageSize);
+            result = dataFileService.listByProjectId(projectId, page, size);
         } else {
-            result = dataFileService.listAllFiles(pageNum, pageSize);
+            result = dataFileService.listAllFiles(page, size);
         }
         return ApiResponse.success(result);
     }

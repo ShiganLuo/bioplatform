@@ -8,9 +8,11 @@ import router from './router'
 
 const app = createApp(App)
 
+import type { Component } from 'vue'
+
 // Register all Element Plus icons
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
+  app.component(key, component as Component)
 }
 
 app.use(createPinia())

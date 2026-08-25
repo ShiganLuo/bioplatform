@@ -27,18 +27,18 @@ public class AdminExecutionController {
      */
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) Long userId) {
         PageResult result;
         if (userId != null) {
-            result = pipelineExecutionService.listByUserId(userId, pageNum, pageSize);
+            result = pipelineExecutionService.listByUserId(userId, page, size);
         } else if (projectId != null) {
-            result = pipelineExecutionService.listByProjectId(projectId, pageNum, pageSize);
+            result = pipelineExecutionService.listByProjectId(projectId, page, size);
         } else {
             // Default: list all (could be filtered by admin's own projects)
-            result = pipelineExecutionService.listByUserId(null, pageNum, pageSize);
+            result = pipelineExecutionService.listByUserId(null, page, size);
         }
         return ApiResponse.success(result);
     }

@@ -26,11 +26,11 @@ public class AdminLogController {
      */
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String operation) {
-        PageResult result = operationLogService.listLogs(pageNum, pageSize, userId, operation);
+        PageResult result = operationLogService.listLogs(page, size, userId, operation);
         return ApiResponse.success(result);
     }
 }

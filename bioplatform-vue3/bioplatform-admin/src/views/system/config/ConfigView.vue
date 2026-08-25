@@ -85,6 +85,50 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
+
+        <el-tab-pane label="LLM 配置" name="llm">
+          <el-form :model="llmConfig" label-width="120px" class="config-form">
+            <el-form-item label="LLM 提供商">
+              <el-select v-model="llmConfig.provider" placeholder="选择提供商" @change="handleProviderChange" style="width: 100%">
+                <el-option
+                  v-for="p in llmProviders"
+                  :key="p.key"
+                  :label="p.name"
+                  :value="p.key"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="模型名称">
+              <div style="display: flex; gap: 8px; width: 100%">
+                <el-select
+                  v-model="llmConfig.model"
+                  placeholder="选择或输入模型"
+                  filterable
+                  allow-create
+                  style="flex: 1"
+                >
+                  <el-option
+                    v-for="m in availableModels"
+                    :key="m"
+                    :label="m"
+                    :value="m"
+                  />
+                </el-select>
+                <el-button @click="handleFetchModels" :loading="fetchingModels" :disabled="!llmConfig.baseUrl || !llmConfig.apiKey">
+                  获取模型
+                </el-button>
+              </div>
+            </el-form-item>
+            <el-form-item label="API Key">
+              <el-input v-model="llmConfig.apiKey" type="password" show-password placeholder="sk-..." @input="apiKeyDirty = true" />
+              <p style="font-size: 12px; color: #909399; margin-top: 4px;">切换提供商后请确认 API Key 是否匹配</p>
+            </el-form-item>
+            <el-form-item label="API Base URL">
+              <el-input v-model="llmConfig.baseUrl" placeholder="根据提供商自动填充" />
+              <p style="font-size: 12px; color: #909399; margin-top: 4px;">选择提供商后自动填充，也可手动修改</p>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -94,7 +138,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
-import { getConfigs, updateConfig } from '@/api/systemApi'
+import { getConfigs, updateConfig, fetchLlmModels } from '@/api/systemApi'
+import { encrypt, isEncrypted } from '@/utils/crypto'
 
 const saving = ref(false)
 const activeTab = ref('basic')
@@ -127,21 +172,54 @@ const executionConfig = reactive({
   retentionDays: 30
 })
 
+const llmConfig = reactive({
+  provider: '',
+  baseUrl: '',
+  apiKey: '',
+  model: ''
+})
+// 标记 API Key 是否被用户实际修改过
+const apiKeyDirty = ref(false)
+// 提供商列表（硬编码）
+const llmProviders = [
+  { key: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+  { key: 'mimo', name: 'Xiaomi MiMo', baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1' },
+  { key: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
+  { key: 'qwen', name: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  { key: 'zhipu', name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4' },
+  { key: 'custom', name: '自定义', baseUrl: '' },
+]
+// 动态模型列表（从 API 拉取）
+const availableModels = ref<string[]>([])
+const fetchingModels = ref(false)
+
 const loadConfigs = async () => {
   try {
     const res = await getConfigs()
-    // Parse and assign config values
     const configs = res as any[]
     configs.forEach((config: any) => {
-      const [category, key] = config.key.split('.')
-      if (category === 'basic' && key in basicConfig) {
-        (basicConfig as any)[key] = config.value
-      } else if (category === 'security' && key in securityConfig) {
-        (securityConfig as any)[key] = config.value
-      } else if (category === 'notification' && key in notificationConfig) {
-        (notificationConfig as any)[key] = config.value
-      } else if (category === 'execution' && key in executionConfig) {
-        (executionConfig as any)[key] = config.value
+      const configKey = config.configKey || config.key
+      const configValue = config.configValue || config.value
+      // LLM 配置使用扁平 key
+      if (configKey === 'llm_api_key') {
+        llmConfig.apiKey = configValue || ''
+      } else if (configKey === 'llm_model') {
+        llmConfig.model = configValue || ''
+      } else if (configKey === 'llm_base_url') {
+        llmConfig.baseUrl = configValue || ''
+      } else if (configKey === 'llm_provider') {
+        llmConfig.provider = configValue || ''
+      } else {
+        const [category, key] = configKey.split('.')
+        if (category === 'basic' && key in basicConfig) {
+          (basicConfig as any)[key] = configValue
+        } else if (category === 'security' && key in securityConfig) {
+          (securityConfig as any)[key] = configValue
+        } else if (category === 'notification' && key in notificationConfig) {
+          (notificationConfig as any)[key] = configValue
+        } else if (category === 'execution' && key in executionConfig) {
+          (executionConfig as any)[key] = configValue
+        }
       }
     })
   } catch (error) {
@@ -156,7 +234,6 @@ const handleTabClick = () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    // Save all configs
     const allConfigs = [
       ...Object.entries(basicConfig).map(([key, value]) => ({
         key: `basic.${key}`,
@@ -173,10 +250,20 @@ const handleSave = async () => {
       ...Object.entries(executionConfig).map(([key, value]) => ({
         key: `execution.${key}`,
         value: String(value)
-      }))
+      })),
+      // LLM 配置使用扁平 key，与数据库一致
+      { key: 'llm_provider', value: llmConfig.provider },
+      { key: 'llm_base_url', value: llmConfig.baseUrl },
+      { key: 'llm_model', value: llmConfig.model },
     ]
+    // API Key 只在用户实际修改时才发送，且前端加密后再传输
+    if (llmConfig.apiKey && llmConfig.apiKey.includes('***')) {
+      ElMessage.warning('API Key 为遮蔽值未更新，请先输入真实的 API Key 再保存')
+    } else if (apiKeyDirty.value && llmConfig.apiKey) {
+      const encryptedKey = await encrypt(llmConfig.apiKey)
+      allConfigs.push({ key: 'llm_api_key', value: encryptedKey })
+    }
 
-    // Update configs in sequence (or batch if API supports)
     for (const config of allConfigs) {
       try {
         await updateConfig(0, { key: config.key, value: config.value } as any)
@@ -193,9 +280,34 @@ const handleSave = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadConfigs()
 })
+
+function handleProviderChange(providerKey: string) {
+  const p = llmProviders.find(p => p.key === providerKey)
+  if (p) {
+    llmConfig.baseUrl = p.baseUrl
+  }
+  llmConfig.model = ''
+  availableModels.value = []
+}
+
+async function handleFetchModels() {
+  fetchingModels.value = true
+  try {
+    const models = await fetchLlmModels({ baseUrl: llmConfig.baseUrl, apiKey: llmConfig.apiKey })
+    availableModels.value = (models as any) || []
+    if (availableModels.value.length > 0 && !llmConfig.model) {
+      llmConfig.model = availableModels.value[0]
+    }
+    ElMessage.success(`获取到 ${availableModels.value.length} 个模型`)
+  } catch (e: any) {
+    ElMessage.error(e?.message || '获取模型列表失败')
+  } finally {
+    fetchingModels.value = false
+  }
+}
 </script>
 
 <style scoped>

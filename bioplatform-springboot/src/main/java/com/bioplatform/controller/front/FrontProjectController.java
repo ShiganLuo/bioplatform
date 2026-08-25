@@ -26,9 +26,9 @@ public class FrontProjectController {
      */
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize) {
-        PageResult result = projectService.listPublicProjects(pageNum, pageSize);
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageResult result = projectService.listPublicProjects(page, size);
         return ApiResponse.success(result);
     }
 
@@ -50,9 +50,9 @@ public class FrontProjectController {
     @GetMapping("/search")
     public ApiResponse<PageResult> search(
             @RequestParam String keyword,
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize) {
-        PageResult result = projectService.searchProjects(keyword, pageNum, pageSize);
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageResult result = projectService.searchProjects(keyword, page, size);
         return ApiResponse.success(result);
     }
 }

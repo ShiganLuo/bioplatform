@@ -108,15 +108,40 @@ CREATE TABLE `projects` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Research projects';
 
 -- ============================================================
--- 7. pipelines
+-- 7. workflow_templates
+-- ============================================================
+DROP TABLE IF EXISTS `workflow_templates`;
+CREATE TABLE `workflow_templates` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `name`             VARCHAR(128)  NOT NULL COMMENT '模板名称，如 RNAseq、STAR',
+    `description`      TEXT          DEFAULT NULL,
+    `type`             VARCHAR(16)   NOT NULL COMMENT 'task / pipeline',
+    `category`         VARCHAR(64)   DEFAULT NULL COMMENT '分组：转录组、变异检测、表观遗传学等',
+    `config_template`  JSON          NOT NULL COMMENT '默认配置 JSON（来自 Omics/config/*.json）',
+    `schema_json`      JSON          NOT NULL COMMENT '表单 schema（来自 Omics/config/*.schema.json）',
+    `snakemake_path`   VARCHAR(255)  NOT NULL COMMENT '相对于 Omics 仓库的 .smk 路径',
+    `icon`             VARCHAR(64)   DEFAULT NULL,
+    `sort_order`       INT           DEFAULT 0,
+    `enabled`          TINYINT(1)    NOT NULL DEFAULT 1,
+    `created_at`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    INDEX `idx_wt_type` (`type`),
+    INDEX `idx_wt_category` (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Workflow templates';
+
+-- ============================================================
+-- 8. pipelines
 -- ============================================================
 DROP TABLE IF EXISTS `pipelines`;
 CREATE TABLE `pipelines` (
     `id`           BIGINT        NOT NULL AUTO_INCREMENT,
     `name`         VARCHAR(128)  NOT NULL,
+    `type`         VARCHAR(16)   NOT NULL DEFAULT 'pipeline' COMMENT 'task / pipeline',
+    `template_id`  BIGINT        DEFAULT NULL COMMENT '关联 workflow_templates.id',
     `description`  TEXT          DEFAULT NULL,
     `category`     VARCHAR(64)   DEFAULT NULL COMMENT 'e.g. QC, Alignment, Assembly, Annotation',
-    `config_json`  JSON          DEFAULT NULL COMMENT 'Pipeline step definitions',
+    `config_json`  JSON          DEFAULT NULL COMMENT '用户填写的实际配置',
     `docker_image` VARCHAR(255)  DEFAULT NULL,
     `timeout`      INT           DEFAULT 3600 COMMENT 'Seconds',
     `owner_id`     BIGINT        NOT NULL,
@@ -125,11 +150,13 @@ CREATE TABLE `pipelines` (
     PRIMARY KEY (`id`),
     INDEX `idx_pipelines_owner` (`owner_id`),
     INDEX `idx_pipelines_category` (`category`),
-    CONSTRAINT `fk_pipelines_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`)
+    INDEX `idx_pipelines_type` (`type`),
+    CONSTRAINT `fk_pipelines_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`),
+    CONSTRAINT `fk_pipelines_template` FOREIGN KEY (`template_id`) REFERENCES `workflow_templates` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bioinformatics pipelines';
 
 -- ============================================================
--- 8. pipeline_executions
+-- 9. pipeline_executions
 -- ============================================================
 DROP TABLE IF EXISTS `pipeline_executions`;
 CREATE TABLE `pipeline_executions` (

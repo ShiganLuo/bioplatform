@@ -131,10 +131,10 @@ async function handleUnauthorized(
     if (!isRefreshing) {
       isRefreshing = true
       try {
-        const refreshRes = await axiosInstance.post('/api/admin/auth/refreshToken', {
-          token: currentToken
+        const refreshRes: any = await axiosInstance.post('/api/admin/auth/refreshToken', {
+          refreshToken: currentToken
         })
-        const newAccessToken: string = refreshRes.data.result
+        const newAccessToken: string = refreshRes?.accessToken
 
         // 更新 store 中的 token（pinia-plugin-persistedstate 会自动持久化）
         userStore.token = newAccessToken
@@ -191,10 +191,10 @@ axiosInstance.interceptors.request.use(
         if (!isRefreshing) {
           isRefreshing = true
           try {
-            const refreshRes = await axiosInstance.post('/api/admin/auth/refreshToken', {
-              token
+            const refreshRes: any = await axiosInstance.post('/api/admin/auth/refreshToken', {
+              refreshToken: token
             })
-            const newAccessToken: string = refreshRes.data.result
+            const newAccessToken: string = refreshRes?.accessToken
             const userStore = useUserStore()
             userStore.token = newAccessToken
             requests.forEach((cb) => cb())
@@ -242,7 +242,7 @@ axiosInstance.interceptors.response.use(
 
     // 业务状态码 200 -> 返回 result
     if (code === ApiStatus.SUCCESS) {
-      return Promise.resolve(response)
+      return Promise.resolve(response.data.result)
     }
 
     // 业务状态码 401 -> token 过期，触发刷新流程
@@ -302,7 +302,7 @@ axiosInstance.interceptors.response.use(
 async function request<T = any>(config: AxiosRequestConfig): Promise<T> {
   try {
     const res = await axiosInstance.request<T>(config)
-    return res.data as T
+    return res as any
   } catch (e) {
     return Promise.reject(e)
   }

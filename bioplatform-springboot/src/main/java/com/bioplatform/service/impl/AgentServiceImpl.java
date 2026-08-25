@@ -11,15 +11,20 @@ import com.bioplatform.entity.SystemConfig;
 import com.bioplatform.mapper.AgentConversationMapper;
 import com.bioplatform.mapper.AgentMessageMapper;
 import com.bioplatform.mapper.AgentToolMapper;
-import com.bioplatform.mapper.SystemConfigMapper;
+import com.bioplatform.service.SystemService;
 import com.bioplatform.service.AgentService;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -38,26 +43,28 @@ public class AgentServiceImpl implements AgentService {
     private final AgentConversationMapper conversationMapper;
     private final AgentMessageMapper messageMapper;
     private final AgentToolMapper toolMapper;
-    private final SystemConfigMapper systemConfigMapper;
+    private final SystemService systemService;
     private final ObjectMapper objectMapper;
     private final OkHttpClient httpClient;
 
     public AgentServiceImpl(AgentConversationMapper conversationMapper,
                             AgentMessageMapper messageMapper,
                             AgentToolMapper toolMapper,
-                            SystemConfigMapper systemConfigMapper,
+                            SystemService systemService,
                             ObjectMapper objectMapper) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.toolMapper = toolMapper;
-        this.systemConfigMapper = systemConfigMapper;
+        this.systemService = systemService;
         this.objectMapper = objectMapper;
 
-        // 配置OkHttp客户端
+        // 配置OkHttp客户端（连接池复用，降低延迟）
         this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .connectionPool(new ConnectionPool(5, 5, TimeUnit.MINUTES))
+                .retryOnConnectionFailure(true)
                 .build();
     }
 
@@ -146,6 +153,182 @@ public class AgentServiceImpl implements AgentService {
     }
 
     @Override
+    public SseEmitter streamChat(Long conversationId, String content, Long userId) {
+        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L); // 5分钟超时
+
+        // 保存用户消息
+        AgentMessage userMessage = new AgentMessage();
+        userMessage.setConversationId(conversationId);
+        userMessage.setRole("user");
+        userMessage.setContent(content);
+        messageMapper.insert(userMessage);
+
+        // 获取历史消息（包含刚保存的用户消息）
+        List<AgentMessage> historyMessages = messageMapper.selectRecentByConversationId(conversationId, 20);
+
+        // 捕获当前线程的 SecurityContext，传播到异步线程
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+
+        // 异步执行流式LLM调用
+        new Thread(() -> {
+            SecurityContextHolder.setContext(securityContext);
+            try {
+                AgentConversation conversation = conversationMapper.selectById(conversationId);
+                String assistantContent = streamLlmApi(conversation.getModelName(), historyMessages, emitter);
+
+                // 流结束，保存完整助手回复
+                if (assistantContent != null && !assistantContent.isEmpty()) {
+                    AgentMessage assistantMessage = new AgentMessage();
+                    assistantMessage.setConversationId(conversationId);
+                    assistantMessage.setRole("assistant");
+                    assistantMessage.setContent(assistantContent);
+                    messageMapper.insert(assistantMessage);
+
+                    // 更新对话时间
+                    conversation.setUpdatedAt(LocalDateTime.now());
+                    conversationMapper.updateById(conversation);
+
+                    // 生成对话标题（用用户首条消息截断）
+                    if ("新对话".equals(conversation.getTitle())) {
+                        generateTitle(conversation, content);
+                    }
+                }
+
+                // 发送完成事件
+                emitter.send(SseEmitter.event()
+                        .data("{\"done\":true,\"conversationId\":" + conversationId + "}"));
+                emitter.complete();
+
+                log.info("流式消息发送成功: conversationId={}, userId={}", conversationId, userId);
+            } catch (Exception e) {
+                log.error("流式消息发送失败: conversationId={}, userId={}, error={}", conversationId, userId, e.getMessage(), e);
+                try {
+                    // 通知前端流结束（不带错误内容）
+                    emitter.send(SseEmitter.event()
+                            .data("{\"done\":true,\"conversationId\":" + conversationId + "}"));
+                    emitter.complete();
+                } catch (Exception ex) {
+                    log.warn("SSE emitter 关闭失败: {}", ex.getMessage());
+                    emitter.complete();
+                }
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }, "sse-stream-" + conversationId).start();
+
+        return emitter;
+    }
+
+    /**
+     * 流式调用LLM API，逐token推送到SseEmitter
+     */
+    private String streamLlmApi(String modelName, List<AgentMessage> historyMessages, SseEmitter emitter) throws Exception {
+        String apiKey = systemService.getConfigValue("llm_api_key");
+        String model = systemService.getConfigValue("llm_model");
+        String baseUrl = systemService.getConfigValue("llm_base_url");
+
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RuntimeException("LLM API Key 未配置，请在后台系统配置中设置");
+        }
+        if (apiKey.contains("***")) {
+            throw new RuntimeException("LLM API Key 为遮蔽值，请在后台重新输入真实的 API Key");
+        }
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new RuntimeException("LLM Base URL 未配置，请在后台系统配置中设置");
+        }
+        if (model == null || model.isBlank()) {
+            throw new RuntimeException("LLM 模型名称未配置，请在后台系统配置中设置");
+        }
+        if (modelName != null && !modelName.isBlank()) {
+            model = modelName;
+        }
+
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("model", model);
+        requestBody.put("temperature", 0.7);
+        requestBody.put("max_tokens", 2000);
+        requestBody.put("stream", true);
+
+        ArrayNode messagesArray = requestBody.putArray("messages");
+        ObjectNode systemMessage = messagesArray.addObject();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", "你是一个专业的生物信息学助手，擅长解答基因组学、转录组学、蛋白质组学等生物信息学相关问题。请用专业但易懂的语言回答用户的问题。");
+        for (AgentMessage msg : historyMessages) {
+            ObjectNode messageNode = messagesArray.addObject();
+            messageNode.put("role", msg.getRole());
+            messageNode.put("content", msg.getContent());
+        }
+
+        String url = baseUrl + "/chat/completions";
+        RequestBody body = RequestBody.create(
+                objectMapper.writeValueAsString(requestBody),
+                MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .addHeader("Content-Type", "application/json")
+                .post(body)
+                .build();
+
+        Response response = httpClient.newCall(request).execute();
+        if (!response.isSuccessful()) {
+            response.close();
+            throw new RuntimeException("LLM API调用失败: " + response.code());
+        }
+
+        StringBuilder fullContent = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("data: ")) {
+                    String data = line.substring(6).trim();
+                    if ("[DONE]".equals(data)) break;
+                    try {
+                        JsonNode json = objectMapper.readTree(data);
+                        JsonNode choices = json.get("choices");
+                        if (choices != null && choices.isArray() && choices.size() > 0) {
+                            JsonNode delta = choices.get(0).get("delta");
+                            if (delta != null && delta.has("content") && !delta.get("content").isNull()) {
+                                String token = delta.get("content").asText();
+                                fullContent.append(token);
+                                emitter.send(SseEmitter.event()
+                                        .data("{\"delta\":\"" + escapeJson(token) + "\"}"));
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // 跳过无法解析的行
+                    }
+                }
+            }
+        }
+        return fullContent.toString();
+    }
+
+    /**
+     * 生成对话标题（用用户首条消息截断，不发LLM请求）
+     */
+    private void generateTitle(AgentConversation conversation, String userMessage) {
+        try {
+            String title = userMessage.replaceAll("\\s+", " ").trim();
+            if (title.length() > 20) title = title.substring(0, 20);
+            conversation.setTitle(title);
+            conversationMapper.updateById(conversation);
+            log.info("对话标题已更新: id={}, title={}", conversation.getId(), title);
+        } catch (Exception e) {
+            log.warn("生成对话标题失败: {}", e.getMessage());
+        }
+    }
+
+    private String escapeJson(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+
+    @Override
     public List<AgentTool> listEnabledTools() {
         return toolMapper.selectEnabled();
     }
@@ -159,17 +342,26 @@ public class AgentServiceImpl implements AgentService {
      */
     private String callLlmApi(String modelName, List<AgentMessage> historyMessages) {
         try {
-            // 从系统配置中获取LLM配置
-            SystemConfig apiKeyConfig = systemConfigMapper.selectByKey("llm_api_key");
-            SystemConfig modelConfig = systemConfigMapper.selectByKey("llm_model");
-            SystemConfig baseUrlConfig = systemConfigMapper.selectByKey("llm_base_url");
+            // 从数据库读取 LLM 配置
+            String apiKey = systemService.getConfigValue("llm_api_key");
+            String model = systemService.getConfigValue("llm_model");
+            String baseUrl = systemService.getConfigValue("llm_base_url");
 
-            String apiKey = apiKeyConfig != null ? apiKeyConfig.getConfigValue() : "";
-            String model = modelConfig != null ? modelConfig.getConfigValue() : "gpt-3.5-turbo";
-            String baseUrl = baseUrlConfig != null ? baseUrlConfig.getConfigValue() : "https://api.openai.com/v1";
+            if (apiKey == null || apiKey.isBlank()) {
+                throw new RuntimeException("LLM API Key 未配置，请在后台系统配置中设置");
+            }
+            if (apiKey.contains("***")) {
+                throw new RuntimeException("LLM API Key 为遮蔽值，请在后台重新输入真实的 API Key");
+            }
+            if (baseUrl == null || baseUrl.isBlank()) {
+                throw new RuntimeException("LLM Base URL 未配置，请在后台系统配置中设置");
+            }
+            if (model == null || model.isBlank()) {
+                throw new RuntimeException("LLM 模型名称未配置，请在后台系统配置中设置");
+            }
 
-            // 如果指定了模型名称，使用指定的模型
-            if (modelName != null && !modelName.isEmpty()) {
+            // 如果对话指定了模型名称，覆盖配置
+            if (modelName != null && !modelName.isBlank()) {
                 model = modelName;
             }
 

@@ -66,12 +66,12 @@
         <el-table-column prop="endTime" label="结束时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleViewDetail(row)">详情</el-button>
+            <el-button type="primary" link @click="handleViewDetail(row as Execution)">详情</el-button>
             <el-button
               v-if="row.status === 'RUNNING' || row.status === 'PENDING'"
               type="danger"
               link
-              @click="handleCancel(row)"
+              @click="handleCancel(row as Execution)"
             >
               取消
             </el-button>
@@ -172,8 +172,8 @@ const pagination = reactive({
   total: 0
 })
 
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
+const getStatusType = (status: string): 'success' | 'warning' | 'info' | 'danger' => {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'danger'> = {
     SUCCESS: 'success',
     RUNNING: 'warning',
     FAILED: 'danger',

@@ -39,3 +39,7 @@ export function getDashboard() {
 export function getSystemLogs(params: { page?: number; size?: number; level?: string }) {
   return http.get('/api/admin/logs/list', { params })
 }
+
+export function fetchLlmModels(data: { baseUrl: string; apiKey: string }) {
+  return http.post<string[]>('/api/admin/system/llm/fetch-models', data, { silent: true } as any)
+}

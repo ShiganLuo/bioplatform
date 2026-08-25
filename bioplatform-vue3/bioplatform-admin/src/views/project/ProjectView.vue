@@ -4,26 +4,10 @@
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="项目名称">
-          <el-input
-            v-model="searchForm.name"
-            placeholder="请输入项目名称"
-            clearable
-          />
+          <el-input v-model="searchForm.name" placeholder="请输入项目名称" clearable />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
-            <el-option label="活跃" value="active" />
-            <el-option label="归档" value="archived" />
-            <el-option label="草稿" value="draft" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="searchForm.type" placeholder="请选择类型" clearable>
-            <el-option label="基因组" value="genome" />
-            <el-option label="转录组" value="transcriptome" />
-            <el-option label="表观组" value="epigenome" />
-            <el-option label="其他" value="other" />
-          </el-select>
+        <el-form-item label="物种">
+          <el-input v-model="searchForm.organism" placeholder="请输入物种" clearable />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
@@ -44,33 +28,35 @@
         </div>
       </template>
 
-      <el-table
-        v-loading="loading"
-        :data="projectList"
-        style="width: 100%"
-      >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="项目名称" min-width="150" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="type" label="类型" width="100">
+      <el-table v-loading="loading" :data="projectList" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="项目名称" min-width="150">
           <template #default="{ row }">
-            <el-tag>{{ getTypeLabel(row.type) }}</el-tag>
+            <el-button type="primary" link @click="router.push(`/projects/${row.id}`)">{{ row.name }}</el-button>
           </template>
         </el-table-column>
-        <el-table-column prop="species" label="物种" width="100" />
-        <el-table-column prop="sampleCount" label="样本数" width="80" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="organism" label="物种" width="120" />
+        <el-table-column prop="genomeVersion" label="基因组版本" width="120" />
+        <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
+            <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column prop="isPrivate" label="可见性" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.isPrivate ? 'warning' : 'success'" size="small">
+              {{ row.isPrivate ? '私有' : '公开' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" width="170" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link @click="handleEdit(row as Project)">编辑</el-button>
+            <el-button type="danger" link @click="handleDelete(row as Project)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -94,33 +80,21 @@
       :title="isEdit ? '编辑项目' : '新建项目'"
       width="600px"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="项目名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入项目名称" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
-          <el-input
-            v-model="formData.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入项目描述"
-          />
+          <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入项目描述" />
         </el-form-item>
-        <el-form-item label="类型" prop="type">
-          <el-select v-model="formData.type" placeholder="请选择类型">
-            <el-option label="基因组" value="genome" />
-            <el-option label="转录组" value="transcriptome" />
-            <el-option label="表观组" value="epigenome" />
-            <el-option label="其他" value="other" />
-          </el-select>
+        <el-form-item label="物种" prop="organism">
+          <el-input v-model="formData.organism" placeholder="如 Homo sapiens、Mus musculus" />
         </el-form-item>
-        <el-form-item label="物种" prop="species">
-          <el-input v-model="formData.species" placeholder="请输入物种名称" />
+        <el-form-item label="基因组版本" prop="genomeVersion">
+          <el-input v-model="formData.genomeVersion" placeholder="如 hg38、mm10" />
+        </el-form-item>
+        <el-form-item label="私有项目">
+          <el-switch v-model="formData.isPrivate" />
         </el-form-item>
       </el-form>
 
@@ -136,8 +110,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import 'element-plus/theme-chalk/el-message-box.css'
+import 'element-plus/theme-chalk/el-message.css'
 import { Plus } from '@element-plus/icons-vue'
 import { listProjects, createProject, updateProject, deleteProject } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
@@ -145,14 +121,14 @@ import type { Project } from '@/api/projectApi'
 const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
+const router = useRouter()
 const isEdit = ref(false)
 const projectList = ref<Project[]>([])
-const formRef = ref<FormInstance>()
+const formRef = ref<any>()
 
 const searchForm = reactive({
   name: '',
-  status: '',
-  type: ''
+  organism: ''
 })
 
 const pagination = reactive({
@@ -165,45 +141,33 @@ const formData = reactive({
   id: 0,
   name: '',
   description: '',
-  type: '',
-  species: ''
+  organism: '',
+  genomeVersion: '',
+  isPrivate: false
 })
 
-const formRules: FormRules = {
+const formRules: Record<string, any[]> = {
   name: [
     { required: true, message: '请输入项目名称', trigger: 'blur' }
-  ],
-  type: [
-    { required: true, message: '请选择项目类型', trigger: 'change' }
   ]
 }
 
-const getTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    genome: '基因组',
-    transcriptome: '转录组',
-    epigenome: '表观组',
-    other: '其他'
-  }
-  return map[type] || type
-}
-
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    active: 'success',
-    archived: 'info',
-    draft: 'warning'
+const getStatusType = (status: number): 'success' | 'warning' | 'info' | 'danger' => {
+  const map: Record<number, 'success' | 'warning' | 'info' | 'danger'> = {
+    0: 'info',    // 草稿
+    1: 'success', // 活跃
+    2: 'warning'  // 归档
   }
   return map[status] || 'info'
 }
 
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    active: '活跃',
-    archived: '归档',
-    draft: '草稿'
+const getStatusLabel = (status: number) => {
+  const map: Record<number, string> = {
+    0: '草稿',
+    1: '活跃',
+    2: '归档'
   }
-  return map[status] || status
+  return map[status] || '未知'
 }
 
 const loadProjects = async () => {
@@ -230,8 +194,7 @@ const handleSearch = () => {
 
 const resetSearch = () => {
   searchForm.name = ''
-  searchForm.status = ''
-  searchForm.type = ''
+  searchForm.organism = ''
   handleSearch()
 }
 
@@ -240,8 +203,9 @@ const handleCreate = () => {
   formData.id = 0
   formData.name = ''
   formData.description = ''
-  formData.type = ''
-  formData.species = ''
+  formData.organism = ''
+  formData.genomeVersion = ''
+  formData.isPrivate = false
   dialogVisible.value = true
 }
 
@@ -249,9 +213,10 @@ const handleEdit = (row: Project) => {
   isEdit.value = true
   formData.id = row.id
   formData.name = row.name
-  formData.description = row.description
-  formData.type = row.type
-  formData.species = row.species
+  formData.description = row.description || ''
+  formData.organism = row.organism || ''
+  formData.genomeVersion = row.genomeVersion || ''
+  formData.isPrivate = row.isPrivate || false
   dialogVisible.value = true
 }
 
@@ -275,9 +240,8 @@ const handleDelete = async (row: Project) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
-
     submitLoading.value = true
     try {
       if (isEdit.value) {

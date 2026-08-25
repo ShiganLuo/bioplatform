@@ -7,18 +7,14 @@
       <div class="card-header">
         <h3 class="pipeline-name">{{ pipeline.name }}</h3>
         <el-tag size="small" effect="plain" type="info">
-          v{{ pipeline.version }}
+          {{ pipeline.type }}
         </el-tag>
       </div>
       <p class="pipeline-desc">{{ pipeline.description || '暂无描述' }}</p>
       <div class="card-meta">
         <el-tag size="small" effect="plain">
-          {{ pipeline.categoryLabel || pipeline.category }}
+          {{ pipeline.category }}
         </el-tag>
-        <span class="meta-author">
-          <el-icon><User /></el-icon>
-          {{ pipeline.author }}
-        </span>
       </div>
     </div>
     <div class="card-arrow">
@@ -28,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { User, Operation, ArrowRight } from '@element-plus/icons-vue'
+import { Operation, ArrowRight } from '@element-plus/icons-vue'
 import type { Pipeline } from '@/api/pipelineApi'
 
 defineProps<{
@@ -106,14 +102,6 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.meta-author {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #c0c4cc;
 }
 
 .card-arrow {

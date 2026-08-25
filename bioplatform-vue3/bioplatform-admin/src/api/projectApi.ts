@@ -4,21 +4,47 @@ export interface Project {
   id: number
   name: string
   description: string
-  owner: string
-  status: string
-  type: string
-  species: string
-  sampleCount: number
-  createTime: string
-  updateTime: string
+  organism: string
+  genomeVersion: string
+  ownerId: number
+  status: number
+  isPrivate: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ProjectQuery {
   page?: number
   size?: number
   name?: string
-  status?: string
-  type?: string
+  organism?: string
+}
+
+export interface CreateAnalysisRequest {
+  workflowTemplateName: string
+  name?: string
+  metaContent: string
+  metaType: string
+  extraParams?: string
+  description?: string
+}
+
+export interface Pipeline {
+  id: number
+  name: string
+  type: string
+  templateId: number
+  projectId: number
+  metaContent: string
+  metaType: string
+  extraParams: string
+  description: string
+  category: string
+  configJson: string
+  timeout: number
+  ownerId: number
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PageResult<T> {
@@ -46,4 +72,12 @@ export function updateProject(id: number, data: Partial<Project>) {
 
 export function deleteProject(id: number) {
   return http.delete(`/api/admin/projects/${id}`)
+}
+
+export function createAnalysis(projectId: number, data: CreateAnalysisRequest) {
+  return http.post<Pipeline>(`/api/admin/projects/${projectId}/analyses`, data)
+}
+
+export function listAnalyses(projectId: number, params?: { page?: number; size?: number }) {
+  return http.get<PageResult<Pipeline>>(`/api/admin/projects/${projectId}/analyses`, { params })
 }

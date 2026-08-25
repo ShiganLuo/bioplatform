@@ -38,9 +38,11 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = new Project();
         project.setName(request.name());
         project.setDescription(request.description());
+        project.setOrganism(request.organism());
+        project.setGenomeVersion(request.genomeVersion());
         project.setOwnerId(userId);
         project.setStatus(1); // 默认活跃
-        project.setIsPrivate(false); // 默认公开
+        project.setIsPrivate(request.isPrivate() != null ? request.isPrivate() : false);
 
         projectMapper.insert(project);
         log.info("创建项目成功: projectId={}, name={}", project.getId(), project.getName());
@@ -56,7 +58,10 @@ public class ProjectServiceImpl implements ProjectService {
 
         project.setName(request.name());
         project.setDescription(request.description());
+        project.setOrganism(request.organism());
+        project.setGenomeVersion(request.genomeVersion());
         project.setStatus(request.status());
+        project.setIsPrivate(request.isPrivate());
 
         projectMapper.updateById(project);
         log.info("更新项目成功: projectId={}", id);

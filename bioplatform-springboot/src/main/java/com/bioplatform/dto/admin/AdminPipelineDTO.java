@@ -31,8 +31,17 @@ public final class AdminPipelineDTO {
      */
     public record AdminPipelineCreateRequest(
             String name,
+            String type,
+            Long templateId,
+            Long projectId,
+            String metaContent,
+            String metaType,
+            String extraParams,
             String description,
-            Long projectId
+            String category,
+            String configJson,
+            String dockerImage,
+            Integer timeout
     ) {
     }
 
@@ -42,8 +51,30 @@ public final class AdminPipelineDTO {
     public record AdminPipelineUpdateRequest(
             Long id,
             String name,
+            String type,
+            Long templateId,
+            Long projectId,
+            String metaContent,
+            String metaType,
+            String extraParams,
             String description,
-            Integer status
+            String category,
+            String configJson,
+            String dockerImage,
+            Integer timeout
+    ) {
+    }
+
+    /**
+     * Create analysis from project context.
+     */
+    public record CreateAnalysisRequest(
+            String workflowTemplateName,
+            String name,
+            String metaContent,
+            String metaType,
+            String extraParams,
+            String description
     ) {
     }
 }

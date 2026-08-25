@@ -13,17 +13,17 @@ export interface User {
 }
 
 export interface UserQuery {
-  pageNum?: number
-  pageSize?: number
+  page?: number
+  size?: number
   keyword?: string
   status?: number
 }
 
 export interface PageResult<T> {
-  list: T[]
+  records: T[]
   total: number
-  pageNum: number
-  pageSize: number
+  page: number
+  size: number
 }
 
 export function listUsers(params: UserQuery) {

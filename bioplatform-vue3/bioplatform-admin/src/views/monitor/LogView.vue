@@ -114,8 +114,8 @@ const pagination = reactive({
   total: 0
 })
 
-const getLevelType = (level: string) => {
-  const map: Record<string, string> = {
+const getLevelType = (level: string): 'success' | 'warning' | 'info' | 'danger' => {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'danger'> = {
     INFO: 'success',
     WARN: 'warning',
     ERROR: 'danger',

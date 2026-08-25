@@ -18,17 +18,15 @@ export const useUserStore = defineStore('user', () => {
   async function login(params: LoginParams) {
     try {
       const res = await loginApi(params)
-      // axios interceptor already unwraps: returns {accessToken, refreshToken, userInfo}
-      // or full response: {code, result: {accessToken, refreshToken, userInfo}}
-      const data = res?.result || res
-      if (!data?.accessToken) {
+      // axios interceptor already unwraps ApiResponse.result
+      if (!res?.accessToken) {
         console.error('Login failed: no accessToken in response', res)
         return false
       }
-      token.value = data.accessToken
-      refreshTokenValue.value = data.refreshToken
-      localStorage.setItem('access_token', data.accessToken)
-      localStorage.setItem('refresh_token', data.refreshToken)
+      token.value = res.accessToken
+      refreshTokenValue.value = res.refreshToken
+      localStorage.setItem('access_token', res.accessToken)
+      localStorage.setItem('refresh_token', res.refreshToken)
 
       // Fetch user info after login
       await fetchUserInfo()
@@ -42,10 +40,9 @@ export const useUserStore = defineStore('user', () => {
   async function fetchUserInfo() {
     try {
       const res = await getUserInfo()
-      // axios interceptor already unwraps: returns {id, username, nickName, ...}
-      const data = res?.result || res
-      userInfo.value = data
-      localStorage.setItem('userInfo', JSON.stringify(data))
+      // axios interceptor already unwraps ApiResponse.result
+      userInfo.value = res
+      localStorage.setItem('userInfo', JSON.stringify(res))
     } catch (error) {
       console.error('Failed to fetch user info:', error)
     }
@@ -55,11 +52,11 @@ export const useUserStore = defineStore('user', () => {
   async function refresh() {
     try {
       const res = await refreshTokenApi(refreshTokenValue.value)
-      const data = res.result || res
-      token.value = data.accessToken
-      refreshTokenValue.value = data.refreshToken
-      localStorage.setItem('access_token', data.accessToken)
-      localStorage.setItem('refresh_token', data.refreshToken)
+      // axios interceptor already unwraps ApiResponse.result
+      token.value = res.accessToken
+      refreshTokenValue.value = res.refreshToken
+      localStorage.setItem('access_token', res.accessToken)
+      localStorage.setItem('refresh_token', res.refreshToken)
     } catch (error) {
       logout()
     }

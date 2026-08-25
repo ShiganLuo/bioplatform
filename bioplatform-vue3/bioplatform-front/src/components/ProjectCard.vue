@@ -15,9 +15,6 @@
       <el-tag v-if="project.genomeVersion" size="small" type="warning" effect="plain">
         {{ project.genomeVersion }}
       </el-tag>
-      <el-tag v-if="project.sampleCount" size="small" type="success" effect="plain">
-        {{ project.sampleCount }} 样本
-      </el-tag>
     </div>
     <div class="card-footer">
       <span class="owner">
@@ -41,21 +38,19 @@ const props = defineProps<{
 const router = useRouter()
 
 const statusLabel = computed(() => {
-  const map: Record<string, string> = {
-    completed: '已完成',
-    running: '运行中',
-    pending: '待处理',
-    failed: '失败',
+  const map: Record<number, string> = {
+    0: '草稿',
+    1: '活跃',
+    2: '归档',
   }
-  return map[props.project.status] || props.project.status
+  return map[props.project.status] || '未知'
 })
 
 const statusTagType = computed(() => {
-  const map: Record<string, string> = {
-    completed: 'success',
-    running: 'primary',
-    pending: 'warning',
-    failed: 'danger',
+  const map: Record<number, string> = {
+    0: 'info',
+    1: 'success',
+    2: 'warning',
   }
   return (map[props.project.status] || 'info') as any
 })

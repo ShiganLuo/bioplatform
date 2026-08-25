@@ -8,6 +8,7 @@ import com.bioplatform.entity.AgentMessage;
 import com.bioplatform.entity.AgentTool;
 import com.bioplatform.service.AgentService;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,35 @@ public class AdminAgentController {
     }
 
     /**
+     * 批量删除对话
+     */
+    @PostMapping("/conversations/batch-delete")
+    @OperLog(module = "AI Agent管理", operation = "批量删除对话")
+    public ApiResponse<Void> batchDelete(@RequestBody Map<String, Object> params) {
+        List<?> ids = (List<?>) params.get("ids");
+        if (ids != null) {
+            for (Object id : ids) {
+                agentService.deleteConversation(Long.valueOf(id.toString()));
+            }
+        }
+        return ApiResponse.success();
+    }
+
+    /**
+     * 清空当前用户所有对话
+     */
+    @DeleteMapping("/conversations/all")
+    @OperLog(module = "AI Agent管理", operation = "清空所有对话")
+    public ApiResponse<Void> deleteAll() {
+        Long userId = LoginUserHolder.getCurrentUserId();
+        List<AgentConversation> conversations = agentService.listConversations(userId);
+        for (AgentConversation conv : conversations) {
+            agentService.deleteConversation(conv.getId());
+        }
+        return ApiResponse.success();
+    }
+
+    /**
      * Get messages for a conversation.
      */
     @GetMapping("/conversations/{id}/messages")
@@ -79,10 +109,11 @@ public class AdminAgentController {
     public ApiResponse<AgentMessage> chat(@RequestBody Map<String, Object> params) {
         Long userId = LoginUserHolder.getCurrentUserId();
 
-        if (params.get("conversationId") == null) {
-            return ApiResponse.error(400, "conversationId不能为空");
+        Long conversationId = null;
+        Object convIdObj = params.get("conversationId");
+        if (convIdObj != null && !convIdObj.toString().isBlank()) {
+            conversationId = Long.valueOf(convIdObj.toString());
         }
-        Long conversationId = Long.valueOf(params.get("conversationId").toString());
 
         // 兼容前端传 message 或 content
         Object contentObj = params.get("content");
@@ -94,8 +125,51 @@ public class AdminAgentController {
         }
         String content = contentObj.toString();
 
+        // 若无 conversationId，自动创建新对话
+        if (conversationId == null) {
+            AgentConversation conversation =
+                    agentService.createConversation(userId, null, "新对话", null);
+            conversationId = conversation.getId();
+        }
+
         AgentMessage response = agentService.sendMessage(conversationId, content, userId);
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 流式聊天（SSE）
+     */
+    @PostMapping("/chat/stream")
+    public SseEmitter chatStream(@RequestBody Map<String, Object> params) {
+        Long userId = LoginUserHolder.getCurrentUserId();
+
+        Long conversationId = null;
+        Object convIdObj = params.get("conversationId");
+        if (convIdObj != null && !convIdObj.toString().isBlank()) {
+            conversationId = Long.valueOf(convIdObj.toString());
+        }
+
+        Object contentObj = params.get("content");
+        if (contentObj == null) {
+            contentObj = params.get("message");
+        }
+        if (contentObj == null || contentObj.toString().isBlank()) {
+            SseEmitter errEmitter = new SseEmitter();
+            try {
+                errEmitter.send(SseEmitter.event().data("{\"error\":\"消息内容不能为空\"}"));
+                errEmitter.complete();
+            } catch (Exception ignored) {}
+            return errEmitter;
+        }
+        String content = contentObj.toString();
+
+        if (conversationId == null) {
+            AgentConversation conversation =
+                    agentService.createConversation(userId, null, "新对话", null);
+            conversationId = conversation.getId();
+        }
+
+        return agentService.streamChat(conversationId, content, userId);
     }
 
     /**

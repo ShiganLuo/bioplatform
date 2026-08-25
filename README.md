@@ -7,6 +7,7 @@
 ## 📋 目录
 
 - [项目简介](#项目简介)
+- [技术亮点](#技术亮点)
 - [技术栈](#技术栈)
 - [项目结构](#项目结构)
 - [功能模块](#功能模块)
@@ -28,8 +29,45 @@
 - **项目管理** — 按物种、基因组版本组织研究项目
 - **Pipeline 编排** — 支持生物信息学分析流程的定义、配置与执行监控
 - **数据管理** — 上传和管理 FASTA/VCF/BAM/FASTQ 等生物数据文件
-- **AI 智能助手** — 多轮对话、意图识别、工具调用的多智能体架构
+- **AI 智能助手** — SSE 流式输出、多轮对话、意图识别、工具调用的多智能体架构
 - **操作日志审计** — AOP 切面自动记录关键操作
+
+---
+
+## 技术亮点
+
+### 🚀 SSE 流式对话
+
+AI 助手采用 **Server-Sent Events (SSE)** 实现流式输出，用户可实时看到 AI 逐字生成回复，体验接近 ChatGPT：
+
+- 后端通过 `SseEmitter` + OkHttp 流式读取 LLM API 的 `stream` 响应，逐 token 推送到前端
+- 前端使用 `fetch` + `ReadableStream` 解析 SSE 事件，通过 Vue 3 响应式 `ref` 实现实时 DOM 更新
+- `SecurityContext` 跨线程传播，解决 Spring Security 在 Tomcat async dispatch 下的鉴权问题
+- `RequestAttributeSecurityContextRepository` 确保 async 线程能正确恢复认证上下文
+
+### 🔐 端到端安全设计
+
+- **JWT 双 Token 机制** — Access Token + Refresh Token，支持主动刷新避免无感过期
+- **敏感配置加密** — API Key 等敏感字段使用 AES-GCM 端到端加密（前端加密 → 传输 → 后端解密存储 → 读取时遮蔽返回）
+- **Spring Security 无状态认证** — 基于 `JwtAuthenticationFilter` 的过滤器链，配合 `ThreadLocal` 用户上下文
+
+### 📦 分片上传 + 断点续传
+
+大文件支持分片上传，配合前端 `spark-md5` 计算文件 hash，实现断点续传和秒传检测。
+
+### 🎯 前后端分离的多应用架构
+
+- **管理后台 (bioplatform-admin)** — 面向管理员的全功能后台，集成项目/流程/数据/用户/AI 管理
+- **用户门户 (bioplatform-front)** — 面向研究者的轻量门户，支持项目浏览和 AI 对话
+- 两个前端应用共享同一后端 API，但拥有独立的路由、状态管理和鉴权体系
+
+### 🤖 多智能体编排
+
+AI Agent 模块采用编排器模式，根据用户意图自动路由到专业智能体：
+
+- **意图识别引擎** — 正则模式匹配，零延迟路由
+- **工具调用链** — LLM 决策 → 工具执行 → 结果回传 → 继续对话
+- **对话标题自动生成** — 首条消息发送后自动截取标题，无需额外 LLM 调用
 
 ---
 
@@ -45,11 +83,11 @@
 | MyBatis | 3.0.4 | ORM 框架 |
 | MySQL | 8.x | 关系型数据库 |
 | Redis | 7.x | 缓存 / 会话 |
-| JWT (jjwt) | 0.11.5 | Token 认证 |
+| JWT (jjwt) | 0.12.6 | Token 认证 |
 | Knife4j | 4.5.0 | API 文档 (OpenAPI 3) |
 | PageHelper | 1.4.7 | 分页插件 |
 | Hutool | 5.8.27 | 工具库 |
-| OkHttp3 | — | HTTP 客户端 |
+| OkHttp3 | 4.12 | HTTP 客户端（连接池复用） |
 | Lombok | — | 代码简化 |
 
 ### 前端
@@ -117,12 +155,15 @@ bioplatform/
 │       │           ├── FormatInfoTool.java
 │       │           └── PipelineSearchTool.java
 │       ├── config/                           # 配置类
+│       │   ├── SecurityConfig.java           # Spring Security 配置
 │       │   └── OperLogAspect.java            # 操作日志切面
 │       ├── common/                           # 公共组件
 │       │   ├── annotation/
 │       │   │   └── OperLog.java              # 操作日志注解
 │       │   └── util/
-│       │       └── LoginUserHolder.java       # 登录用户上下文
+│       │       ├── LoginUserHolder.java       # 登录用户上下文
+│       │       ├── JwtTokenProviderUtil.java  # JWT 工具
+│       │       └── AesEncryptUtil.java        # AES-GCM 加密工具
 │       ├── controller/
 │       │   ├── admin/                        # 后台管理接口
 │       │   │   ├── AdminAuthController.java
@@ -158,6 +199,8 @@ bioplatform/
 │       │   ├── AgentTool.java
 │       │   ├── SystemConfig.java
 │       │   └── OperationLog.java
+│       ├── filter/                           # 过滤器
+│       │   └── JwtAuthenticationFilter.java  # JWT 认证过滤器
 │       ├── mapper/                           # MyBatis Mapper
 │       │   └── *.java
 │       ├── service/                          # 业务层
@@ -189,6 +232,8 @@ bioplatform/
 │   │       ├── App.vue
 │   │       ├── router/index.ts              # 路由配置
 │   │       ├── stores/user.ts               # 用户状态 (Pinia)
+│   │       ├── utils/
+│   │       │   └── http/axios.ts            # Axios 封装（Token 刷新、加密）
 │   │       ├── api/                         # API 接口封装
 │   │       │   ├── loginApi.ts
 │   │       │   ├── userApi.ts
@@ -196,7 +241,7 @@ bioplatform/
 │   │       │   ├── pipelineApi.ts
 │   │       │   ├── executionApi.ts
 │   │       │   ├── dataFileApi.ts
-│   │       │   ├── agentApi.ts
+│   │       │   ├── agentApi.ts              # Agent API（含 SSE 流式）
 │   │       │   └── systemApi.ts
 │   │       ├── layout/AdminLayout.vue
 │   │       └── views/
@@ -206,7 +251,7 @@ bioplatform/
 │   │           ├── pipeline/PipelineView.vue
 │   │           ├── pipeline/ExecutionView.vue
 │   │           ├── data/DataView.vue
-│   │           ├── agent/AgentView.vue
+│   │           ├── agent/AgentView.vue      # AI 助手（SSE 流式渲染）
 │   │           ├── system/user/UserView.vue
 │   │           ├── system/config/ConfigView.vue
 │   │           └── monitor/LogView.vue
@@ -221,10 +266,10 @@ bioplatform/
 │           │   ├── authApi.ts
 │           │   ├── projectApi.ts
 │           │   ├── pipelineApi.ts
-│           │   └── agentApi.ts
+│           │   └── agentApi.ts              # Agent API（含 SSE 流式）
 │           ├── layout/MainLayout.vue
 │           ├── components/
-│           │   ├── ChatMessage.vue
+│           │   ├── ChatMessage.vue          # AI 对话气泡组件
 │           │   ├── ProjectCard.vue
 │           │   ├── PipelineCard.vue
 │           │   └── LoginModal.vue
@@ -232,7 +277,7 @@ bioplatform/
 │               ├── home/HomeView.vue
 │               ├── project/ProjectView.vue
 │               ├── pipeline/PipelineView.vue
-│               ├── agent/AgentView.vue
+│               ├── agent/AgentView.vue      # AI 助手（SSE 流式渲染）
 │               └── about/AboutView.vue
 │
 └── database/
@@ -246,7 +291,7 @@ bioplatform/
 ### 1. 用户管理 (RBAC)
 
 - 用户注册 / 登录（密码 + 验证码）
-- JWT Token 认证（Access Token + Refresh Token）
+- JWT Token 认证（Access Token + Refresh Token，主动刷新机制）
 - 基于角色的访问控制：`ROLE_USER` / `ROLE_ADMIN`
 - 权限树管理：菜单 → 按钮 → 接口 三级权限
 - 默认管理员账号：`admin` / `admin123`
@@ -269,22 +314,28 @@ bioplatform/
 ### 4. 数据管理
 
 - 支持上传 FASTA / VCF / BAM / FASTQ / BED / GFF 等生物数据格式
-- 文件大小限制：开发环境 50MB / 生产环境 100MB
+- 分片上传 + 断点续传（前端 spark-md5 文件 hash）
+- 存储配额检查
 - 按项目、文件类型、物种分类管理
 - 文件下载与删除
 
 ### 5. AI 智能助手
 
-- 多轮对话（基于 WebSocket / HTTP）
+- **SSE 流式输出** — 实时逐字渲染，体验接近 ChatGPT
+- 多轮对话（基于 SSE 流式传输）
 - 意图识别自动路由到合适的智能体
 - 上下文管理（最近 20 条历史消息）
 - 工具调用：BLAST、FastQC、SAMtools、BEDtools 等
 - 对话历史持久化存储
+- 对话标题自动生成（首条消息截取）
+- 对话多选删除 / 一键清空
 - 支持多模型切换（GPT-4 / DeepSeek 等）
 
 ### 6. 系统管理
 
 - 系统配置键值对管理
+- 敏感配置端到端加密（AES-GCM）
+- LLM 配置动态加载（DB-only，支持运行时切换模型）
 - 操作日志审计（AOP 自动记录）
 - 角色与权限配置
 
@@ -308,7 +359,7 @@ bioplatform/
 
 ```bash
 # 克隆项目
-git clone <repo-url> bioplatform
+git clone git@github.com:ShiganLuo/bioplatform.git
 cd bioplatform
 
 # 启动所有服务
@@ -322,8 +373,8 @@ docker compose ps
 
 | 服务 | 地址 |
 |------|------|
-| 管理后台 | http://localhost:8081 |
-| 用户门户 | http://localhost:80 |
+| 管理后台 | http://localhost:3000 |
+| 用户门户 | http://localhost:3001 |
 | 后端 API | http://localhost:8080 |
 | API 文档 (Knife4j) | http://localhost:8080/doc.html |
 
@@ -366,22 +417,22 @@ java -jar target/bioplatform-springboot-0.0.1-SNAPSHOT.jar
 ```bash
 cd bioplatform-vue3/bioplatform-admin
 
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-默认监听 `http://localhost:5173`。
+默认监听 `http://localhost:3000`。
 
 #### 4. 启动用户门户
 
 ```bash
 cd bioplatform-vue3/bioplatform-front
 
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-默认监听 `http://localhost:5174`（若端口冲突 Vite 会自动递增）。
+默认监听 `http://localhost:3001`。
 
 ### 默认账号
 
@@ -395,12 +446,6 @@ npm run dev
 
 ```
 http://localhost:8080/doc.html
-```
-
-Swagger UI 也可用：
-
-```
-http://localhost:8080/swagger-ui.html
 ```
 
 ---
@@ -434,7 +479,7 @@ app.upload.dir: /home/luosg/uploads/bioplatform
 # LLM（可选）
 llm.enabled: false
 llm.provider: openai
-llm.api-key: ""
+llm.api-key: ***
 llm.model: gpt-4
 ```
 
@@ -446,7 +491,7 @@ DB_PASSWORD=your_db_password
 REDIS_PASSWORD=your_redis_password
 JWT_SECRET=your_jwt_secret_key_at_least_32_chars
 LLM_ENABLED=true
-LLM_API_KEY=sk-your-api-key
+LLM_API_KEY=<your-api-key>
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4
 ```
@@ -472,16 +517,15 @@ SQL 包含：
 ```bash
 # 管理后台
 cd bioplatform-vue3/bioplatform-admin
-npm install
-npm run dev        # Vite 开发服务器
-npm run build      # 生产构建
-npm run lint       # ESLint 检查
+pnpm install
+pnpm dev        # Vite 开发服务器
+pnpm build      # 生产构建
 
 # 用户门户
 cd bioplatform-vue3/bioplatform-front
-npm install
-npm run dev
-npm run build
+pnpm install
+pnpm dev
+pnpm build
 ```
 
 前端开发服务器已配置代理，将 `/api` 请求转发到后端 `http://localhost:8080`。
@@ -524,7 +568,13 @@ npm run build
 | | DELETE | `/api/admin/data-files/{id}` | 删除文件 |
 | **AI Agent** | GET | `/api/admin/agent/conversations` | 对话列表 |
 | | POST | `/api/admin/agent/conversations` | 创建对话 |
-| | POST | `/api/admin/agent/chat` | 发送消息 |
+| | POST | `/api/admin/agent/chat` | 发送消息（同步） |
+| | POST | `/api/admin/agent/chat/stream` | 发送消息（SSE 流式） |
+| | DELETE | `/api/admin/agent/conversations/{id}` | 删除对话 |
+| | POST | `/api/admin/agent/conversations/batch-delete` | 批量删除对话 |
+| | DELETE | `/api/admin/agent/conversations/all` | 清空所有对话 |
+| | GET | `/api/admin/agent/conversations/{id}/messages` | 对话消息列表 |
+| | GET | `/api/admin/agent/tools` | 可用工具列表 |
 | **系统管理** | GET | `/api/admin/system/configs` | 系统配置 |
 | | PUT | `/api/admin/system/configs` | 更新配置 |
 | **日志** | GET | `/api/admin/logs` | 操作日志列表 |
@@ -536,10 +586,16 @@ npm run build
 | GET | `/api/front/projects` | 公开项目列表 |
 | GET | `/api/front/projects/{id}` | 项目详情 |
 | GET | `/api/front/pipelines` | 公开流程列表 |
-| POST | `/api/front/agent/chat` | AI 对话（无需登录） |
+| POST | `/api/front/agent/chat` | AI 对话（同步） |
+| POST | `/api/front/agent/chat/stream` | AI 对话（SSE 流式） |
+| GET | `/api/front/agent/conversations` | 对话列表 |
+| GET | `/api/front/agent/conversations/{id}/messages` | 对话消息列表 |
+| DELETE | `/api/front/agent/conversations/{id}` | 删除对话 |
+| POST | `/api/front/agent/conversations/batch-delete` | 批量删除对话 |
+| DELETE | `/api/front/agent/conversations/all` | 清空所有对话 |
 
 > 所有后台接口需携带 `Authorization: Bearer <token>` 请求头。
-> 前台接口 `/api/front/**` 无需认证即可访问。
+> 前台接口 `/api/front/**` 无需认证即可访问（AI 对话需登录）。
 
 ---
 
@@ -567,7 +623,7 @@ npm run build
 │ └──────┘└──────┘└──────┘│
 │            │             │
 │  ┌─────────▼─────────┐  │
-│  │  LLMClient        │  │  ← 大模型调用
+│  │  LLMClient        │  │  ← 大模型调用（SSE 流式）
 │  │  (OpenAI API)     │  │
 │  └─────────┬─────────┘  │
 │            │             │
@@ -578,7 +634,35 @@ npm run build
 └─────────────────────────┘
     │
     ▼
-  回复消息 → 持久化到 agent_messages
+  流式回复 → SSE 推送到前端 → 持久化到 agent_messages
+```
+
+### SSE 流式对话流程
+
+```
+前端 fetch POST /api/admin/agent/chat/stream
+    │
+    ▼
+后端 SseEmitter（5 分钟超时）
+    │
+    ├─ 1. 保存用户消息到 DB
+    ├─ 2. 获取历史上下文（最近 20 条）
+    ├─ 3. OkHttp 流式调用 LLM API（stream: true）
+    │     │
+    │     ├─ 逐 token 解析 SSE data: 行
+    │     ├─ 过滤 null delta（LLM 返回的空 token）
+    │     └─ emitter.send({"delta":"token"})
+    │
+    ├─ 4. 流结束：保存完整助手回复到 DB
+    ├─ 5. 自动生成对话标题（截取用户首条消息）
+    └─ 6. emitter.send({"done":true,"conversationId":N})
+
+前端 ReadableStream 逐 chunk 解析
+    │
+    ├─ 解析 data: 行（兼容有无空格）
+    ├─ streamingContent.value += token（Vue 响应式）
+    ├─ DOM 实时更新
+    └─ 收到 done → 将流式内容转入 messages 数组
 ```
 
 ### 意图识别规则
@@ -621,25 +705,22 @@ services:
 
 ```bash
 # 1. 克隆代码
-git clone <repo-url> bioplatform
+git clone git@github.com:ShiganLuo/bioplatform.git
 cd bioplatform
 
 # 2. 配置环境变量（生产环境）
 export DB_PASSWORD=your_secure_password
 export REDIS_PASSWORD=your_redis_password
 export JWT_SECRET=your_jwt_secret_at_least_32_chars
-export LLM_API_KEY=sk-your-api-key
+export LLM_API_KEY=<your-api-key>
 
 # 3. 构建并启动
 docker compose up -d --build
 
-# 4. 初始化数据库（首次启动）
-docker compose exec backend java -jar /app/app.jar --spring.profiles.active=prod
-
-# 5. 导入建表 SQL
+# 4. 导入建表 SQL（首次启动）
 docker compose exec mysql mysql -u root -p$DB_PASSWORD bioplatform < database/bioplatform.sql
 
-# 6. 查看日志
+# 5. 查看日志
 docker compose logs -f backend
 ```
 
@@ -665,7 +746,7 @@ spring:
 
 llm:
   enabled: ${LLM_ENABLED:false}
-  api-key: ${LLM_API_KEY:}
+  api-key: ***
   model: ${LLM_MODEL:gpt-4}
 
 knife4j:
@@ -697,6 +778,11 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # SSE 流式支持
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
     }
 
     # WebSocket 代理
@@ -717,10 +803,16 @@ server {
 A: 确认 MySQL 已启动并创建了 `bioplatform` 数据库，且 `application-dev.yml` 中的连接信息正确。
 
 **Q: LLM 功能如何启用？**
-A: 在配置文件中设置 `llm.enabled: true`，并填写 `llm.api-key`。支持的提供商：`openai` / `zhipu`（智谱） / `qwen`（通义千问）。
+A: 在后台系统配置页面设置 `llm_api_key`、`llm_base_url`、`llm_model`。支持 OpenAI 兼容 API（GPT-4、DeepSeek、智谱、通义千问等）。
+
+**Q: AI 对话没有回复？**
+A: 检查后端日志，常见原因：1) LLM API Key 未配置或为遮蔽值；2) Base URL 未配置；3) 网络不通。配置项均在后台「系统配置」页面管理。
 
 **Q: 如何自定义 Agent 工具？**
 A: 在 `agent/tools/impl/` 目录下实现 `Tool` 接口，并在 `agent_tools` 表中注册。
+
+**Q: SSE 流式对话在 Nginx 后面不工作？**
+A: 确保 Nginx 配置了 `proxy_buffering off` 和 `proxy_cache off`，否则 Nginx 会缓冲 SSE 响应导致无法流式推送。
 
 ---
 

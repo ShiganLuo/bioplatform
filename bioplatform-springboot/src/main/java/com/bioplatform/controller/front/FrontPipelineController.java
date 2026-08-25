@@ -29,10 +29,10 @@ public class FrontPipelineController {
      */
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String category) {
-        PageResult result = pipelineService.listPipelines(category, pageNum, pageSize);
+        PageResult result = pipelineService.listPipelines(category, page, size);
         return ApiResponse.success(result);
     }
 

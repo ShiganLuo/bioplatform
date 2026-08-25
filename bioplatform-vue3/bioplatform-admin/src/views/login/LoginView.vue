@@ -65,7 +65,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+
 import { User, Lock, DataBoard } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -73,7 +73,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const loginFormRef = ref<FormInstance>()
+const loginFormRef = ref<any>()
 const loading = ref(false)
 const rememberMe = ref(false)
 const currentYear = new Date().getFullYear()
@@ -83,7 +83,7 @@ const loginForm = reactive({
   password: ''
 })
 
-const loginRules: FormRules = {
+const loginRules: Record<string, any[]> = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 20, message: '用户名长度在 3 到 20 个字符', trigger: 'blur' }
@@ -101,7 +101,7 @@ const handleForgotPassword = () => {
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
-  await loginFormRef.value.validate(async (valid) => {
+  await loginFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return
 
     loading.value = true

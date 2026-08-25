@@ -18,9 +18,12 @@ public final class AdminProjectDTO {
             Long id,
             String name,
             String description,
+            String organism,
+            String genomeVersion,
             Long ownerId,
             String ownerUsername,
             Integer status,
+            Boolean isPrivate,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -32,7 +35,9 @@ public final class AdminProjectDTO {
     public record AdminProjectCreateRequest(
             String name,
             String description,
-            Long ownerId
+            String organism,
+            String genomeVersion,
+            Boolean isPrivate
     ) {
     }
 
@@ -43,7 +48,10 @@ public final class AdminProjectDTO {
             Long id,
             String name,
             String description,
-            Integer status
+            String organism,
+            String genomeVersion,
+            Integer status,
+            Boolean isPrivate
     ) {
     }
 }

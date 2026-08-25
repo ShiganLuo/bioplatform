@@ -76,18 +76,18 @@ async function fetchProjects() {
     if (searchKeyword.value.trim()) {
       res = await searchProjects({
         keyword: searchKeyword.value.trim(),
-        pageNum: currentPage.value,
-        pageSize: pageSize.value,
+        page: currentPage.value,
+        size: pageSize.value,
       })
     } else {
       res = await listPublicProjects({
-        pageNum: currentPage.value,
-        pageSize: pageSize.value,
+        page: currentPage.value,
+        size: pageSize.value,
       })
     }
     const data = res as any
-    projects.value = data.records || data.data?.records || []
-    total.value = data.total || data.data?.total || 0
+    projects.value = data.records || []
+    total.value = data.total || 0
   } catch {
     projects.value = []
   } finally {

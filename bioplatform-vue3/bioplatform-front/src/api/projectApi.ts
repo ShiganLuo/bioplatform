@@ -6,38 +6,33 @@ export interface Project {
   description: string
   organism: string
   genomeVersion: string
-  status: string
+  status: number
   ownerName: string
-  isPublic: boolean
-  sampleCount?: number
+  isPrivate: boolean
   createdAt: string
   updatedAt: string
 }
 
 export interface ProjectListParams {
-  pageNum?: number
-  pageSize?: number
-  keyword?: string
-  organism?: string
   page?: number
   size?: number
+  keyword?: string
+  organism?: string
 }
 
 export interface PageResult<T> {
   records: T[]
   total: number
-  pageNum: number
-  pageSize: number
+  page: number
+  size: number
 }
 
-// 获取公开项目列表
 export function listPublicProjects(params: ProjectListParams) {
   return http.get<PageResult<Project>>('/api/front/projects/list', { params })
 }
 
-// 获取项目详情
 export function searchProjects(params: ProjectListParams = {}) {
-  return http.get('/api/front/projects/search', { params })
+  return http.get<PageResult<Project>>('/api/front/projects/search', { params })
 }
 
 export function getProjectDetail(id: number) {

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.WorkflowTemplateMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.WorkflowTemplate">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="type" property="type"/>
+        <result column="category" property="category"/>
+        <result column="config_template" property="configTemplate"/>
+        <result column="schema_json" property="schemaJson"/>
+        <result column="snakemake_path" property="snakemakePath"/>
+        <result column="icon" property="icon"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `name`, `description`, `type`, `category`,
+        `config_template`, `schema_json`, `snakemake_path`,
+        `icon`, `sort_order`, `enabled`, `created_at`, `updated_at`
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `workflow_templates`
+            (`name`, `description`, `type`, `category`,
+             `config_template`, `schema_json`, `snakemake_path`,
+             `icon`, `sort_order`, `enabled`)
+        VALUES
+            (#{name}, #{description}, #{type}, #{category},
+             #{configTemplate}, #{schemaJson}, #{snakemakePath},
+             #{icon}, #{sortOrder}, #{enabled})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `workflow_templates`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `workflow_templates`
+        <where>
+            <if test="type != null and type != ''">
+                AND `type` = #{type}
+            </if>
+            <if test="category != null and category != ''">
+                AND `category` = #{category}
+            </if>
+            <if test="enabled != null">
+                AND `enabled` = #{enabled}
+            </if>
+            <if test="name != null and name != ''">
+                AND `name` = #{name}
+            </if>
+        </where>
+        ORDER BY `sort_order` ASC, `id` ASC
+    </select>
+
+    <update id="updateById">
+        UPDATE `workflow_templates`
+        <set>
+            <if test="name != null">`name` = #{name},</if>
+            <if test="description != null">`description` = #{description},</if>
+            <if test="type != null">`type` = #{type},</if>
+            <if test="category != null">`category` = #{category},</if>
+            <if test="configTemplate != null">`config_template` = #{configTemplate},</if>
+            <if test="schemaJson != null">`schema_json` = #{schemaJson},</if>
+            <if test="snakemakePath != null">`snakemake_path` = #{snakemakePath},</if>
+            <if test="icon != null">`icon` = #{icon},</if>
+            <if test="sortOrder != null">`sort_order` = #{sortOrder},</if>
+            <if test="enabled != null">`enabled` = #{enabled},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `workflow_templates` WHERE `id` = #{id}
+    </delete>
+
+</mapper>

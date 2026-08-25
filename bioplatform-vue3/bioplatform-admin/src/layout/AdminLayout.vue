@@ -57,6 +57,10 @@
             <el-icon><Tools /></el-icon>
             <template #title>系统配置</template>
           </el-menu-item>
+          <el-menu-item index="/system/templates">
+            <el-icon><Menu /></el-icon>
+            <template #title>流程模板</template>
+          </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="monitor">
@@ -81,6 +85,7 @@
             <Fold v-if="!isCollapse" />
             <Expand v-else />
           </el-icon>
+          <el-icon class="refresh-btn" @click="reload()"><Refresh /></el-icon>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentRoute.meta.title">
@@ -119,31 +124,62 @@
       </el-header>
 
       <!-- Main Content Area -->
+      <WorkTab />
       <el-main class="main-content">
-        <router-view />
+        <router-view v-if="isRefresh" v-slot="{ Component }">
+          <keep-alive>
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useWorktabStore } from '@/stores/worktab'
+import WorkTab from '@/components/WorkTab.vue'
 import {
   Odometer, Folder, Connection, Monitor, Document,
   ChatDotRound, Setting, User, Tools, DataLine, Tickets,
-  Fold, Expand, ArrowDown, SwitchButton, DataBoard
+  Fold, Expand, ArrowDown, SwitchButton, DataBoard, Refresh
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const worktabStore = useWorktabStore()
 
 const isCollapse = ref(false)
+const isRefresh = ref(true)
 
 const activeMenu = computed(() => route.path)
 const currentRoute = computed(() => route)
+
+function reload() {
+  isRefresh.value = false
+  nextTick(() => {
+    isRefresh.value = true
+  })
+}
+
+// Track tabs on route change
+watch(
+  () => route.path,
+  (path) => {
+    if (route.meta.requiresAuth !== false && path !== '/login') {
+      worktabStore.openTab({
+        title: (route.meta.title as string) || '未命名',
+        path,
+        name: route.name as string
+      })
+    }
+  },
+  { immediate: true }
+)
 
 const handleCommand = (command: string) => {
   switch (command) {
@@ -278,6 +314,17 @@ const handleCommand = (command: string) => {
 }
 
 .collapse-btn:hover {
+  color: #409eff;
+}
+
+.refresh-btn {
+  font-size: 18px;
+  cursor: pointer;
+  color: #606266;
+  transition: color 0.2s;
+}
+
+.refresh-btn:hover {
   color: #409eff;
 }
 

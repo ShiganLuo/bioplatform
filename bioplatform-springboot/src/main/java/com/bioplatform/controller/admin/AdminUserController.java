@@ -31,11 +31,11 @@ public class AdminUserController {
      */
     @GetMapping("/list")
     public ApiResponse<PageResult<AdminUserListDTO>> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status) {
-        PageResult<AdminUserListDTO> result = userService.listUsers(pageNum, pageSize, keyword, status);
+        PageResult<AdminUserListDTO> result = userService.listUsers(page, size, keyword, status);
         return ApiResponse.success(result);
     }
 

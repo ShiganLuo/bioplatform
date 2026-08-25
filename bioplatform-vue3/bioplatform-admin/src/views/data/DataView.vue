@@ -75,8 +75,8 @@
         <el-table-column prop="createTime" label="上传时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleDownload(row)">下载</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link @click="handleDownload(row as DataFile)">下载</el-button>
+            <el-button type="danger" link @click="handleDelete(row as DataFile)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -238,7 +238,7 @@
         <el-button
           type="primary"
           :loading="uploadLoading"
-          :disabled="(uploadMode === 'folder' && !folderFiles.length) || (storageInfo && !storageInfo.canUpload)"
+          :disabled="(uploadMode === 'folder' && !folderFiles.length) || (!!storageInfo && !storageInfo.canUpload)"
           @click="handleUpload"
         >
           {{ uploadMode === 'file' ? '上传' : '开始上传' }}
@@ -356,7 +356,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadFile, UploadInstance } from 'element-plus'
 import { Upload, FolderAdd, Folder, Document, FolderOpened, Connection, CopyDocument } from '@element-plus/icons-vue'
 import { listFiles, uploadFile, batchUploadFiles, deleteFile, downloadFile, storageCheck, getRsyncInfo, importLocalFiles } from '@/api/dataFileApi'
 import type { DataFile, StorageInfo, RsyncInfo } from '@/api/dataFileApi'
@@ -369,7 +368,7 @@ const uploadLoading = ref(false)
 const fileList = ref<DataFile[]>([])
 const projectList = ref<Project[]>([])
 const uploadDialogVisible = ref(false)
-const uploadRef = ref<UploadInstance>()
+const uploadRef = ref<any>()
 const folderInputRef = ref<HTMLInputElement>()
 const selectedFile = ref<File | null>(null)
 const uploadMode = ref<'file' | 'folder'>('file')
@@ -489,7 +488,8 @@ const loadFiles = async () => {
     const res = await listFiles({
       page: pagination.page,
       size: pagination.size,
-      ...searchForm
+      projectId: searchForm.projectId ?? undefined,
+      fileName: searchForm.fileName
     })
     fileList.value = res.records
     pagination.total = res.total
@@ -548,7 +548,7 @@ const checkStorageSpace = async (pendingSize: number) => {
 }
 
 // 单文件上传
-const handleFileChange = (file: UploadFile) => {
+const handleFileChange = (file: any) => {
   selectedFile.value = file.raw || null
   if (selectedFile.value) {
     checkStorageSpace(selectedFile.value.size)

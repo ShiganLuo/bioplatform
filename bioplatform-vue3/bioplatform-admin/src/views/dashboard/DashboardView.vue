@@ -121,8 +121,8 @@ const statCards = computed(() => [
   { title: '执行总数', value: dashboardData.value.totalExecutions, icon: Monitor, color: '#f56c6c', bg: 'linear-gradient(135deg, #fef0f0, #fde2e2)' },
 ])
 
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
+const getStatusType = (status: string): 'success' | 'warning' | 'info' | 'danger' => {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'danger'> = {
     SUCCESS: 'success',
     RUNNING: 'warning',
     FAILED: 'danger',
@@ -152,7 +152,7 @@ const getProgressColor = (percentage: number) => {
 onMounted(async () => {
   try {
     const res = await getDashboard()
-    const data = res.result || res
+    const data = res as any
     dashboardData.value = {
       totalUsers: data.userCount || 0,
       totalProjects: data.projectCount || 0,

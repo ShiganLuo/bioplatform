@@ -35,4 +35,6 @@ public class PipelineExecution {
     private LocalDateTime finishedAt;
 
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }

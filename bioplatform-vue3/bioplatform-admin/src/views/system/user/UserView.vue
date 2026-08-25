@@ -63,16 +63,16 @@
               v-model="row.status"
               :active-value="1"
               :inactive-value="0"
-              @change="handleStatusChange(row)"
+              @change="handleStatusChange(row as User)"
             />
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="warning" link @click="handleResetPassword(row)">重置密码</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link @click="handleEdit(row as User)">编辑</el-button>
+            <el-button type="warning" link @click="handleResetPassword(row as User)">重置密码</el-button>
+            <el-button type="danger" link @click="handleDelete(row as User)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -148,7 +148,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+
 import { Plus } from '@element-plus/icons-vue'
 import {
   listUsers,
@@ -165,7 +165,7 @@ const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const userList = ref<User[]>([])
-const formRef = ref<FormInstance>()
+const formRef = ref<any>()
 
 const searchForm = reactive({
   keyword: '',
@@ -188,7 +188,7 @@ const formData = reactive({
   roles: [] as string[]
 })
 
-const formRules: FormRules = {
+const formRules: Record<string, any[]> = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
@@ -205,11 +205,12 @@ const loadUsers = async () => {
   loading.value = true
   try {
     const res = await listUsers({
-      pageNum: pagination.page,
-      pageSize: pagination.size,
-      ...searchForm
+      page: pagination.page,
+      size: pagination.size,
+      keyword: searchForm.keyword,
+      status: searchForm.status ?? undefined
     })
-    userList.value = res.list
+    userList.value = res.records
     pagination.total = res.total
   } catch (error) {
     console.error('Failed to load users:', error)
@@ -298,7 +299,7 @@ const handleDelete = async (row: User) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return
 
     submitLoading.value = true

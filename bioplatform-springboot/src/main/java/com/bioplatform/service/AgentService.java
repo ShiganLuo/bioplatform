@@ -3,6 +3,7 @@ package com.bioplatform.service;
 import com.bioplatform.entity.AgentConversation;
 import com.bioplatform.entity.AgentMessage;
 import com.bioplatform.entity.AgentTool;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -64,6 +65,16 @@ public interface AgentService {
      * @return 助手回复消息
      */
     AgentMessage sendMessage(Long conversationId, String content, Long userId);
+
+    /**
+     * 流式发送消息（SSE）
+     *
+     * @param conversationId 对话ID
+     * @param content        消息内容
+     * @param userId         用户ID
+     * @return SSE发射器
+     */
+    SseEmitter streamChat(Long conversationId, String content, Long userId);
 
     /**
      * 查询启用的工具列表

@@ -4,8 +4,10 @@ import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.LoginUserHolder;
 import com.bioplatform.dto.admin.AdminProjectDTO.AdminProjectCreateRequest;
 import com.bioplatform.dto.admin.AdminProjectDTO.AdminProjectUpdateRequest;
+import com.bioplatform.dto.admin.AdminPipelineDTO.CreateAnalysisRequest;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
+import com.bioplatform.entity.Pipeline;
 import com.bioplatform.entity.Project;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -20,20 +22,23 @@ import org.springframework.web.bind.annotation.*;
 public class AdminProjectController {
 
     private final com.bioplatform.service.ProjectService projectService;
+    private final com.bioplatform.service.PipelineService pipelineService;
 
-    public AdminProjectController(com.bioplatform.service.ProjectService projectService) {
+    public AdminProjectController(com.bioplatform.service.ProjectService projectService,
+                                  com.bioplatform.service.PipelineService pipelineService) {
         this.projectService = projectService;
+        this.pipelineService = pipelineService;
     }
 
     /**
      * Paginated project list.
      */
     @GetMapping("/list")
-    public ApiResponse<PageResult> list(
-            @RequestParam(defaultValue = "1") int pageNum,
-            @RequestParam(defaultValue = "10") int pageSize) {
+    public ApiResponse<PageResult<Project>> list(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Long userId = LoginUserHolder.getCurrentUserId();
-        PageResult result = projectService.listUserProjects(userId, pageNum, pageSize);
+        PageResult<Project> result = projectService.listUserProjects(userId, page, size);
         return ApiResponse.success(result);
     }
 
@@ -68,6 +73,29 @@ public class AdminProjectController {
     public ApiResponse<Void> update(@RequestBody @Valid AdminProjectUpdateRequest request) {
         projectService.updateProject(request.id(), request);
         return ApiResponse.success();
+    }
+
+    /**
+     * Create analysis in project context.
+     */
+    @PostMapping("/{projectId}/analyses")
+    @OperLog(module = "项目管理", operation = "创建分析")
+    public ApiResponse<Pipeline> createAnalysis(@PathVariable Long projectId,
+                                                @RequestBody @Valid CreateAnalysisRequest request) {
+        Long userId = LoginUserHolder.getCurrentUserId();
+        Pipeline pipeline = pipelineService.createAnalysis(projectId, request, userId);
+        return ApiResponse.success(pipeline);
+    }
+
+    /**
+     * List analyses (pipelines) for a project.
+     */
+    @GetMapping("/{projectId}/analyses")
+    public ApiResponse<PageResult<Pipeline>> listAnalyses(@PathVariable Long projectId,
+                                                          @RequestParam(defaultValue = "1") int page,
+                                                          @RequestParam(defaultValue = "10") int size) {
+        PageResult<Pipeline> result = pipelineService.listAnalysesByProject(projectId, page, size);
+        return ApiResponse.success(result);
     }
 
     /**

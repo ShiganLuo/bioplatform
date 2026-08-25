@@ -1,5 +1,6 @@
 package com.bioplatform.service.impl;
 
+import com.bioplatform.common.util.AesEncryptUtil;
 import com.bioplatform.entity.SystemConfig;
 import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.mapper.PipelineMapper;
@@ -48,27 +49,67 @@ public class SystemServiceImpl implements SystemService {
         return systemConfigMapper.selectByKey(key);
     }
 
+    /**
+     * 获取配置原始值（内部使用，返回解密后的明文）
+     */
+    @Override
+    public String getConfigValue(String key) {
+        SystemConfig config = systemConfigMapper.selectByKey(key);
+        if (config == null) return null;
+        return AesEncryptUtil.decrypt(config.getConfigValue());
+    }
+
     @Override
     public List<SystemConfig> getAllConfigs() {
         SystemConfig configParam = new SystemConfig();
-        return systemConfigMapper.selectAll(configParam);
+        List<SystemConfig> configs = systemConfigMapper.selectAll(configParam);
+        // 敏感字段返回遮蔽值，非敏感字段返回原值
+        for (SystemConfig config : configs) {
+            if (isSensitiveKey(config.getConfigKey())) {
+                config.setConfigValue(AesEncryptUtil.mask(config.getConfigValue()));
+            }
+        }
+        return configs;
+    }
+
+    private boolean isSensitiveKey(String key) {
+        if (key == null) return false;
+        String lower = key.toLowerCase();
+        return lower.contains("key") || lower.contains("secret") || lower.contains("password") || lower.contains("token");
     }
 
     @Override
     public void updateConfig(String key, String value) {
+        if (value == null) return;
+        // 敏感字段：先解密再检查是否为遮蔽值
+        if (isSensitiveKey(key)) {
+            String realValue = AesEncryptUtil.isEncrypted(value)
+                    ? AesEncryptUtil.decrypt(value) : value;
+            if (realValue.contains("***")) {
+                log.debug("跳过未修改的敏感配置: key={}", key);
+                return;
+            }
+            // 明文加密后存储
+            String storedValue = AesEncryptUtil.isEncrypted(value)
+                    ? value : AesEncryptUtil.encrypt(value);
+            saveOrUpdate(key, storedValue);
+        } else {
+            saveOrUpdate(key, value);
+        }
+    }
+
+    private void saveOrUpdate(String key, String storedValue) {
         SystemConfig config = systemConfigMapper.selectByKey(key);
         if (config == null) {
-            // 如果配置不存在，创建新的
             config = new SystemConfig();
             config.setConfigKey(key);
-            config.setConfigValue(value);
+            config.setConfigValue(storedValue);
             systemConfigMapper.insert(config);
         } else {
-            // 更新现有配置
-            config.setConfigValue(value);
+            config.setConfigValue(storedValue);
             systemConfigMapper.updateById(config);
         }
-        log.info("更新系统配置: key={}, value={}", key, value);
+        log.info("更新系统配置: key={}", key);
     }
 
     @Override

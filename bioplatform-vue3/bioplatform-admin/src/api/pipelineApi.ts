@@ -3,13 +3,20 @@ import http from '@/utils/http/axios'
 export interface Pipeline {
   id: number
   name: string
+  type: string
+  templateId: number
+  projectId: number
+  metaContent: string
+  metaType: string
+  extraParams: string
   description: string
   category: string
-  version: string
-  config: string
-  status: string
-  createTime: string
-  updateTime: string
+  configJson: string
+  dockerImage: string
+  timeout: number
+  ownerId: number
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PipelineQuery {
@@ -17,7 +24,7 @@ export interface PipelineQuery {
   size?: number
   name?: string
   category?: string
-  status?: string
+  projectId?: number
 }
 
 export interface PageResult<T> {

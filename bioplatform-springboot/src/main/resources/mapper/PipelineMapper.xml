@@ -6,6 +6,12 @@
     <resultMap id="BaseResultMap" type="com.bioplatform.entity.Pipeline">
         <id column="id" property="id"/>
         <result column="name" property="name"/>
+        <result column="type" property="type"/>
+        <result column="template_id" property="templateId"/>
+        <result column="project_id" property="projectId"/>
+        <result column="meta_content" property="metaContent"/>
+        <result column="meta_type" property="metaType"/>
+        <result column="extra_params" property="extraParams"/>
         <result column="description" property="description"/>
         <result column="category" property="category"/>
         <result column="config_json" property="configJson"/>
@@ -17,16 +23,19 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        `id`, `name`, `description`, `category`, `config_json`,
+        `id`, `name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
+        `description`, `category`, `config_json`,
         `docker_image`, `timeout`, `owner_id`, `created_at`, `updated_at`
     </sql>
 
     <!-- ==================== Basic CRUD ==================== -->
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `pipelines` (`name`, `description`, `category`, `config_json`,
+        INSERT INTO `pipelines` (`name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
+                                 `description`, `category`, `config_json`,
                                  `docker_image`, `timeout`, `owner_id`)
-        VALUES (#{name}, #{description}, #{category}, #{configJson},
+        VALUES (#{name}, #{type}, #{templateId}, #{projectId}, #{metaContent}, #{metaType}, #{extraParams},
+                #{description}, #{category}, #{configJson},
                 #{dockerImage}, #{timeout}, #{ownerId})
     </insert>
 
@@ -49,6 +58,9 @@
             <if test="ownerId != null">
                 AND `owner_id` = #{ownerId}
             </if>
+            <if test="projectId != null">
+                AND `project_id` = #{projectId}
+            </if>
         </where>
         ORDER BY `created_at` DESC
     </select>
@@ -62,6 +74,10 @@
             <if test="configJson != null">`config_json` = #{configJson},</if>
             <if test="dockerImage != null">`docker_image` = #{dockerImage},</if>
             <if test="timeout != null">`timeout` = #{timeout},</if>
+            <if test="projectId != null">`project_id` = #{projectId},</if>
+            <if test="metaContent != null">`meta_content` = #{metaContent},</if>
+            <if test="metaType != null">`meta_type` = #{metaType},</if>
+            <if test="extraParams != null">`extra_params` = #{extraParams},</if>
         </set>
         WHERE `id` = #{id}
     </update>

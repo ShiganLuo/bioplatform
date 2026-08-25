@@ -16,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -90,6 +91,11 @@ public class SecurityConfig {
 
             // 启用CORS
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+            // SecurityContext 存入 request attribute，支持 SSE async dispatch
+            .securityContext(sc -> sc
+                .securityContextRepository(new RequestAttributeSecurityContextRepository())
+            )
 
             // 禁用表单登录
             .formLogin(AbstractHttpConfigurer::disable)
