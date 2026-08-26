@@ -10,142 +10,15 @@
 
 ## 为什么选 SSE？
 
-消息推送方案有很多，为什么不用其他的？
+LLM 对话的通信模式是：**用户发一条消息，服务端持续推送 token。** 这是典型的"请求-流式响应"，单向推送，不需要双向通信。
 
-| 方案 | 通信方向 | 协议开销 | 适用场景 | LLM 流式适合度 |
-|------|---------|---------|---------|--------------|
-| **SSE** | 服务端 → 客户端（单向） | 普通 HTTP | 服务端推送、通知、流式数据 | ★★★★★ |
-| **WebSocket** | 双向 | 较高（帧头） | 聊天室、协同编辑、游戏 | ★★★☆☆ |
-| **长轮询** | 伪推送 | 高（反复建连） | 兼容性要求高的旧系统 | ★★☆☆☆ |
-| **短轮询** | 客户端轮询 | 最高 | 简单场景 | ★☆☆☆☆ |
+SSE 相比其他方案的优势：
+- **协议简单** — 基于普通 HTTP，不需要协议升级，所有 HTTP 基础设施天然支持
+- **认证统一** — 复用 HTTP Authorization header，不需要在 URL 传 token
+- **实现轻量** — Spring Boot 原生 `SseEmitter`，前端 `fetch + ReadableStream`
+- **无连接管理** — 不需要心跳保活、断线重连（浏览器自动处理）
 
-## SSE vs WebSocket 详细对比
-
-这是最常被问到的问题，单独展开对比。
-
-### 1. 通信模型
-
-```
-SSE（单向）：
-  客户端 ──── POST 消息 ────→ 服务端
-  客户端 ←── SSE 流式推送 ── 服务端
-
-WebSocket（双向）：
-  客户端 ←───→ 双向实时通信 ←───→ 服务端
-```
-
-LLM 对话的通信模式是：**用户发一条消息，服务端持续推送 token。** 这是典型的"请求-流式响应"模式，SSE 的单向模型完美匹配。WebSocket 的双向能力在这个场景中完全用不到——用户不需要在 AI 生成回复的过程中持续发送消息。
-
-### 2. 协议层
-
-| 维度 | SSE | WebSocket |
-|------|-----|-----------|
-| 传输协议 | HTTP/1.1 或 HTTP/2 | 独立的 ws:// 协议 |
-| 数据格式 | 纯文本（`data:` 行） | 文本帧或二进制帧 |
-| 帧开销 | 无额外帧头 | 每帧 2-14 字节帧头 |
-| HTTP/2 多路复用 | 支持（多个 SSE 流共享连接） | 不支持 |
-
-SSE 基于 HTTP，和普通 API 请求走同一条连接，不需要协议升级。WebSocket 需要一次 HTTP Upgrade 握手后切换到独立协议。
-
-### 3. 连接管理
-
-| 维度 | SSE | WebSocket |
-|------|-----|-----------|
-| 建立连接 | 普通 HTTP 请求 | HTTP Upgrade 握手 |
-| 自动重连 | **浏览器原生支持**（EventSource） | 需要手动实现重连逻辑 |
-| 心跳保活 | 不需要（HTTP 长连接） | 需要实现 ping/pong 心跳 |
-| 断线检测 | HTTP 层自动检测 | 需要心跳超时检测 |
-| 连接状态管理 | 无（每次请求独立） | 需要维护连接状态 |
-
-这是 SSE 最大的优势之一。浏览器的 `EventSource` API 内置自动重连，而 WebSocket 需要自己写重连逻辑、指数退避、心跳保活——前面我们在在线客服模块中就踩了 WebSocket 重连死循环的坑。
-
-### 4. 认证
-
-```typescript
-// SSE：复用 HTTP 头，和普通 API 一样
-fetch('/api/chat/stream', {
-  headers: { 'Authorization': `Bearer ${token}` }
-})
-
-// WebSocket：认证是个问题
-// 方案1：URL 传 token（不安全，token 暴露在 URL 中）
-new WebSocket('ws://host/ws?token=xxx')
-// 方案2：单独握手（多一次 HTTP 请求）
-// 方案3：Cookie（有 CSRF 风险）
-```
-
-SSE 请求和普通 HTTP 请求完全一样，认证方式统一。WebSocket 的认证需要额外处理，且 URL 传 token 有安全风险（token 会出现在服务器日志、代理日志中）。
-
-### 5. 负载均衡与代理
-
-| 维度 | SSE | WebSocket |
-|------|-----|-----------|
-| Nginx | `proxy_buffering off` | 需要 `proxy_set_header Upgrade` |
-| 负载均衡 | HTTP 层天然支持 | 需要 sticky session |
-| CDN | 支持 | 不支持 |
-| 防火墙 | 无阻碍（就是 HTTP） | 可能被企业防火墙拦截 |
-
-SSE 走普通 HTTP，所有 HTTP 基础设施（负载均衡器、CDN、WAF）都天然支持。WebSocket 需要基础设施显式支持协议升级，企业环境中可能被防火墙拦截。
-
-### 6. 后端实现
-
-```java
-// SSE：Spring Boot 原生支持，3 行代码
-@GetMapping("/stream")
-public SseEmitter stream() {
-    SseEmitter emitter = new SseEmitter(300_000L);
-    // emitter.send("data: {...}") 即可推送
-    return emitter;
-}
-
-// WebSocket：需要 Handler、握手拦截、连接管理
-@Component
-public class MyWebSocketHandler extends TextWebSocketHandler {
-    private final Set<WebSocketSession> sessions = ConcurrentHashMap.newKeySet();
-    
-    @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
-        sessions.add(session);  // 管理连接
-    }
-    // 需要处理心跳、断线、异常...
-}
-```
-
-### 7. 前端实现
-
-```typescript
-// SSE 方式：fetch + ReadableStream
-const response = await fetch('/api/chat/stream', { method: 'POST', body })
-const reader = response.body.getReader()
-while (true) {
-  const { done, value } = await reader.read()
-  if (done) break
-  // 解析 data: 行
-}
-
-// WebSocket 方式
-const ws = new WebSocket('ws://host/ws')
-ws.onmessage = (e) => { /* 处理消息 */ }
-ws.onclose = () => { /* 手动重连 */ }
-```
-
-### 什么时候该用 WebSocket？
-
-- **双向实时通信**：聊天室、协同编辑、多人游戏
-- **高频双向消息**：股票行情、实时竞价
-- **二进制传输**：音视频流、文件传输
-- **需要服务端主动推送的场景**：通知系统（但 SSE 也可以）
-
-### 本项目的选择
-
-BioPlatform 中有两个实时场景，分别选择了不同的方案：
-
-| 场景 | 方案 | 原因 |
-|------|------|------|
-| AI 对话流式输出 | **SSE** | 单向推送，请求-响应模式 |
-| 在线客服聊天 | **WebSocket** | 双向实时通信，用户和客服互发消息 |
-
-**总结：SSE 是 LLM 流式输出的最佳选择，因为它天然匹配"单向持续推送"的场景，实现简单、兼容性好、无需额外连接管理。但如果是双向实时通信场景（如聊天室），WebSocket 仍然是正确的选择。**
+> 注：本项目的在线客服模块用的是 WebSocket，因为客服场景需要用户和客服双向实时通信。不同场景选不同方案。
 
 ## 整体架构
 
