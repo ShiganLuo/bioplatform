@@ -104,6 +104,19 @@ Spring Security 的 `SecurityContext` 默认存储在 `ThreadLocal` 中。当使
 
 ## 前端实现
 
+### 为什么不用 Axios？
+
+项目中普通 API 请求用 Axios，但 SSE 流式场景**必须用原生 fetch**，原因：
+
+| 对比 | Axios | fetch |
+|------|-------|-------|
+| 流式读取 | 不支持 `ReadableStream`，需要等响应完全返回 | 原生支持 `response.body.getReader()` |
+| POST + 流式 | Axios 底层用 XMLHttpRequest，无法逐 chunk 读取 | fetch 原生支持 |
+| 中断 | `CancelToken`（已废弃）或 `AbortController` | 原生 `AbortController` |
+| 响应类型 | 默认解析 JSON，流式场景会阻塞 | 默认流式读取 |
+
+Axios 的 `responseType: 'stream'` 仅在 Node.js 环境有效（Node.js 的 http 模块支持），浏览器端不生效。所以 SSE 流式对话**必须用 fetch**。
+
 ### fetch + ReadableStream 解析 SSE
 
 ```typescript
