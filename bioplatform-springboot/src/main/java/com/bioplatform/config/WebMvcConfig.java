@@ -1,5 +1,6 @@
 package com.bioplatform.config;
 
+import com.bioplatform.websocket.FeedbackWebSocketHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -21,18 +22,21 @@ public class WebMvcConfig implements WebMvcConfigurer, WebSocketConfigurer {
 
     private final String uploadDir;
     private final String ipPrefix;
+    private final FeedbackWebSocketHandler feedbackWebSocketHandler;
 
     /**
      * 构造器注入配置属性
-     * 
+     *
      * @param uploadDir 文件上传目录
      * @param ipPrefix 文件访问IP前缀
      */
     public WebMvcConfig(
             @Value("${app.upload.dir:/home/luosg/uploads/bioplatform}") String uploadDir,
-            @Value("${app.upload.ipPrefix:http://localhost:8080}") String ipPrefix) {
+            @Value("${app.upload.ipPrefix:http://localhost:8080}") String ipPrefix,
+            FeedbackWebSocketHandler feedbackWebSocketHandler) {
         this.uploadDir = uploadDir;
         this.ipPrefix = ipPrefix;
+        this.feedbackWebSocketHandler = feedbackWebSocketHandler;
     }
 
     /**
@@ -77,8 +81,7 @@ public class WebMvcConfig implements WebMvcConfigurer, WebSocketConfigurer {
      */
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // TODO: 在创建WebSocket处理器后取消注释
-        // registry.addHandler(new BioPlatformWebSocketHandler(), "/ws/bio")
-        //         .setAllowedOrigins("*");  // 允许所有来源连接
+        registry.addHandler(feedbackWebSocketHandler, "/ws/feedback")
+                .setAllowedOrigins("*");
     }
 }

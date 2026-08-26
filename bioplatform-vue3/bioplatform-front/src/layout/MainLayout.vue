@@ -90,7 +90,17 @@
               <el-icon :size="24" color="#409eff"><DataBoard /></el-icon>
               <span>生信云平台</span>
             </div>
-            <p class="footer-desc">一站式生物信息学分析云平台</p>
+            <p class="footer-desc">{{ siteConfig.siteDescription || '一站式生物信息学分析云平台' }}</p>
+            <div class="footer-contact">
+              <a v-if="siteConfig.contactEmail" :href="'mailto:' + siteConfig.contactEmail" class="contact-link">
+                <el-icon><Message /></el-icon>
+                <span>{{ siteConfig.contactEmail }}</span>
+              </a>
+              <a v-if="siteConfig.githubUrl" :href="siteConfig.githubUrl" target="_blank" class="contact-link">
+                <el-icon><Link /></el-icon>
+                <span>GitHub</span>
+              </a>
+            </div>
           </div>
           <div class="footer-links">
             <div class="footer-col">
@@ -102,9 +112,9 @@
             </div>
             <div class="footer-col">
               <h4>帮助支持</h4>
-              <a href="#">使用文档</a>
-              <a href="#">常见问题</a>
-              <a href="#">意见反馈</a>
+              <router-link to="/docs">使用文档</router-link>
+              <router-link to="/faq">常见问题</router-link>
+              <a href="javascript:void(0)" @click="openFeedback">意见反馈</a>
             </div>
           </div>
         </div>
@@ -116,15 +126,20 @@
 
     <!-- Login Modal -->
     <LoginModal v-model:visible="showLoginModal" :mode="loginModalMode" />
+
+    <!-- Feedback Chat Widget -->
+    <FeedbackChat ref="feedbackChatRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { DataBoard, Setting, SwitchButton, Menu, User, TrendCharts, Cpu, ChatDotRound, Document } from '@element-plus/icons-vue'
+import { DataBoard, Setting, SwitchButton, Menu, User, TrendCharts, Cpu, ChatDotRound, Document, Message, Link } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import LoginModal from '@/components/LoginModal.vue'
+import FeedbackChat from '@/components/FeedbackChat.vue'
+import { getSiteConfig } from '@/api/siteApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -133,6 +148,27 @@ const userStore = useUserStore()
 const showLoginModal = ref(false)
 const loginModalMode = ref<'login' | 'register'>('login')
 const mobileMenuVisible = ref(false)
+const feedbackChatRef = ref()
+
+const siteConfig = ref({
+  siteName: '',
+  siteDescription: '',
+  contactEmail: '',
+  githubUrl: ''
+})
+
+function openFeedback() {
+  if (feedbackChatRef.value) {
+    feedbackChatRef.value.openChat()
+  }
+}
+
+async function loadSiteConfig() {
+  try {
+    const res = await getSiteConfig() as any
+    if (res) siteConfig.value = res
+  } catch {}
+}
 
 function handleShowLoginModal(e: Event) {
   const mode = (e as CustomEvent).detail
@@ -142,9 +178,12 @@ function handleShowLoginModal(e: Event) {
 
 onMounted(() => {
   window.addEventListener('show-login-modal', handleShowLoginModal)
+  window.addEventListener('open-feedback-chat', openFeedback)
+  loadSiteConfig()
 })
 onUnmounted(() => {
   window.removeEventListener('show-login-modal', handleShowLoginModal)
+  window.removeEventListener('open-feedback-chat', openFeedback)
 })
 
 const currentPath = computed(() => route.path)
@@ -333,6 +372,27 @@ function handleUserCommand(command: string) {
 .footer-desc {
   font-size: 14px;
   line-height: 1.6;
+}
+
+.footer-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.contact-link:hover {
+  color: #409eff;
 }
 
 .footer-links {

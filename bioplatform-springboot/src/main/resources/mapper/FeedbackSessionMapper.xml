@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.FeedbackSessionMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.FeedbackSession">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `user_id`, `user_name`, `status`, `created_at`, `updated_at`
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `feedback_sessions` (`user_id`, `user_name`, `status`)
+        VALUES (#{userId}, #{userName}, #{status})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_sessions`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectOpenByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_sessions`
+        WHERE `user_id` = #{userId} AND `status` = 0
+        ORDER BY `updated_at` DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectOpenSessions" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_sessions`
+        WHERE `status` = 0
+        ORDER BY `updated_at` DESC
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_sessions`
+        WHERE `user_id` = #{userId}
+        ORDER BY `updated_at` DESC
+    </select>
+
+    <update id="updateStatus">
+        UPDATE `feedback_sessions`
+        SET `status` = #{status}
+        WHERE `id` = #{id}
+    </update>
+
+</mapper>

@@ -59,17 +59,22 @@
           <div class="contact-item">
             <el-icon :size="24" color="#409eff"><Message /></el-icon>
             <h4>邮箱</h4>
-            <p>support@bioplatform.com</p>
+            <p>{{ siteConfig.contactEmail || 'support@bioplatform.com' }}</p>
           </div>
           <div class="contact-item">
             <el-icon :size="24" color="#67c23a"><Link /></el-icon>
             <h4>GitHub</h4>
-            <p>github.com/bioplatform</p>
+            <p>
+              <a v-if="siteConfig.githubUrl" :href="siteConfig.githubUrl" target="_blank" style="color: inherit;">
+                {{ siteConfig.githubUrl.replace('https://', '') }}
+              </a>
+              <span v-else>github.com/bioplatform</span>
+            </p>
           </div>
-          <div class="contact-item">
+          <div class="contact-item" style="cursor: pointer;" @click="openFeedback">
             <el-icon :size="24" color="#e6a23c"><ChatDotRound /></el-icon>
             <h4>在线反馈</h4>
-            <p>平台内置反馈功能</p>
+            <p>点击打开客服对话</p>
           </div>
         </div>
       </div>
@@ -78,7 +83,27 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { Message, Link, ChatDotRound } from '@element-plus/icons-vue'
+import { getSiteConfig } from '@/api/siteApi'
+
+const siteConfig = ref({
+  siteName: '',
+  siteDescription: '',
+  contactEmail: '',
+  githubUrl: ''
+})
+
+function openFeedback() {
+  window.dispatchEvent(new CustomEvent('open-feedback-chat'))
+}
+
+onMounted(async () => {
+  try {
+    const res = await getSiteConfig() as any
+    if (res) siteConfig.value = res
+  } catch {}
+})
 
 const capabilities = [
   {

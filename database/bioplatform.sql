@@ -297,6 +297,37 @@ CREATE TABLE `operation_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit / operation logs';
 
 -- ============================================================
+-- 15. feedback_sessions
+-- ============================================================
+DROP TABLE IF EXISTS `feedback_sessions`;
+CREATE TABLE `feedback_sessions` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT       DEFAULT NULL COMMENT '用户ID',
+    `user_name`   VARCHAR(64)  DEFAULT '匿名用户',
+    `status`      TINYINT      NOT NULL DEFAULT 0 COMMENT '0=open, 1=closed',
+    `created_at`  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at`  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    INDEX `idx_fs_user` (`user_id`),
+    INDEX `idx_fs_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Feedback chat sessions';
+
+-- ============================================================
+-- 16. feedback_messages
+-- ============================================================
+DROP TABLE IF EXISTS `feedback_messages`;
+CREATE TABLE `feedback_messages` (
+    `id`           BIGINT       NOT NULL AUTO_INCREMENT,
+    `session_id`   BIGINT       NOT NULL,
+    `sender_type`  VARCHAR(16)  NOT NULL COMMENT 'user/admin/system',
+    `sender_name`  VARCHAR(64)  DEFAULT NULL,
+    `content`      TEXT         NOT NULL,
+    `created_at`   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    INDEX `idx_fm_session` (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Feedback chat messages';
+
+-- ============================================================
 -- ============================================================
 --  INIT DATA
 -- ============================================================
@@ -409,7 +440,10 @@ INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (1, 2);
 -- ----------------------------
 INSERT INTO `system_configs` (`config_key`, `config_value`, `config_desc`) VALUES
 ('site_name',    'BioPlatform',                   'Display name of the platform'),
-('llm_api_key',  'sk-your-api-key-here',          'LLM provider API key'),
+('site_description', '一站式生物信息学分析云平台',    '平台描述信息'),
+('site_contact_email', 'support@bioplatform.com',   '联系邮箱'),
+('site_github_url', 'https://github.com/bioplatform', 'GitHub主页地址'),
+('llm_api_key',  '«redacted:sk-…»',          'LLM provider API key'),
 ('llm_model',    'deepseek-chat',                 'Default LLM model name'),
 ('llm_base_url', 'https://api.deepseek.com/v1',  'LLM API base URL'),
 ('upload_max_size', '1073741824',                 'Max upload size in bytes (1 GB)');

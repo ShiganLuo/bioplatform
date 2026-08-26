@@ -86,6 +86,20 @@
           </el-form>
         </el-tab-pane>
 
+        <el-tab-pane label="联系信息" name="contact">
+          <el-form :model="contactConfig" label-width="120px" class="config-form">
+            <el-form-item label="联系邮箱">
+              <el-input v-model="contactConfig.contactEmail" placeholder="support@example.com" />
+            </el-form-item>
+            <el-form-item label="GitHub 地址">
+              <el-input v-model="contactConfig.githubUrl" placeholder="https://github.com/..." />
+            </el-form-item>
+            <el-form-item label="平台描述">
+              <el-input v-model="contactConfig.siteDescription" type="textarea" :rows="2" />
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
         <el-tab-pane label="LLM 配置" name="llm">
           <el-form :model="llmConfig" label-width="120px" class="config-form">
             <el-form-item label="LLM 提供商">
@@ -172,6 +186,12 @@ const executionConfig = reactive({
   retentionDays: 30
 })
 
+const contactConfig = reactive({
+  contactEmail: 'support@bioplatform.com',
+  githubUrl: '',
+  siteDescription: '一站式生物信息学分析云平台'
+})
+
 const llmConfig = reactive({
   provider: '',
   baseUrl: '',
@@ -209,6 +229,12 @@ const loadConfigs = async () => {
         llmConfig.baseUrl = configValue || ''
       } else if (configKey === 'llm_provider') {
         llmConfig.provider = configValue || ''
+      } else if (configKey === 'site_contact_email') {
+        contactConfig.contactEmail = configValue || ''
+      } else if (configKey === 'site_github_url') {
+        contactConfig.githubUrl = configValue || ''
+      } else if (configKey === 'site_description') {
+        contactConfig.siteDescription = configValue || ''
       } else {
         const [category, key] = configKey.split('.')
         if (category === 'basic' && key in basicConfig) {
@@ -255,6 +281,10 @@ const handleSave = async () => {
       { key: 'llm_provider', value: llmConfig.provider },
       { key: 'llm_base_url', value: llmConfig.baseUrl },
       { key: 'llm_model', value: llmConfig.model },
+      // 联系信息配置
+      { key: 'site_contact_email', value: contactConfig.contactEmail },
+      { key: 'site_github_url', value: contactConfig.githubUrl },
+      { key: 'site_description', value: contactConfig.siteDescription },
     ]
     // API Key 只在用户实际修改时才发送，且前端加密后再传输
     if (llmConfig.apiKey && llmConfig.apiKey.includes('***')) {

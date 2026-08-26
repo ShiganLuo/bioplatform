@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.FeedbackMessageMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.FeedbackMessage">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="sender_type" property="senderType"/>
+        <result column="sender_name" property="senderName"/>
+        <result column="content" property="content"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `session_id`, `sender_type`, `sender_name`, `content`, `created_at`
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `feedback_messages` (`session_id`, `sender_type`, `sender_name`, `content`)
+        VALUES (#{sessionId}, #{senderType}, #{senderName}, #{content})
+    </insert>
+
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_messages`
+        WHERE `session_id` = #{sessionId}
+        ORDER BY `created_at` ASC
+    </select>
+
+    <select id="selectLatestBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `feedback_messages`
+        WHERE `session_id` = #{sessionId}
+        ORDER BY `created_at` DESC
+        LIMIT 1
+    </select>
+
+    <select id="countUnreadBySessionId" resultType="int">
+        SELECT COUNT(*)
+        FROM `feedback_messages`
+        WHERE `session_id` = #{sessionId} AND `sender_type` = #{senderType}
+    </select>
+
+</mapper>

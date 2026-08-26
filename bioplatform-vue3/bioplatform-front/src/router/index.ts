@@ -37,6 +37,18 @@ const router = createRouter({
           component: () => import('@/views/about/AboutView.vue'),
           meta: { title: '关于我们' },
         },
+        {
+          path: 'docs',
+          name: 'Docs',
+          component: () => import('@/views/docs/DocsView.vue'),
+          meta: { title: '使用文档' },
+        },
+        {
+          path: 'faq',
+          name: 'FAQ',
+          component: () => import('@/views/docs/FAQView.vue'),
+          meta: { title: '常见问题' },
+        },
       ],
     },
   ],

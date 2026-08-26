@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
         name: 'MonitorLogs',
         component: () => import('@/views/monitor/LogView.vue'),
         meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor' }
+      },
+      {
+        path: 'feedback',
+        name: 'Feedback',
+        component: () => import('@/views/feedback/FeedbackView.vue'),
+        meta: { title: '用户反馈', icon: 'Comment', parent: 'system' }
       }
     ]
   },
