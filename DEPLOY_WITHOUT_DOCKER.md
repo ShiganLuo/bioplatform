@@ -52,17 +52,9 @@ mysql -h 数据库地址 -u 用户名 -p -e "CREATE DATABASE bioplatform DEFAULT
 mysql -h 数据库地址 -u 用户名 -p bioplatform < database/bioplatform.sql
 ```
 
-如果没有 MySQL，用 Docker 启动（不需要 root，只需 Docker 权限）：
-```bash
-docker run -d --name bioplatform-mysql \
-  -p 3306:3306 \
-  -e MYSQL_ROOT_PASSWORD=bioplatform123 \
-  -e MYSQL_DATABASE=bioplatform \
-  -v ~/mysql-data:/var/lib/mysql \
-  mysql:8.0.33
-```
+如果没有 MySQL，需要联系服务器管理员安装，或使用远程数据库服务（如云数据库 RDS）。
 
-Redis 同理，如果没有可以用嵌入式方案或跳过（非核心功能）。
+Redis 同理，如果没有可以跳过（非核心功能，仅用于缓存）。
 
 ## 四、构建
 
