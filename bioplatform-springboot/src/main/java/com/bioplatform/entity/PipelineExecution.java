@@ -30,6 +30,12 @@ public class PipelineExecution {
     /** 错误日志（TEXT类型） */
     private String errorLog;
 
+    /** 执行该任务的 Worker ID */
+    private String workerId;
+
+    /** 执行该任务的 Worker URL */
+    private String workerUrl;
+
     private LocalDateTime startedAt;
 
     private LocalDateTime finishedAt;

@@ -86,6 +86,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Feedback',
         component: () => import('@/views/feedback/FeedbackView.vue'),
         meta: { title: '用户反馈', icon: 'Comment', parent: 'system' }
+      },
+      {
+        path: 'workers',
+        name: 'Workers',
+        component: () => import('@/views/worker/WorkerView.vue'),
+        meta: { title: '计算节点', icon: 'Cpu', parent: 'system' }
       }
     ]
   },

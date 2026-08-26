@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.ComputeNodeMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.ComputeNode">
+        <id column="id" property="id"/>
+        <result column="node_id" property="nodeId"/>
+        <result column="hostname" property="hostname"/>
+        <result column="url" property="url"/>
+        <result column="cpu_cores" property="cpuCores"/>
+        <result column="memory_mb" property="memoryMb"/>
+        <result column="status" property="status"/>
+        <result column="healthy" property="healthy"/>
+        <result column="last_heartbeat" property="lastHeartbeat"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `node_id`, `hostname`, `url`, `cpu_cores`, `memory_mb`,
+        `status`, `healthy`, `last_heartbeat`, `created_at`, `updated_at`
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `compute_nodes` (`node_id`, `hostname`, `url`, `cpu_cores`, `memory_mb`, `status`)
+        VALUES (#{nodeId}, #{hostname}, #{url}, #{cpuCores}, #{memoryMb}, #{status})
+    </insert>
+
+    <update id="updateById">
+        UPDATE `compute_nodes`
+        <set>
+            <if test="hostname != null">`hostname` = #{hostname},</if>
+            <if test="url != null">`url` = #{url},</if>
+            <if test="cpuCores != null">`cpu_cores` = #{cpuCores},</if>
+            <if test="memoryMb != null">`memory_mb` = #{memoryMb},</if>
+            <if test="status != null">`status` = #{status},</if>
+        </set>
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `compute_nodes` WHERE `id` = #{id}
+    </delete>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM `compute_nodes` WHERE `id` = #{id}
+    </select>
+
+    <select id="selectByNodeId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM `compute_nodes` WHERE `node_id` = #{nodeId}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM `compute_nodes` ORDER BY `created_at` DESC
+    </select>
+
+    <select id="selectEnabled" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM `compute_nodes` WHERE `status` = 1 ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateHealth">
+        UPDATE `compute_nodes`
+        SET `healthy` = #{healthy}, `cpu_cores` = #{cpuCores}, `memory_mb` = #{memoryMb},
+            `last_heartbeat` = CURRENT_TIMESTAMP(6)
+        WHERE `node_id` = #{nodeId}
+    </update>
+
+</mapper>

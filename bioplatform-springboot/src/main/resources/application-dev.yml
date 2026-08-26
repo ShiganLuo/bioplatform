@@ -87,6 +87,15 @@ llm:
 knife4j:
   enable: true  # 开启Knife4j增强功能
 
+## 计算节点 Worker 配置
+bioplatform:
+  storage:
+    type: shared  # shared=共享存储(NFS) / worker=分布式存储(内网Worker)
+    shared-path: /home/luosg/uploads/bioplatform  # 共享存储挂载路径
+  workers:
+    urls:
+      - http://localhost:8081  # 开发环境：本地 Worker
+
 ## MyBatis SQL日志（开发环境开启）
 logging:
   level:

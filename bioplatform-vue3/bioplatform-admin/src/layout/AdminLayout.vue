@@ -65,6 +65,10 @@
             <el-icon><Comment /></el-icon>
             <template #title>用户反馈</template>
           </el-menu-item>
+          <el-menu-item index="/workers">
+            <el-icon><Cpu /></el-icon>
+            <template #title>计算节点</template>
+          </el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="monitor">

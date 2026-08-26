@@ -12,6 +12,7 @@ import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.mapper.PipelineMapper;
 import com.bioplatform.mapper.WorkflowTemplateMapper;
 import com.bioplatform.service.PipelineService;
+import com.bioplatform.worker.PipelineTaskDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,13 +33,16 @@ public class PipelineServiceImpl implements PipelineService {
     private final PipelineMapper pipelineMapper;
     private final PipelineExecutionMapper pipelineExecutionMapper;
     private final WorkflowTemplateMapper workflowTemplateMapper;
+    private final PipelineTaskDispatcher taskDispatcher;
 
     public PipelineServiceImpl(PipelineMapper pipelineMapper,
                                PipelineExecutionMapper pipelineExecutionMapper,
-                               WorkflowTemplateMapper workflowTemplateMapper) {
+                               WorkflowTemplateMapper workflowTemplateMapper,
+                               PipelineTaskDispatcher taskDispatcher) {
         this.pipelineMapper = pipelineMapper;
         this.pipelineExecutionMapper = pipelineExecutionMapper;
         this.workflowTemplateMapper = workflowTemplateMapper;
+        this.taskDispatcher = taskDispatcher;
     }
 
     @Override
@@ -178,10 +182,11 @@ public class PipelineServiceImpl implements PipelineService {
 
         log.info("流水线执行创建成功: executionId={}, pipelineId={}", execution.getId(), pipelineId);
 
-        // TODO: 这里应该异步执行流水线任务，实际项目中需要集成Docker或K8s执行器
-        // 目前简化为直接更新状态为RUNNING
-        execution.setStatus("RUNNING");
-        pipelineExecutionMapper.updateById(execution);
+        // 调度到 Worker 执行
+        boolean dispatched = taskDispatcher.dispatch(execution);
+        if (!dispatched) {
+            log.warn("无法调度到 Worker，executionId={} 保持 PENDING 状态", execution.getId());
+        }
 
         return execution;
     }

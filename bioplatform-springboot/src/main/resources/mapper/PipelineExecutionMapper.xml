@@ -12,6 +12,8 @@
         <result column="input_params" property="inputParams"/>
         <result column="output_path" property="outputPath"/>
         <result column="error_log" property="errorLog"/>
+        <result column="worker_id" property="workerId"/>
+        <result column="worker_url" property="workerUrl"/>
         <result column="started_at" property="startedAt"/>
         <result column="finished_at" property="finishedAt"/>
         <result column="created_at" property="createdAt"/>
@@ -21,6 +23,7 @@
     <sql id="Base_Column_List">
         `id`, `pipeline_id`, `project_id`, `user_id`, `status`,
         `input_params`, `output_path`, `error_log`,
+        `worker_id`, `worker_url`,
         `started_at`, `finished_at`, `created_at`, `updated_at`
     </sql>
 
@@ -28,9 +31,9 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipeline_executions` (`pipeline_id`, `project_id`, `user_id`, `status`,
-                                          `input_params`, `output_path`)
+                                          `input_params`, `output_path`, `worker_id`, `worker_url`)
         VALUES (#{pipelineId}, #{projectId}, #{userId}, #{status},
-                #{inputParams}, #{outputPath})
+                #{inputParams}, #{outputPath}, #{workerId}, #{workerUrl})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">

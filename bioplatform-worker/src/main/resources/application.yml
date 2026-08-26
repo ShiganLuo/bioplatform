@@ -1,0 +1,10 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: bioplatform-worker
+
+logging:
+  level:
+    com.bioplatform.worker: INFO

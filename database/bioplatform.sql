@@ -168,6 +168,8 @@ CREATE TABLE `pipeline_executions` (
     `input_params` JSON         DEFAULT NULL,
     `output_path`  VARCHAR(512) DEFAULT NULL,
     `error_log`    TEXT         DEFAULT NULL,
+    `worker_id`    VARCHAR(64)  DEFAULT NULL COMMENT '执行该任务的Worker ID',
+    `worker_url`   VARCHAR(256) DEFAULT NULL COMMENT '执行该任务的Worker URL',
     `started_at`   DATETIME(6)  DEFAULT NULL,
     `finished_at`  DATETIME(6)  DEFAULT NULL,
     `created_at`   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -326,6 +328,27 @@ CREATE TABLE `feedback_messages` (
     PRIMARY KEY (`id`),
     INDEX `idx_fm_session` (`session_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Feedback chat messages';
+
+-- ============================================================
+-- 17. compute_nodes
+-- ============================================================
+DROP TABLE IF EXISTS `compute_nodes`;
+CREATE TABLE `compute_nodes` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+    `node_id`     VARCHAR(64)  NOT NULL COMMENT '节点唯一标识',
+    `hostname`    VARCHAR(128) DEFAULT NULL,
+    `url`         VARCHAR(256) NOT NULL COMMENT 'Worker地址',
+    `cpu_cores`   INT          DEFAULT 0,
+    `memory_mb`   BIGINT       DEFAULT 0,
+    `status`      TINYINT      NOT NULL DEFAULT 1 COMMENT '0=禁用 1=启用',
+    `healthy`     TINYINT      NOT NULL DEFAULT 0 COMMENT '0=离线 1=在线',
+    `last_heartbeat` DATETIME(6) DEFAULT NULL,
+    `created_at`  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at`  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_cn_node_id` (`node_id`),
+    INDEX `idx_cn_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Compute nodes for distributed execution';
 
 -- ============================================================
 -- ============================================================
