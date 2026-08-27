@@ -1,0 +1,7 @@
+# 生物信息学云平台 - Spring Boot 后端 Dockerfile（本地 JAR 构建）
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY bioplatform-springboot/target/*.jar app.jar
+RUN mkdir -p /app/uploads
+EXPOSE 8080
+ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

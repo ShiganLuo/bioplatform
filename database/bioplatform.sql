@@ -453,7 +453,7 @@ VALUES
 -- ----------------------------
 INSERT INTO `users` (`id`, `username`, `email`, `password`, `nick_name`, `status`)
 VALUES (1, 'admin', 'admin@bioplatform.local',
-        '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+        '$2b$10$kbqrtb6ugJRX3s8G58SPpetXkBk.Jy9IEfQRFWF/hv9LKd4.ljrcK',
         'Administrator', 1);
 
 INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (1, 2);
