@@ -8,8 +8,7 @@ WORKER_DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR_NAME="bioplatform-worker.jar"
 PID_FILE="$WORKER_DIR/worker.pid"
 LOG_FILE="$WORKER_DIR/worker.log"
-JAVA_HOME="${JAVA_HOME:-/home/luosg/.jdk/jdk-17}"
-JAVA="$JAVA_HOME/bin/java"
+JAVA="java"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -25,7 +24,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 build() {
     log_info "构建 Worker JAR..."
     cd "$WORKER_DIR"
-    JAVA_HOME="$JAVA_HOME" PATH="$JAVA_HOME/bin:$PATH" mvn clean package -q -DskipTests
+    mvn clean package -q -DskipTests
     if [ $? -eq 0 ]; then
         log_info "构建成功: $WORKER_DIR/target/$JAR_NAME"
     else
