@@ -25,7 +25,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 build() {
     log_info "构建 Worker JAR..."
     cd "$WORKER_DIR"
-    mvn clean package -q -DskipTests
+    JAVA_HOME="$JAVA_HOME" PATH="$JAVA_HOME/bin:$PATH" mvn clean package -q -DskipTests
     if [ $? -eq 0 ]; then
         log_info "构建成功: $WORKER_DIR/target/$JAR_NAME"
     else
