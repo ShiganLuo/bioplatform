@@ -32,7 +32,7 @@
           <template #default="{ row }">{{ row.cpuCores || '-' }}</template>
         </el-table-column>
         <el-table-column label="可用内存" width="100">
-          <template #default="{ row }">{{ row.freeMemoryMB ? row.freeMemoryMB + ' MB' : '-' }}</template>
+          <template #default="{ row }">{{ row.freeMemoryGB ? row.freeMemoryGB + ' GB' : '-' }}</template>
         </el-table-column>
         <el-table-column prop="url" label="地址" min-width="200" />
         <el-table-column label="启用" width="70">
@@ -121,7 +121,8 @@ interface WorkerInfo {
   url: string
   hostname: string
   cpuCores: number
-  freeMemoryMB: number
+  freeMemoryGB: number
+  totalMemoryGB: number
   healthy: boolean
   status: number
   lastHeartbeat: number

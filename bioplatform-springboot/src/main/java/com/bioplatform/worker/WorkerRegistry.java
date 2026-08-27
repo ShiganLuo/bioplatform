@@ -158,17 +158,19 @@ public class WorkerRegistry {
 
                 boolean healthy = "UP".equals(node.path("status").asText());
                 int cpuCores = node.path("cpuCores").asInt(0);
-                long freeMemoryMB = node.path("freeMemoryMB").asLong(0);
+                long freeMemoryGB = node.path("freeMemoryGB").asLong(0);
+                long totalMemoryGB = node.path("totalMemoryGB").asLong(0);
                 String hostname = node.path("hostname").asText(info.getHostname());
 
                 info.setHealthy(healthy);
                 info.setCpuCores(cpuCores);
-                info.setFreeMemoryMB(freeMemoryMB);
+                info.setFreeMemoryGB(freeMemoryGB);
+                info.setTotalMemoryGB(totalMemoryGB);
                 info.setHostname(hostname);
                 info.setLastHeartbeat(System.currentTimeMillis());
 
                 // 更新数据库
-                nodeMapper.updateHealth(info.getId(), healthy ? 1 : 0, cpuCores, freeMemoryMB);
+                nodeMapper.updateHealth(info.getId(), healthy ? 1 : 0, cpuCores, freeMemoryGB);
             } catch (Exception e) {
                 info.setHealthy(false);
                 nodeMapper.updateHealth(info.getId(), 0, 0, 0L);
@@ -194,17 +196,18 @@ public class WorkerRegistry {
         private String url;
         private String hostname;
         private int cpuCores;
-        private long freeMemoryMB;
+        private long freeMemoryGB;
+        private long totalMemoryGB;
         private boolean healthy;
         private int status;
         private long lastHeartbeat;
 
-        public WorkerInfo(String id, String url, String hostname, int cpuCores, long freeMemoryMB) {
+        public WorkerInfo(String id, String url, String hostname, int cpuCores, long freeMemoryGB) {
             this.id = id;
             this.url = url;
             this.hostname = hostname;
             this.cpuCores = cpuCores;
-            this.freeMemoryMB = freeMemoryMB;
+            this.freeMemoryGB = freeMemoryGB;
         }
 
         public String getId() { return id; }
@@ -215,8 +218,10 @@ public class WorkerRegistry {
         public void setHostname(String hostname) { this.hostname = hostname; }
         public int getCpuCores() { return cpuCores; }
         public void setCpuCores(int cpuCores) { this.cpuCores = cpuCores; }
-        public long getFreeMemoryMB() { return freeMemoryMB; }
-        public void setFreeMemoryMB(long freeMemoryMB) { this.freeMemoryMB = freeMemoryMB; }
+        public long getFreeMemoryGB() { return freeMemoryGB; }
+        public void setFreeMemoryGB(long freeMemoryGB) { this.freeMemoryGB = freeMemoryGB; }
+        public long getTotalMemoryGB() { return totalMemoryGB; }
+        public void setTotalMemoryGB(long totalMemoryGB) { this.totalMemoryGB = totalMemoryGB; }
         public boolean isHealthy() { return healthy; }
         public void setHealthy(boolean healthy) { this.healthy = healthy; }
         public int getStatus() { return status; }

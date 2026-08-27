@@ -27,14 +27,14 @@ public class WorkerController {
         Runtime rt = Runtime.getRuntime();
         com.sun.management.OperatingSystemMXBean os =
                 (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean();
-        long totalMemMB = os.getTotalPhysicalMemorySize() / 1024 / 1024;
-        long freeMemMB = os.getFreePhysicalMemorySize() / 1024 / 1024;
+        long totalMemGB = os.getTotalPhysicalMemorySize() / 1024 / 1024 / 1024;
+        long freeMemGB = os.getFreePhysicalMemorySize() / 1024 / 1024 / 1024;
         return Map.of(
                 "status", "UP",
                 "hostname", getHostname(),
                 "cpuCores", rt.availableProcessors(),
-                "freeMemoryMB", freeMemMB,
-                "maxMemoryMB", totalMemMB,
+                "freeMemoryGB", freeMemGB,
+                "totalMemoryGB", totalMemGB,
                 "tools", listTools()
         );
     }
