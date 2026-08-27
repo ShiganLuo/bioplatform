@@ -1,0 +1,4 @@
+FROM nginx:alpine
+COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY bioplatform-vue3/bioplatform-front/dist /usr/share/nginx/html
+EXPOSE 80

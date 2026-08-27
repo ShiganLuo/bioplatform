@@ -31,7 +31,7 @@ build() {
 
     log_info "构建 Docker 镜像..."
     cd "$PROJECT_DIR"
-    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+    docker build -f deploy/dockerfiles/Dockerfile.backend -t ${IMAGE_NAME}:${IMAGE_TAG} .
     log_info "镜像构建完成"
 }
 
