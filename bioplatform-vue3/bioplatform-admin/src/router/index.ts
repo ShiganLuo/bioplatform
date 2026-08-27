@@ -10,6 +10,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '登录', requiresAuth: false }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/register/RegisterView.vue'),
+    meta: { title: '注册', requiresAuth: false }
+  },
+  {
     path: '/',
     component: () => import('@/layout/AdminLayout.vue'),
     redirect: '/dashboard',

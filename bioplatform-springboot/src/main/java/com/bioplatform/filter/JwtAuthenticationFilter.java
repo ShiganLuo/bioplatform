@@ -48,13 +48,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            // 白名单URI在无Token时直接放行；若携带了Authorization，则仍尝试解析JWT
+            // 白名单URI无条件放行，不校验Token
             String requestUri = request.getRequestURI();
-            String jwt = extractTokenFromRequest(request);
-            if (isWhitelisted(requestUri) && !StringUtils.hasText(jwt)) {
+            if (isWhitelisted(requestUri)) {
                 filterChain.doFilter(request, response);
                 return;
             }
+            String jwt = extractTokenFromRequest(request);
 
             if (StringUtils.hasText(jwt) && jwtTokenProviderUtil.validateToken(jwt)) {
                 // 从Token中提取用户信息

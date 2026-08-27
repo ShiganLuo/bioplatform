@@ -30,8 +30,8 @@ docker save bioplatform-backend bioplatform-front bioplatform-admin -o /tmp/biop
 log_info "大小: $(du -h /tmp/bioplatform-images.tar | cut -f1)"
 
 log_info "上传到服务器..."
-$SCP /tmp/bioplatform-images.tar ${SERVER_USER}@${SERVER_IP}:/tmp/
-$SCP docker-compose-remote.yml ${SERVER_USER}@${SERVER_IP}:/tmp/
+$SCP /tmp/bioplatform-images.tar ${SERVER_USER}@${SERVER_IP}:/home/luosg/bioplatform/
+$SCP docker-compose-remote.yml ${SERVER_USER}@${SERVER_IP}:/home/luosg/bioplatform/
 
 # 3. 远程部署
 log_info "远程部署..."
@@ -42,23 +42,23 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 
 REMOTE_DIR="/home/luosg/bioplatform"
 mkdir -p $REMOTE_DIR
-cp /tmp/docker-compose-remote.yml $REMOTE_DIR/
 
 # 导入镜像
 log_info "导入镜像..."
-docker load -i /tmp/bioplatform-images.tar
-rm -f /tmp/bioplatform-images.tar /tmp/docker-compose-remote.yml
+cd $REMOTE_DIR
+docker load -i $REMOTE_DIR/bioplatform-images.tar
+rm -f $REMOTE_DIR/bioplatform-images.tar
 
 # 停旧容器
 cd $REMOTE_DIR
-docker compose -f docker-compose-remote.yml down 2>/dev/null || true
+docker-compose -f docker-compose-remote.yml down 2>/dev/null || true
 
 # 启动
 log_info "启动服务..."
-docker compose -f docker-compose-remote.yml up -d
+docker-compose -f docker-compose-remote.yml up -d
 
 sleep 5
-docker compose -f docker-compose-remote.yml ps
+docker-compose -f docker-compose-remote.yml ps
 log_info "部署完成!"
 REMOTE
 

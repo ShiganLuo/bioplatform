@@ -54,6 +54,10 @@
             登 录
           </el-button>
         </el-form-item>
+
+        <div class="login-register-link">
+          还没有账号？<el-link type="primary" :underline="false" @click="router.push('/register')">立即注册</el-link>
+        </div>
       </el-form>
     </div>
 
@@ -111,11 +115,10 @@ const handleLogin = async () => {
         ElMessage.success('登录成功')
         const redirect = (route.query.redirect as string) || '/dashboard'
         router.push(redirect)
-      } else {
-        ElMessage.error('登录失败，请检查用户名和密码')
       }
-    } catch (error) {
-      ElMessage.error('登录失败，请稍后重试')
+      // 失败提示已由 axios 拦截器统一处理，无需重复弹出
+    } catch {
+      // axios 拦截器已弹出具体错误信息
     } finally {
       loading.value = false
     }
@@ -218,6 +221,12 @@ const handleLogin = async () => {
 .login-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4);
+}
+
+.login-register-link {
+  text-align: center;
+  font-size: 14px;
+  color: #606266;
 }
 
 .login-footer {
