@@ -7,6 +7,7 @@ export const useUserStore = defineStore(
   'user',
   () => {
     const token = ref<string>('')
+    const refreshToken = ref<string>('')
     const userInfo = ref<UserInfo | null>(null)
     let _logoutTimer: ReturnType<typeof setTimeout> | null = null
     let _loggingOut = false
@@ -55,6 +56,7 @@ export const useUserStore = defineStore(
         throw new Error('登录失败')
       }
       token.value = data.accessToken
+      refreshToken.value = data.refreshToken || ''
       _startExpiryCheck()
       // After login, fetch user info
       await fetchUserInfo()
@@ -94,6 +96,7 @@ export const useUserStore = defineStore(
         // ignore logout errors
       }
       token.value = ''
+      refreshToken.value = ''
       userInfo.value = null
       localStorage.removeItem('bio_user')
       _loggingOut = false
@@ -106,6 +109,7 @@ export const useUserStore = defineStore(
 
     return {
       token,
+      refreshToken,
       userInfo,
       isLoggedIn,
       isAuthenticated,
@@ -120,7 +124,7 @@ export const useUserStore = defineStore(
   {
     persist: {
       key: 'bio_user',
-      paths: ['token', 'userInfo'],
+      paths: ['token', 'refreshToken', 'userInfo'],
     },
   }
 )

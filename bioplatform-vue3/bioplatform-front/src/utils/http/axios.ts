@@ -83,9 +83,9 @@ function isTokenExpiringSoon(token: string, withinMs: number = 5 * 60 * 1000): b
   return payload.exp * 1000 - Date.now() < withinMs
 }
 
-/**
- * 从 localStorage 读取 bio_user 中存储的 accessToken
- * bio_user 是 pinia-plugin-persistedstate 的存储格式: { token, userInfo }
+/***
+ * 从 localStorage 读取 bio_user 中存储的 accessToken 和 refreshToken
+ * bio_user 是 pinia-plugin-persistedstate 的存储格式: { token, refreshToken, userInfo }
  */
 function getStoredToken(): string {
   try {
@@ -93,6 +93,19 @@ function getStoredToken(): string {
     if (stored) {
       const parsed = JSON.parse(stored)
       return parsed.token || ''
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return ''
+}
+
+function getStoredRefreshToken(): string {
+  try {
+    const stored = localStorage.getItem('bio_user')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      return parsed.refreshToken || ''
     }
   } catch {
     // ignore parse errors
@@ -131,8 +144,12 @@ async function handleUnauthorized(
     if (!isRefreshing) {
       isRefreshing = true
       try {
+        const storedRefreshToken = getStoredRefreshToken()
+        if (!storedRefreshToken) {
+          throw new Error('无 refreshToken')
+        }
         const refreshRes: any = await axiosInstance.post('/api/admin/auth/refreshToken', {
-          refreshToken: currentToken
+          refreshToken: storedRefreshToken
         })
         const newAccessToken: string = refreshRes?.accessToken
 
@@ -191,14 +208,17 @@ axiosInstance.interceptors.request.use(
         if (!isRefreshing) {
           isRefreshing = true
           try {
-            const refreshRes: any = await axiosInstance.post('/api/admin/auth/refreshToken', {
-              refreshToken: token
-            })
-            const newAccessToken: string = refreshRes?.accessToken
-            const userStore = useUserStore()
-            userStore.token = newAccessToken
-            requests.forEach((cb) => cb())
-            requests = []
+            const storedRefreshToken = getStoredRefreshToken()
+            if (storedRefreshToken) {
+              const refreshRes: any = await axiosInstance.post('/api/admin/auth/refreshToken', {
+                refreshToken: storedRefreshToken
+              })
+              const newAccessToken: string = refreshRes?.accessToken
+              const userStore = useUserStore()
+              userStore.token = newAccessToken
+              requests.forEach((cb) => cb())
+              requests = []
+            }
           } catch (e) {
             console.warn('Proactive token refresh failed, will retry on 401')
           } finally {
