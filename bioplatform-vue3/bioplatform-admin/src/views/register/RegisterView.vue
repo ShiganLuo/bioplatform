@@ -43,6 +43,24 @@
           />
         </el-form-item>
 
+        <el-form-item prop="verifyCode">
+          <div style="display:flex;gap:8px;width:100%;">
+            <el-input
+              v-model="registerForm.verifyCode"
+              placeholder="请输入验证码"
+              size="large"
+              style="flex:1;"
+            />
+            <el-button
+              size="large"
+              :disabled="codeCooldown > 0"
+              @click="handleSendCode"
+            >
+              {{ codeCooldown > 0 ? codeCooldown + 's' : '发送验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+
         <el-form-item prop="password">
           <el-input
             v-model="registerForm.password"
@@ -97,6 +115,7 @@ import http from '@/utils/http/axios'
 const router = useRouter()
 const registerFormRef = ref<any>()
 const loading = ref(false)
+const codeCooldown = ref(0)
 const currentYear = new Date().getFullYear()
 
 const registerForm = reactive({
@@ -104,7 +123,8 @@ const registerForm = reactive({
   nickName: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  verifyCode: ''
 })
 
 const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
@@ -127,6 +147,9 @@ const registerRules: Record<string, any[]> = {
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
   ],
+  verifyCode: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
+  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
@@ -135,6 +158,24 @@ const registerRules: Record<string, any[]> = {
     { required: true, message: '请确认密码', trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
+}
+
+const handleSendCode = async () => {
+  if (!registerForm.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  try {
+    await http.post('/api/front/auth/sendEmailCode', { email: registerForm.email })
+    ElMessage.success('验证码已发送')
+    codeCooldown.value = 60
+    const timer = setInterval(() => {
+      codeCooldown.value--
+      if (codeCooldown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch {
+    // error handled by interceptor
+  }
 }
 
 const handleRegister = async () => {
@@ -147,12 +188,13 @@ const handleRegister = async () => {
         username: registerForm.username,
         nickName: registerForm.nickName,
         email: registerForm.email,
-        password: registerForm.password
+        password: registerForm.password,
+        verifyCode: registerForm.verifyCode
       })
       ElMessage.success('注册成功，请登录')
       router.push('/login')
-    } catch (error) {
-      // error already handled by axios interceptor
+    } catch {
+      // error handled by interceptor
     } finally {
       loading.value = false
     }

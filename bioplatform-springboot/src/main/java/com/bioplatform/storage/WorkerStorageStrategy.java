@@ -153,7 +153,7 @@ public class WorkerStorageStrategy implements StorageStrategy {
     private WorkerRegistry.WorkerInfo selectStorageWorker() {
         List<WorkerRegistry.WorkerInfo> workers = workerRegistry.getHealthyWorkers();
         return workers.stream()
-                .max(java.util.Comparator.comparingLong(WorkerRegistry.WorkerInfo::getFreeMemoryMB))
+                .max(java.util.Comparator.comparingLong(WorkerRegistry.WorkerInfo::getFreeMemoryGB))
                 .orElse(null);
     }
 }

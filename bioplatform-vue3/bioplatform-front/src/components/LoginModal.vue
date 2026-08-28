@@ -92,6 +92,23 @@
             size="large"
           />
         </el-form-item>
+        <el-form-item label="验证码" prop="verifyCode">
+          <div style="display:flex;gap:8px;width:100%;">
+            <el-input
+              v-model="registerForm.verifyCode"
+              placeholder="请输入验证码"
+              size="large"
+              style="flex:1;"
+            />
+            <el-button
+              size="large"
+              :disabled="codeCooldown > 0"
+              @click="handleSendCode"
+            >
+              {{ codeCooldown > 0 ? codeCooldown + 's' : '发送验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
         <el-form-item label="昵称" prop="nickName">
           <el-input
             v-model="registerForm.nickName"
@@ -143,6 +160,7 @@ import { User, Lock, Message, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { sendEmailCode } from '@/api/authApi'
 
 const props = defineProps<{
   visible: boolean
@@ -183,12 +201,14 @@ const loginRules: FormRules = {
 
 // Register form
 const registerFormRef = ref<FormInstance>()
+const codeCooldown = ref(0)
 const registerForm = reactive({
   username: '',
   email: '',
   nickName: '',
   password: '',
   confirmPassword: '',
+  verifyCode: '',
 })
 const registerRules: FormRules = {
   username: [
@@ -231,11 +251,29 @@ async function handleLogin() {
       ElMessage.success('登录成功')
       handleClose()
     } catch {
-      ElMessage.error('登录失败，请检查用户名和密码')
+      // axios拦截器已弹出具体错误信息
     } finally {
       loading.value = false
     }
   })
+}
+
+async function handleSendCode() {
+  if (!registerForm.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  try {
+    await sendEmailCode(registerForm.email)
+    ElMessage.success('验证码已发送')
+    codeCooldown.value = 60
+    const timer = setInterval(() => {
+      codeCooldown.value--
+      if (codeCooldown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch {
+    // error handled by interceptor
+  }
 }
 
 async function handleRegister() {
@@ -249,6 +287,7 @@ async function handleRegister() {
         email: registerForm.email,
         password: registerForm.password,
         nickName: registerForm.nickName || undefined,
+        verifyCode: registerForm.verifyCode,
       })
       ElMessage.success('注册成功')
       handleClose()
@@ -271,6 +310,7 @@ function handleClose() {
   registerForm.nickName = ''
   registerForm.password = ''
   registerForm.confirmPassword = ''
+  registerForm.verifyCode = ''
 }
 </script>
 

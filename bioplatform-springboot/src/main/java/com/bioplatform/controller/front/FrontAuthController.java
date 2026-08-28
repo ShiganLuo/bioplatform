@@ -7,9 +7,12 @@ import com.bioplatform.dto.front.FrontUserDTO.FrontLoginResponse;
 import com.bioplatform.dto.front.FrontUserDTO.FrontRegisterRequest;
 import com.bioplatform.dto.front.FrontUserDTO.FrontUserInfoDTO;
 import com.bioplatform.entity.User;
+import com.bioplatform.service.EmailCodeService;
 import com.bioplatform.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * Front-end authentication controller.
@@ -21,16 +24,41 @@ import org.springframework.web.bind.annotation.*;
 public class FrontAuthController {
 
     private final UserService userService;
+    private final EmailCodeService emailCodeService;
 
-    public FrontAuthController(UserService userService) {
+    public FrontAuthController(UserService userService, EmailCodeService emailCodeService) {
         this.userService = userService;
+        this.emailCodeService = emailCodeService;
     }
 
     /**
-     * User registration.
+     * 发送邮箱验证码
+     */
+    @PostMapping("/sendEmailCode")
+    public ApiResponse<Void> sendEmailCode(@RequestBody Map<String, String> params) {
+        String email = params.get("email");
+        if (email == null || email.isBlank()) {
+            return ApiResponse.error(400, "邮箱不能为空");
+        }
+        try {
+            emailCodeService.sendCode(email.trim());
+            return ApiResponse.success();
+        } catch (Exception e) {
+            return ApiResponse.error(500, "验证码发送失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * User registration (需要邮箱验证码).
      */
     @PostMapping("/register")
     public ApiResponse<FrontUserInfoDTO> register(@RequestBody @Valid FrontRegisterRequest request) {
+        if (request.verifyCode() == null || request.verifyCode().isBlank()) {
+            return ApiResponse.error(400, "请输入邮箱验证码");
+        }
+        if (!emailCodeService.verifyCode(request.email(), request.verifyCode())) {
+            return ApiResponse.error(400, "验证码错误或已过期");
+        }
         FrontUserInfoDTO userInfo = userService.register(request);
         return ApiResponse.success(userInfo);
     }

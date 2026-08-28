@@ -96,7 +96,7 @@ public class PipelineTaskDispatcher {
         // 选择空闲内存最多的 Worker
         WorkerRegistry.WorkerInfo best = null;
         for (WorkerRegistry.WorkerInfo w : healthyWorkers) {
-            if (best == null || w.getFreeMemoryMB() > best.getFreeMemoryMB()) {
+            if (best == null || w.getFreeMemoryGB() > best.getFreeMemoryGB()) {
                 best = w;
             }
         }

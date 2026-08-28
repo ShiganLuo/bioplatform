@@ -10,6 +10,7 @@ export interface RegisterParams {
   email: string
   password: string
   nickName?: string
+  verifyCode: string
 }
 
 export interface UserInfo {
@@ -38,6 +39,11 @@ export function login(data: LoginParams) {
 // 用户注册
 export function register(data: RegisterParams) {
   return http.post('/api/front/auth/register', data)
+}
+
+// 发送邮箱验证码
+export function sendEmailCode(email: string) {
+  return http.post('/api/front/auth/sendEmailCode', { email })
 }
 
 // 获取当前用户信息

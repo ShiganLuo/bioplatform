@@ -192,6 +192,7 @@ watch(
 const handleCommand = (command: string) => {
   switch (command) {
     case 'profile':
+      router.push('/system/users')
       break
     case 'settings':
       router.push('/system/config')
