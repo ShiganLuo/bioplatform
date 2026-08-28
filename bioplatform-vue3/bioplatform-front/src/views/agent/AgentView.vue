@@ -204,10 +204,30 @@ async function sendMessage(text: string) {
       loading.value = false
       scrollToBottom()
     },
-    // onError - 静默处理
-    () => {
+    // onError - 显示错误提示
+    (errMsg) => {
+      if (streamingContent.value) {
+        messages.value.push({
+          role: 'assistant',
+          content: streamingContent.value,
+          timestamp: Date.now(),
+        })
+      }
       streamingContent.value = ''
       loading.value = false
+      if (errMsg.includes('401') || errMsg.includes('403')) {
+        messages.value.push({
+          role: 'assistant',
+          content: '⚠️ 请先登录后再使用 AI 助手',
+          timestamp: Date.now(),
+        })
+      } else {
+        messages.value.push({
+          role: 'assistant',
+          content: '❌ 请求失败：' + errMsg,
+          timestamp: Date.now(),
+        })
+      }
       scrollToBottom()
     }
   )

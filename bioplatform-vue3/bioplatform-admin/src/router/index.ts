@@ -98,6 +98,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Workers',
         component: () => import('@/views/worker/WorkerView.vue'),
         meta: { title: '计算节点', icon: 'Cpu', parent: 'system' }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/profile/ProfileView.vue'),
+        meta: { title: '个人中心', icon: 'User' }
       }
     ]
   },
