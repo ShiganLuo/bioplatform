@@ -203,9 +203,13 @@ public class AgentServiceImpl implements AgentService {
             } catch (Exception e) {
                 log.error("流式消息发送失败: conversationId={}, userId={}, error={}", conversationId, userId, e.getMessage(), e);
                 try {
-                    // 通知前端流结束（不带错误内容）
+                    // 通知前端错误信息
+                    String errorMsg = e.getMessage();
+                    if (errorMsg == null || errorMsg.isBlank()) errorMsg = "未知错误";
+                    // 转义JSON特殊字符
+                    errorMsg = errorMsg.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
                     emitter.send(SseEmitter.event()
-                            .data("{\"done\":true,\"conversationId\":" + conversationId + "}"));
+                            .data("{\"error\":\"" + errorMsg + "\",\"conversationId\":" + conversationId + "}"));
                     emitter.complete();
                 } catch (Exception ex) {
                     log.warn("SSE emitter 关闭失败: {}", ex.getMessage());
@@ -263,14 +267,24 @@ public class AgentServiceImpl implements AgentService {
         RequestBody body = RequestBody.create(
                 objectMapper.writeValueAsString(requestBody),
                 MediaType.parse("application/json"));
-        Request request = new Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer " + apiKey)
-                .addHeader("Content-Type", "application/json")
-                .post(body)
-                .build();
+        Request request;
+        try {
+            request = new Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer " + apiKey)
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("LLM API Key 格式不正确，请在后台系统配置中重新设置: " + e.getMessage());
+        }
 
-        Response response = httpClient.newCall(request).execute();
+        Response response;
+        try {
+            response = httpClient.newCall(request).execute();
+        } catch (Exception e) {
+            throw new RuntimeException("LLM API 连接失败，请检查网络和配置: " + e.getMessage());
+        }
         if (!response.isSuccessful()) {
             response.close();
             throw new RuntimeException("LLM API调用失败: " + response.code());
