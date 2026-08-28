@@ -81,3 +81,41 @@ export function createAnalysis(projectId: number, data: CreateAnalysisRequest) {
 export function listAnalyses(projectId: number, params?: { page?: number; size?: number }) {
   return http.get<PageResult<Pipeline>>(`/api/admin/projects/${projectId}/analyses`, { params })
 }
+
+// ========== 导出 API ==========
+
+export interface FileTreeNode {
+  id: number | null
+  name: string
+  path: string
+  directory: boolean
+  size: number | null
+  fileType: string | null
+  createdAt: string | null
+  children?: FileTreeNode[]
+}
+
+/** 下载项目 Excel 报表 */
+export function exportExcel(projectId: number) {
+  return http.get(`/api/admin/projects/${projectId}/export/excel`, { responseType: 'blob' })
+}
+
+/** 下载项目 PPT 报告 */
+export function exportPpt(projectId: number) {
+  return http.get(`/api/admin/projects/${projectId}/export/ppt`, { responseType: 'blob' })
+}
+
+/** 获取项目文件树 */
+export function getFileTree(projectId: number) {
+  return http.get<FileTreeNode[]>(`/api/admin/projects/${projectId}/files/tree`)
+}
+
+/** 批量打包下载文件 */
+export function batchDownload(projectId: number, fileIds: number[]) {
+  return http.post(`/api/admin/projects/${projectId}/files/batch-download`, fileIds, { responseType: 'blob' })
+}
+
+/** 全部下载（zip） */
+export function downloadAll(projectId: number) {
+  return http.get(`/api/admin/projects/${projectId}/export/download-all`, { responseType: 'blob' })
+}

@@ -131,6 +131,68 @@
       </div>
     </el-card>
 
+    <!-- Project Files Browser -->
+    <el-card class="table-card">
+      <template #header>
+        <div class="card-header">
+          <span>项目文件</span>
+          <div class="header-actions">
+            <el-button size="small" :loading="pptLoading" @click="handleExportPpt">
+              <el-icon><Document /></el-icon>
+              下载PPT
+            </el-button>
+            <el-button size="small" :loading="excelLoading" @click="handleExportExcel">
+              <el-icon><Document /></el-icon>
+              下载Excel
+            </el-button>
+            <el-button size="small" type="warning" :loading="downloadAllLoading" @click="handleDownloadAll">
+              <el-icon><Download /></el-icon>
+              全部下载(zip)
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <el-table
+        v-loading="treeLoading"
+        :data="fileTreeData"
+        style="width: 100%"
+        size="small"
+        row-key="rowKey"
+        @selection-change="handleTreeSelectionChange"
+      >
+        <el-table-column type="selection" width="40" />
+        <el-table-column label="文件名" min-width="250">
+          <template #default="{ row }">
+            <span v-if="row.directory" style="font-weight: bold">
+              <el-icon><Folder /></el-icon> {{ row.name }}/
+            </span>
+            <span v-else>
+              <el-icon><Document /></el-icon> {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="!row.directory" size="small">{{ row.fileType || '-' }}</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="大小" width="100">
+          <template #default="{ row }">
+            {{ row.directory ? '-' : formatSize(row.size) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="时间" width="170" />
+      </el-table>
+
+      <div v-if="selectedFiles.length > 0" style="margin-top: 12px; text-align: right">
+        <el-button type="primary" size="small" :loading="batchDownloadLoading" @click="handleBatchDownload">
+          下载选中文件 ({{ selectedFiles.length }})
+        </el-button>
+      </div>
+    </el-card>
+
     <!-- Import Local Files Dialog -->
     <el-dialog v-model="importDialogVisible" title="导入服务器文件" width="500px">
       <el-form label-width="100px">
@@ -240,9 +302,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
-import { Plus, Upload, FolderOpened } from '@element-plus/icons-vue'
-import { getProject, createAnalysis, listAnalyses } from '@/api/projectApi'
-import type { Project, Pipeline } from '@/api/projectApi'
+import { Plus, Upload, FolderOpened, Document, Download, Folder } from '@element-plus/icons-vue'
+import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFileTree, batchDownload, downloadAll } from '@/api/projectApi'
+import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
 import { listTemplates } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -260,6 +322,15 @@ const importLoading = ref(false)
 const createDialogVisible = ref(false)
 const importDialogVisible = ref(false)
 const createStep = ref(0)
+
+// 文件浏览器状态
+const treeLoading = ref(false)
+const pptLoading = ref(false)
+const excelLoading = ref(false)
+const downloadAllLoading = ref(false)
+const batchDownloadLoading = ref(false)
+const fileTreeData = ref<(FileTreeNode & { rowKey: string })[]>([])
+const selectedFiles = ref<(FileTreeNode & { rowKey: string })[]>([])
 
 const project = reactive<Project>({
   id: 0, name: '', description: '', organism: '', genomeVersion: '',
@@ -321,6 +392,89 @@ const loadTemplates = async () => {
     templateList.value = res.records
   } catch (e) { console.error(e) }
   finally { templateLoading.value = false }
+}
+
+// --- File tree ---
+const loadFileTree = async () => {
+  treeLoading.value = true
+  try {
+    const res = await getFileTree(projectId)
+    // 展平为列表（带缩进层级标识）
+    const flat: (FileTreeNode & { rowKey: string })[] = []
+    let keyIdx = 0
+    for (const node of res) {
+      if (node.directory && node.children && node.children.length > 0) {
+        // 目录节点
+        flat.push({ ...node, rowKey: 'dir-' + (keyIdx++) })
+        for (const child of node.children) {
+          flat.push({ ...child, rowKey: 'file-' + (child.id || keyIdx++) })
+        }
+      } else if (node.id) {
+        // 根目录下的文件
+        flat.push({ ...node, rowKey: 'file-' + node.id })
+      }
+    }
+    fileTreeData.value = flat
+  } catch (e) { console.error(e) }
+  finally { treeLoading.value = false }
+}
+
+const handleTreeSelectionChange = (selection: (FileTreeNode & { rowKey: string })[]) => {
+  selectedFiles.value = selection.filter(f => !f.directory)
+}
+
+const triggerBlobDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const handleExportPpt = async () => {
+  pptLoading.value = true
+  try {
+    const blob = await exportPpt(projectId) as any
+    triggerBlobDownload(blob, project.name + '_report.pptx')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出PPT失败')
+  } finally { pptLoading.value = false }
+}
+
+const handleExportExcel = async () => {
+  excelLoading.value = true
+  try {
+    const blob = await exportExcel(projectId) as any
+    triggerBlobDownload(blob, project.name + '_report.xlsx')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出Excel失败')
+  } finally { excelLoading.value = false }
+}
+
+const handleDownloadAll = async () => {
+  downloadAllLoading.value = true
+  try {
+    const blob = await downloadAll(projectId) as any
+    triggerBlobDownload(blob, project.name + '_all.zip')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '下载失败（可能超过200MB限制）')
+  } finally { downloadAllLoading.value = false }
+}
+
+const handleBatchDownload = async () => {
+  const ids = selectedFiles.value.map(f => f.id).filter(Boolean) as number[]
+  if (ids.length === 0) {
+    ElMessage.warning('请先选择文件')
+    return
+  }
+  batchDownloadLoading.value = true
+  try {
+    const blob = await batchDownload(projectId, ids) as any
+    triggerBlobDownload(blob, project.name + '_selected.zip')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '下载失败')
+  } finally { batchDownloadLoading.value = false }
 }
 
 // --- File upload ---
@@ -445,6 +599,7 @@ onMounted(() => {
   loadProject()
   loadFiles()
   loadAnalyses()
+  loadFileTree()
 })
 </script>
 
