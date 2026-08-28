@@ -84,6 +84,150 @@
       </div>
     </el-card>
 
+    <!-- 样本信息 -->
+    <el-card class="table-card">
+      <template #header>
+        <div class="card-header">
+          <span>样本信息</span>
+          <div class="header-actions">
+            <el-button size="small" @click="handleImportTsv">
+              <el-icon><Upload /></el-icon>
+              导入TSV
+            </el-button>
+            <el-button type="primary" size="small" @click="handleCreateMeta">
+              <el-icon><Plus /></el-icon>
+              新建
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <el-table v-loading="metaLoading" :data="metaList" style="width: 100%" size="small">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="名称" min-width="200" />
+        <el-table-column prop="metaMode" label="模式" width="100">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.metaMode }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="样本数" width="80">
+          <template #default="{ row }">
+            {{ countSamples(row.metaContent) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="createdAt" label="创建时间" width="170" />
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="handleEditMeta(row)">编辑</el-button>
+            <el-button type="danger" link size="small" @click="handleDeleteMeta(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- Meta 编辑对话框 -->
+    <el-dialog
+      v-model="metaDialogVisible"
+      :title="metaDialogTitle"
+      width="900px"
+      top="5vh"
+      destroy-on-close
+    >
+      <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: center">
+        <el-input v-model="metaForm.name" placeholder="Meta名称，如 RNA-seq WT vs KO" style="flex: 1" />
+        <el-select v-model="metaForm.metaMode" placeholder="模式" style="width: 140px" @change="handleModeChange">
+          <el-option label="FASTQ" value="fastq" />
+          <el-option label="PacBio" value="pacbio" />
+          <el-option label="MS" value="ms" />
+          <el-option label="scRNA-seq" value="scrnaseq" />
+        </el-select>
+        <el-input v-model="metaForm.description" placeholder="描述（可选）" style="width: 200px" />
+      </div>
+
+      <el-tabs v-model="metaEditTab">
+        <!-- 表格编辑模式 -->
+        <el-tab-pane label="表格编辑" name="table">
+          <div style="overflow-x: auto; max-height: 400px; overflow-y: auto">
+            <table class="meta-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px">#</th>
+                  <th v-for="(col, ci) in metaColumns" :key="ci">
+                    <div style="display: flex; align-items: center; gap: 4px">
+                      <span>{{ col }}</span>
+                      <el-button link size="small" type="danger" @click="removeColumn(ci)" v-if="!isFixedColumn(col)">
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </div>
+                  </th>
+                  <th style="width: 40px">
+                    <el-button link size="small" @click="addColumn">
+                      <el-icon><Plus /></el-icon>
+                    </el-button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, ri) in metaRows" :key="ri">
+                  <td style="text-align: center; color: #909399">{{ ri + 1 }}</td>
+                  <td v-for="(col, ci) in metaColumns" :key="ci">
+                    <input
+                      v-model="metaRows[ri][ci]"
+                      class="meta-cell"
+                      :placeholder="col"
+                    />
+                  </td>
+                  <td style="text-align: center">
+                    <el-button link size="small" type="danger" @click="removeRow(ri)">
+                      <el-icon><Close /></el-icon>
+                    </el-button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top: 8px">
+            <el-button size="small" @click="addRow">+ 添加行</el-button>
+          </div>
+        </el-tab-pane>
+
+        <!-- TSV 编辑模式 -->
+        <el-tab-pane label="TSV编辑" name="tsv">
+          <el-input
+            v-model="metaTsvContent"
+            type="textarea"
+            :rows="15"
+            placeholder="粘贴 TSV 内容..."
+            style="font-family: monospace"
+          />
+        </el-tab-pane>
+      </el-tabs>
+
+      <template #footer>
+        <el-button @click="metaDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="metaSaving" @click="handleSaveMeta">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导入 TSV 对话框 -->
+    <el-dialog v-model="importTsvDialogVisible" title="导入 TSV" width="600px">
+      <el-input
+        v-model="importTsvContent"
+        type="textarea"
+        :rows="12"
+        placeholder="粘贴 TSV 内容..."
+        style="font-family: monospace"
+      />
+      <div style="margin-top: 8px">
+        <el-input v-model="importTsvName" placeholder="Meta名称" />
+      </div>
+      <template #footer>
+        <el-button @click="importTsvDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleConfirmImportTsv">导入</el-button>
+      </template>
+    </el-dialog>
+
     <!-- Analyses List -->
     <el-card class="table-card">
       <template #header>
@@ -309,9 +453,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
-import { Plus, Upload, FolderOpened, Document, Download, Folder } from '@element-plus/icons-vue'
+import { Plus, Upload, FolderOpened, Document, Download, Folder, Close } from '@element-plus/icons-vue'
 import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFileTree, batchDownload, downloadAll } from '@/api/projectApi'
 import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
+import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } from '@/api/sampleMetaApi'
+import type { SampleMeta } from '@/api/sampleMetaApi'
 import { listTemplates } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -338,6 +484,28 @@ const downloadAllLoading = ref(false)
 const batchDownloadLoading = ref(false)
 const fileTreeFlat = ref<any[]>([])
 const selectedFiles = ref<any[]>([])
+
+// 样本信息状态
+const metaLoading = ref(false)
+const metaList = ref<SampleMeta[]>([])
+const metaDialogVisible = ref(false)
+const metaDialogTitle = ref('新建 Meta')
+const metaSaving = ref(false)
+const metaEditTab = ref('table')
+const metaForm = reactive({ id: 0, projectId, name: '', metaMode: 'fastq', metaContent: '', description: '' })
+const metaColumns = ref<string[]>([])
+const metaRows = ref<string[][]>([])
+const metaTsvContent = ref('')
+const importTsvDialogVisible = ref(false)
+const importTsvContent = ref('')
+const importTsvName = ref('')
+
+const META_MODE_COLUMNS: Record<string, string[]> = {
+  fastq: ['sample_id', 'design', 'fastq_1', 'fastq_2', 'group', 'organism'],
+  pacbio: ['sample_id', 'design', 'bam', 'pbi', 'group', 'organism'],
+  ms: ['sample_id', 'ms_file', 'organism'],
+  scrnaseq: ['sample_id', 'fastq_dir', 'sample_prefix', 'design', 'group', 'organism'],
+}
 
 const project = reactive<Project>({
   id: 0, name: '', description: '', organism: '', genomeVersion: '',
@@ -436,6 +604,177 @@ const flattenNode = (node: FileTreeNode, flat: any[], indent: string, keyIdx: nu
 
 const handleTreeSelectionChange = (selection: any[]) => {
   selectedFiles.value = selection.filter(f => !f.directory && f.filePath)
+}
+
+// --- 样本信息 ---
+const loadMetaList = async () => {
+  metaLoading.value = true
+  try {
+    metaList.value = await listSampleMeta(projectId) as any || []
+  } catch (e) { console.error(e) }
+  finally { metaLoading.value = false }
+}
+
+const countSamples = (content: string) => {
+  if (!content) return 0
+  const lines = content.trim().split('\n')
+  // 减去表头行
+  return Math.max(0, lines.length - 1)
+}
+
+const isFixedColumn = (col: string) => {
+  return META_MODE_COLUMNS[metaForm.metaMode]?.includes(col) || col === 'sample_id'
+}
+
+const handleModeChange = (mode: string) => {
+  // 切换模式时，如果表格为空则填充默认列
+  if (metaColumns.value.length === 0 || metaColumns.value.length <= 1) {
+    metaColumns.value = [...(META_MODE_COLUMNS[mode] || ['sample_id'])]
+    metaRows.value = [metaColumns.value.map(() => '')]
+  }
+}
+
+const tsvToTable = (tsv: string) => {
+  const lines = tsv.trim().split('\n')
+  if (lines.length === 0) {
+    metaColumns.value = [...META_MODE_COLUMNS[metaForm.metaMode]]
+    metaRows.value = [metaColumns.value.map(() => '')]
+    return
+  }
+  metaColumns.value = lines[0].split('\t')
+  metaRows.value = []
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split('\t')
+    // 确保列数一致
+    while (cells.length < metaColumns.value.length) cells.push('')
+    metaRows.value.push(cells.slice(0, metaColumns.value.length))
+  }
+  if (metaRows.value.length === 0) {
+    metaRows.value = [metaColumns.value.map(() => '')]
+  }
+}
+
+const tableToTsv = () => {
+  const header = metaColumns.value.join('\t')
+  const rows = metaRows.value.map(r => r.join('\t')).join('\n')
+  return header + '\n' + rows
+}
+
+const handleCreateMeta = () => {
+  metaDialogTitle.value = '新建 Meta'
+  metaForm.id = 0
+  metaForm.name = ''
+  metaForm.metaMode = 'fastq'
+  metaForm.description = ''
+  metaColumns.value = [...META_MODE_COLUMNS.fastq]
+  metaRows.value = [metaColumns.value.map(() => '')]
+  metaTsvContent.value = ''
+  metaEditTab.value = 'table'
+  metaDialogVisible.value = true
+}
+
+const handleEditMeta = (row: SampleMeta) => {
+  metaDialogTitle.value = '编辑 Meta'
+  metaForm.id = row.id
+  metaForm.name = row.name
+  metaForm.metaMode = row.metaMode
+  metaForm.description = row.description || ''
+  metaForm.metaContent = row.metaContent
+  metaEditTab.value = 'table'
+  tsvToTable(row.metaContent)
+  metaDialogVisible.value = true
+}
+
+const handleDeleteMeta = async (row: SampleMeta) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除「${row.name}」吗？`, '提示', { type: 'warning' })
+    await deleteSampleMeta(row.id)
+    ElMessage.success('删除成功')
+    loadMetaList()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除失败')
+  }
+}
+
+const addRow = () => {
+  metaRows.value.push(metaColumns.value.map(() => ''))
+}
+
+const removeRow = (index: number) => {
+  metaRows.value.splice(index, 1)
+}
+
+const addColumn = () => {
+  const colName = prompt('请输入列名:')
+  if (!colName) return
+  metaColumns.value.push(colName)
+  metaRows.value.forEach(row => row.push(''))
+}
+
+const removeColumn = (index: number) => {
+  metaColumns.value.splice(index, 1)
+  metaRows.value.forEach(row => row.splice(index, 1))
+}
+
+const handleSaveMeta = async () => {
+  metaSaving.value = true
+  try {
+    // 根据当前tab获取content
+    let content = ''
+    if (metaEditTab.value === 'table') {
+      content = tableToTsv()
+    } else {
+      content = metaTsvContent.value
+    }
+
+    const data = {
+      id: metaForm.id || undefined,
+      projectId,
+      name: metaForm.name || '未命名Meta',
+      metaMode: metaForm.metaMode,
+      metaContent: content,
+      description: metaForm.description,
+    }
+
+    if (metaForm.id) {
+      await updateSampleMeta(data as any)
+    } else {
+      await createSampleMeta(data as any)
+    }
+    ElMessage.success('保存成功')
+    metaDialogVisible.value = false
+    loadMetaList()
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    metaSaving.value = false
+  }
+}
+
+const handleImportTsv = () => {
+  importTsvContent.value = ''
+  importTsvName.value = ''
+  importTsvDialogVisible.value = true
+}
+
+const handleConfirmImportTsv = async () => {
+  if (!importTsvContent.value.trim()) {
+    ElMessage.warning('请输入TSV内容')
+    return
+  }
+  try {
+    await createSampleMeta({
+      projectId,
+      name: importTsvName.value || '导入的Meta',
+      metaMode: 'fastq',
+      metaContent: importTsvContent.value.trim(),
+    })
+    ElMessage.success('导入成功')
+    importTsvDialogVisible.value = false
+    loadMetaList()
+  } catch (e) {
+    ElMessage.error('导入失败')
+  }
 }
 
 const triggerBlobDownload = (blob: Blob, filename: string) => {
@@ -615,6 +954,7 @@ onMounted(() => {
   loadFiles()
   loadAnalyses()
   loadFileTree()
+  loadMetaList()
 })
 </script>
 
@@ -691,5 +1031,40 @@ onMounted(() => {
   color: #f56c6c;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.meta-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.meta-table th,
+.meta-table td {
+  border: 1px solid #ebeef5;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.meta-table th {
+  background: #f5f7fa;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.meta-cell {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+  font-family: monospace;
+  padding: 2px 0;
+  background: transparent;
+}
+
+.meta-cell:focus {
+  background: #ecf5ff;
 }
 </style>

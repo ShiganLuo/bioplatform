@@ -108,6 +108,25 @@ CREATE TABLE `projects` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Research projects';
 
 -- ============================================================
+-- 6.1 sample_meta
+-- ============================================================
+DROP TABLE IF EXISTS `sample_meta`;
+CREATE TABLE `sample_meta` (
+    `id`           BIGINT       NOT NULL AUTO_INCREMENT,
+    `project_id`   BIGINT       NOT NULL COMMENT '所属项目',
+    `name`         VARCHAR(128) NOT NULL COMMENT 'meta名称，如 RNA-seq WT vs KO',
+    `meta_mode`    VARCHAR(32)  NOT NULL DEFAULT 'fastq' COMMENT '模式: fastq/pacbio/ms/scrnaseq',
+    `meta_content` TEXT         NOT NULL COMMENT 'TSV内容',
+    `description`  VARCHAR(512) DEFAULT NULL,
+    `created_by`   BIGINT       DEFAULT NULL,
+    `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_sample_meta_project` (`project_id`),
+    CONSTRAINT `fk_sample_meta_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='样本元信息';
+
+-- ============================================================
 -- 7. workflow_templates
 -- ============================================================
 DROP TABLE IF EXISTS `workflow_templates`;

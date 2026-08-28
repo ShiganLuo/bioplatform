@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.SampleMetaMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.SampleMeta">
+        <id column="id" property="id"/>
+        <result column="project_id" property="projectId"/>
+        <result column="name" property="name"/>
+        <result column="meta_mode" property="metaMode"/>
+        <result column="meta_content" property="metaContent"/>
+        <result column="description" property="description"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `project_id`, `name`, `meta_mode`, `meta_content`,
+        `description`, `created_by`, `created_at`, `updated_at`
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `sample_meta` (`project_id`, `name`, `meta_mode`, `meta_content`, `description`, `created_by`)
+        VALUES (#{projectId}, #{name}, #{metaMode}, #{metaContent}, #{description}, #{createdBy})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `sample_meta`
+        WHERE `id` = #{id}
+    </select>
+
+    <select id="selectByProjectId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `sample_meta`
+        WHERE `project_id` = #{projectId}
+        ORDER BY `created_at` DESC
+    </select>
+
+    <update id="updateById">
+        UPDATE `sample_meta`
+        SET `name` = #{name}, `meta_mode` = #{metaMode}, `meta_content` = #{metaContent},
+            `description` = #{description}
+        WHERE `id` = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `sample_meta` WHERE `id` = #{id}
+    </delete>
+
+</mapper>
