@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,11 +51,31 @@ public class LLMClient {
         this.systemConfigMapper = systemConfigMapper;
         this.objectMapper = objectMapper;
 
-        this.httpClient = new OkHttpClient.Builder()
+        OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(120, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .build();
+                .writeTimeout(30, TimeUnit.SECONDS);
+
+        // 支持 HTTP_PROXY 环境变量
+        String httpProxy = System.getenv("HTTP_PROXY");
+        if (httpProxy == null || httpProxy.isEmpty()) {
+            httpProxy = System.getenv("http_proxy");
+        }
+        if (httpProxy != null && !httpProxy.isEmpty()) {
+            try {
+                // 解析 http://host:port 格式
+                String proxyUrl = httpProxy.replace("http://", "").replace("https://", "");
+                String[] parts = proxyUrl.split(":");
+                String proxyHost = parts[0];
+                int proxyPort = parts.length > 1 ? Integer.parseInt(parts[1]) : 3128;
+                log.info("使用HTTP代理: {}:{}", proxyHost, proxyPort);
+                builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+            } catch (Exception e) {
+                log.warn("解析HTTP_PROXY失败，不使用代理: {}", e.getMessage());
+            }
+        }
+
+        this.httpClient = builder.build();
     }
 
     /**
