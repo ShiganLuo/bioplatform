@@ -34,4 +34,9 @@ public interface ProjectExportService {
      * @param maxTotalBytes 最大总字节数，超过抛异常
      */
     ByteArrayOutputStream batchDownload(Long projectId, List<Long> fileIds, long maxTotalBytes);
+
+    /**
+     * 按文件路径列表打包下载
+     */
+    ByteArrayOutputStream batchDownloadByPaths(List<String> filePaths, long maxTotalBytes);
 }

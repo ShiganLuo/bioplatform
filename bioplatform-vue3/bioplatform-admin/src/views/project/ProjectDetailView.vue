@@ -131,11 +131,11 @@
       </div>
     </el-card>
 
-    <!-- Project Files Browser -->
+    <!-- 分析结果文件浏览 -->
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>项目文件</span>
+          <span>分析结果</span>
           <div class="header-actions">
             <el-button size="small" :loading="pptLoading" @click="handleExportPpt">
               <el-icon><Document /></el-icon>
@@ -153,28 +153,35 @@
         </div>
       </template>
 
+      <el-empty v-if="!treeLoading && fileTreeFlat.length === 0" description="暂无分析结果，请先执行流程" />
+
       <el-table
+        v-else
         v-loading="treeLoading"
-        :data="fileTreeData"
+        :data="fileTreeFlat"
         style="width: 100%"
         size="small"
         row-key="rowKey"
         @selection-change="handleTreeSelectionChange"
       >
         <el-table-column type="selection" width="40" />
-        <el-table-column label="文件名" min-width="250">
+        <el-table-column label="文件名" min-width="300">
           <template #default="{ row }">
-            <span v-if="row.directory" style="font-weight: bold">
+            <span v-if="row._isExecDir" style="font-weight: bold; color: #409eff">
+              <el-icon><FolderOpened /></el-icon> {{ row.name }}
+              <el-tag v-if="row.pipelineName" size="small" type="info" style="margin-left: 8px">{{ row.pipelineName }}</el-tag>
+            </span>
+            <span v-else-if="row.directory" :style="{ paddingLeft: '16px', fontWeight: 'bold' }">
               <el-icon><Folder /></el-icon> {{ row.name }}/
             </span>
-            <span v-else>
+            <span v-else :style="{ paddingLeft: '32px' }">
               <el-icon><Document /></el-icon> {{ row.name }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="类型" width="80">
           <template #default="{ row }">
-            <el-tag v-if="!row.directory" size="small">{{ row.fileType || '-' }}</el-tag>
+            <el-tag v-if="!row.directory && row.fileType" size="small">{{ row.fileType }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -183,7 +190,7 @@
             {{ row.directory ? '-' : formatSize(row.size) }}
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="时间" width="170" />
+        <el-table-column prop="modifiedAt" label="时间" width="170" />
       </el-table>
 
       <div v-if="selectedFiles.length > 0" style="margin-top: 12px; text-align: right">
@@ -329,8 +336,8 @@ const pptLoading = ref(false)
 const excelLoading = ref(false)
 const downloadAllLoading = ref(false)
 const batchDownloadLoading = ref(false)
-const fileTreeData = ref<(FileTreeNode & { rowKey: string })[]>([])
-const selectedFiles = ref<(FileTreeNode & { rowKey: string })[]>([])
+const fileTreeFlat = ref<any[]>([])
+const selectedFiles = ref<any[]>([])
 
 const project = reactive<Project>({
   id: 0, name: '', description: '', organism: '', genomeVersion: '',
@@ -394,33 +401,41 @@ const loadTemplates = async () => {
   finally { templateLoading.value = false }
 }
 
-// --- File tree ---
+// --- File tree（基于流程执行输出目录） ---
 const loadFileTree = async () => {
   treeLoading.value = true
   try {
     const res = await getFileTree(projectId)
-    // 展平为列表（带缩进层级标识）
-    const flat: (FileTreeNode & { rowKey: string })[] = []
+    // 展平为列表（带层级标识）
+    const flat: any[] = []
     let keyIdx = 0
-    for (const node of res) {
-      if (node.directory && node.children && node.children.length > 0) {
-        // 目录节点
-        flat.push({ ...node, rowKey: 'dir-' + (keyIdx++) })
-        for (const child of node.children) {
-          flat.push({ ...child, rowKey: 'file-' + (child.id || keyIdx++) })
+    for (const execNode of res) {
+      // 执行记录目录节点
+      flat.push({ ...execNode, rowKey: 'exec-' + (execNode.executionId || keyIdx++), _isExecDir: true })
+      if (execNode.children) {
+        for (const child of execNode.children) {
+          flattenNode(child, flat, '  ', keyIdx)
         }
-      } else if (node.id) {
-        // 根目录下的文件
-        flat.push({ ...node, rowKey: 'file-' + node.id })
       }
     }
-    fileTreeData.value = flat
+    fileTreeFlat.value = flat
   } catch (e) { console.error(e) }
   finally { treeLoading.value = false }
 }
 
-const handleTreeSelectionChange = (selection: (FileTreeNode & { rowKey: string })[]) => {
-  selectedFiles.value = selection.filter(f => !f.directory)
+const flattenNode = (node: FileTreeNode, flat: any[], indent: string, keyIdx: number) => {
+  if (node.directory && node.children && node.children.length > 0) {
+    flat.push({ ...node, rowKey: 'dir-' + node.path + '-' + (keyIdx++), _indent: indent })
+    for (const child of node.children) {
+      flattenNode(child, flat, indent + '  ', keyIdx)
+    }
+  } else if (!node.directory) {
+    flat.push({ ...node, rowKey: 'file-' + (node.filePath || keyIdx++), _indent: indent })
+  }
+}
+
+const handleTreeSelectionChange = (selection: any[]) => {
+  selectedFiles.value = selection.filter(f => !f.directory && f.filePath)
 }
 
 const triggerBlobDownload = (blob: Blob, filename: string) => {
@@ -463,14 +478,14 @@ const handleDownloadAll = async () => {
 }
 
 const handleBatchDownload = async () => {
-  const ids = selectedFiles.value.map(f => f.id).filter(Boolean) as number[]
-  if (ids.length === 0) {
+  const paths = selectedFiles.value.map(f => f.filePath).filter(Boolean)
+  if (paths.length === 0) {
     ElMessage.warning('请先选择文件')
     return
   }
   batchDownloadLoading.value = true
   try {
-    const blob = await batchDownload(projectId, ids) as any
+    const blob = await batchDownload(projectId, paths) as any
     triggerBlobDownload(blob, project.name + '_selected.zip')
   } catch (e: any) {
     ElMessage.error(e?.message || '下载失败')

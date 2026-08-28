@@ -158,44 +158,46 @@ public class AdminProjectController {
     }
 
     /**
-     * 批量打包下载文件
+     * 批量打包下载文件（按文件路径）
      */
     @PostMapping("/{id}/files/batch-download")
     public void batchDownload(@PathVariable Long id,
-                              @RequestBody List<Long> fileIds,
+                              @RequestBody List<String> filePaths,
                               HttpServletResponse response) throws IOException {
-        ByteArrayOutputStream baos = projectExportService.batchDownload(id, fileIds, MAX_BATCH_DOWNLOAD_BYTES);
+        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(filePaths, MAX_BATCH_DOWNLOAD_BYTES);
         Project project = projectService.getProjectById(id);
         String filename = (project != null ? project.getName() : "project") + "_files.zip";
         downloadResponse(response, baos, filename, "application/zip");
     }
 
     /**
-     * 全部下载（zip）
+     * 全部下载（zip）- 扫描所有执行输出目录
      */
     @GetMapping("/{id}/export/download-all")
     public void downloadAll(@PathVariable Long id, HttpServletResponse response) throws IOException {
         List<FileTreeNode> tree = projectExportService.getFileTree(id);
-        List<Long> allIds = tree.stream()
-                .flatMap(node -> flattenIds(node).stream())
-                .toList();
-        ByteArrayOutputStream baos = projectExportService.batchDownload(id, allIds, MAX_BATCH_DOWNLOAD_BYTES);
+        List<String> allPaths = new ArrayList<>();
+        collectFilePaths(tree, allPaths);
+        if (allPaths.isEmpty()) {
+            response.setContentType("application/json");
+            response.getWriter().write("{\"code\":400,\"message\":\"没有可下载的文件\"}");
+            return;
+        }
+        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(allPaths, MAX_BATCH_DOWNLOAD_BYTES);
         Project project = projectService.getProjectById(id);
         String filename = (project != null ? project.getName() : "project") + "_all.zip";
         downloadResponse(response, baos, filename, "application/zip");
     }
 
-    private List<Long> flattenIds(FileTreeNode node) {
-        List<Long> ids = new ArrayList<>();
-        if (node.getId() != null) {
-            ids.add(node.getId());
-        }
-        if (node.getChildren() != null) {
-            for (FileTreeNode child : node.getChildren()) {
-                ids.addAll(flattenIds(child));
+    private void collectFilePaths(List<FileTreeNode> nodes, List<String> paths) {
+        for (FileTreeNode node : nodes) {
+            if (!node.isDirectory() && node.getFilePath() != null) {
+                paths.add(node.getFilePath());
+            }
+            if (node.getChildren() != null) {
+                collectFilePaths(node.getChildren(), paths);
             }
         }
-        return ids;
     }
 
     private void downloadResponse(HttpServletResponse response, ByteArrayOutputStream baos,

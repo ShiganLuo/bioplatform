@@ -3,13 +3,14 @@ package com.bioplatform.service.impl;
 import com.bioplatform.dto.admin.FileTreeNode;
 import com.bioplatform.entity.DataFile;
 import com.bioplatform.entity.Pipeline;
+import com.bioplatform.entity.PipelineExecution;
 import com.bioplatform.entity.Project;
 import com.bioplatform.mapper.DataFileMapper;
+import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.mapper.PipelineMapper;
 import com.bioplatform.mapper.ProjectMapper;
 import com.bioplatform.service.ProjectExportService;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xslf.usermodel.*;
@@ -18,12 +19,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,13 +36,16 @@ public class ProjectExportServiceImpl implements ProjectExportService {
     private final ProjectMapper projectMapper;
     private final DataFileMapper dataFileMapper;
     private final PipelineMapper pipelineMapper;
+    private final PipelineExecutionMapper pipelineExecutionMapper;
 
     public ProjectExportServiceImpl(ProjectMapper projectMapper,
                                     DataFileMapper dataFileMapper,
-                                    PipelineMapper pipelineMapper) {
+                                    PipelineMapper pipelineMapper,
+                                    PipelineExecutionMapper pipelineExecutionMapper) {
         this.projectMapper = projectMapper;
         this.dataFileMapper = dataFileMapper;
         this.pipelineMapper = pipelineMapper;
+        this.pipelineExecutionMapper = pipelineExecutionMapper;
     }
 
     // ========== Excel ==========
@@ -58,7 +61,6 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         List<Pipeline> analyses = pipelineMapper.selectAll(param);
 
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            // Sheet1: 项目信息
             Sheet infoSheet = wb.createSheet("项目信息");
             CellStyle headerStyle = createHeaderStyle(wb);
             int row = 0;
@@ -73,33 +75,25 @@ public class ProjectExportServiceImpl implements ProjectExportService {
             infoSheet.autoSizeColumn(0);
             infoSheet.autoSizeColumn(1);
 
-            // Sheet2: 数据文件
             Sheet fileSheet = wb.createSheet("数据文件");
             row = 0;
             writeRow(fileSheet, row, new String[]{"ID", "文件名", "类型", "大小", "物种", "上传时间"}, headerStyle);
             for (DataFile f : files) {
                 writeRow(fileSheet, ++row, new String[]{
-                        String.valueOf(f.getId()),
-                        nvl(f.getName()),
-                        nvl(f.getFileType()),
-                        formatSize(f.getFileSize()),
-                        nvl(f.getOrganism()),
+                        String.valueOf(f.getId()), nvl(f.getName()), nvl(f.getFileType()),
+                        formatSize(f.getFileSize()), nvl(f.getOrganism()),
                         f.getCreatedAt() != null ? f.getCreatedAt().format(DATE_FMT) : "-"
                 });
             }
             for (int c = 0; c < 6; c++) fileSheet.autoSizeColumn(c);
 
-            // Sheet3: 分析记录
             Sheet analysisSheet = wb.createSheet("分析记录");
             row = 0;
             writeRow(analysisSheet, row, new String[]{"ID", "名称", "类型", "分类", "描述", "创建时间"}, headerStyle);
             for (Pipeline p : analyses) {
                 writeRow(analysisSheet, ++row, new String[]{
-                        String.valueOf(p.getId()),
-                        nvl(p.getName()),
-                        nvl(p.getType()),
-                        nvl(p.getCategory()),
-                        nvl(p.getDescription()),
+                        String.valueOf(p.getId()), nvl(p.getName()), nvl(p.getType()),
+                        nvl(p.getCategory()), nvl(p.getDescription()),
                         p.getCreatedAt() != null ? p.getCreatedAt().format(DATE_FMT) : "-"
                 });
             }
@@ -127,34 +121,27 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         try (XMLSlideShow ppt = new XMLSlideShow(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ppt.setPageSize(new java.awt.Dimension(960, 540));
 
-            // Slide 1: 封面
             XSLFSlideLayout titleLayout = ppt.getSlideMasters().get(0).getLayout(SlideLayout.TITLE);
             XSLFSlide slide1 = ppt.createSlide(titleLayout);
-            XSLFTextShape titleShape = slide1.getPlaceholder(0);
-            titleShape.setText(project.getName());
-            XSLFTextShape subtitleShape = slide1.getPlaceholder(1);
-            subtitleShape.setText(String.format("%s | %s | %s",
+            slide1.getPlaceholder(0).setText(project.getName());
+            slide1.getPlaceholder(1).setText(String.format("%s | %s | %s",
                     nvl(project.getOrganism()), nvl(project.getGenomeVersion()),
                     project.getCreatedAt() != null ? project.getCreatedAt().format(DATE_FMT) : ""));
 
-            // Slide 2: 项目概述
             XSLFSlideLayout contentLayout = ppt.getSlideMasters().get(0).getLayout(SlideLayout.TITLE_AND_CONTENT);
             XSLFSlide slide2 = ppt.createSlide(contentLayout);
             slide2.getPlaceholder(0).setText("项目概述");
-            XSLFTextShape body2 = slide2.getPlaceholder(1);
             StringBuilder sb = new StringBuilder();
             sb.append("描述: ").append(nvl(project.getDescription())).append("\n");
             sb.append("状态: ").append(project.getStatus() == 1 ? "活跃" : project.getStatus() == 2 ? "归档" : "草稿").append("\n");
             sb.append("可见性: ").append(Boolean.TRUE.equals(project.getIsPrivate()) ? "私有" : "公开").append("\n");
             sb.append("数据文件: ").append(files.size()).append(" 个\n");
             sb.append("分析任务: ").append(analyses.size()).append(" 个");
-            body2.setText(sb.toString());
+            slide2.getPlaceholder(1).setText(sb.toString());
 
-            // Slide 3: 数据文件列表
             if (!files.isEmpty()) {
                 XSLFSlide slide3 = ppt.createSlide(contentLayout);
                 slide3.getPlaceholder(0).setText("数据文件 (" + files.size() + ")");
-                XSLFTextShape body3 = slide3.getPlaceholder(1);
                 StringBuilder fsb = new StringBuilder();
                 int limit = Math.min(files.size(), 15);
                 for (int i = 0; i < limit; i++) {
@@ -162,14 +149,12 @@ public class ProjectExportServiceImpl implements ProjectExportService {
                     fsb.append(f.getName()).append("  (").append(formatSize(f.getFileSize())).append(")\n");
                 }
                 if (files.size() > 15) fsb.append("... 等共 ").append(files.size()).append(" 个文件");
-                body3.setText(fsb.toString());
+                slide3.getPlaceholder(1).setText(fsb.toString());
             }
 
-            // Slide 4: 分析列表
             if (!analyses.isEmpty()) {
                 XSLFSlide slide4 = ppt.createSlide(contentLayout);
                 slide4.getPlaceholder(0).setText("分析任务 (" + analyses.size() + ")");
-                XSLFTextShape body4 = slide4.getPlaceholder(1);
                 StringBuilder asb = new StringBuilder();
                 int limit = Math.min(analyses.size(), 15);
                 for (int i = 0; i < limit; i++) {
@@ -177,7 +162,7 @@ public class ProjectExportServiceImpl implements ProjectExportService {
                     asb.append(p.getName()).append("  [").append(nvl(p.getType())).append("]\n");
                 }
                 if (analyses.size() > 15) asb.append("... 等共 ").append(analyses.size()).append(" 个任务");
-                body4.setText(asb.toString());
+                slide4.getPlaceholder(1).setText(asb.toString());
             }
 
             ppt.write(out);
@@ -187,81 +172,126 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         }
     }
 
-    // ========== 文件树 ==========
+    // ========== 文件树（基于 PipelineExecution.outputPath） ==========
 
     @Override
     public List<FileTreeNode> getFileTree(Long projectId) {
-        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null);
-
-        // 按路径分组，构建树
-        Map<String, List<DataFile>> byDir = files.stream()
-                .collect(Collectors.groupingBy(f -> {
-                    String path = f.getPath() != null ? f.getPath() : "";
-                    int lastSlash = path.lastIndexOf('/');
-                    return lastSlash >= 0 ? path.substring(0, lastSlash) : "";
-                }));
+        // 查询项目下所有有 outputPath 的执行记录
+        List<PipelineExecution> executions = pipelineExecutionMapper.selectByProjectId(projectId, null);
 
         List<FileTreeNode> result = new ArrayList<>();
-        for (Map.Entry<String, List<DataFile>> entry : byDir.entrySet()) {
-            String dir = entry.getKey();
-            List<FileTreeNode> children = new ArrayList<>();
-            for (DataFile f : entry.getValue()) {
-                FileTreeNode node = new FileTreeNode(
-                        f.getId(), f.getName(), f.getPath(), false,
-                        f.getFileSize(), f.getFileType(),
-                        f.getCreatedAt() != null ? f.getCreatedAt().format(DATE_FMT) : null
-                );
-                children.add(node);
+        for (PipelineExecution exec : executions) {
+            if (exec.getOutputPath() == null || exec.getOutputPath().isBlank()) continue;
+
+            Path outputDir = Paths.get(exec.getOutputPath());
+            if (!Files.isDirectory(outputDir)) continue;
+
+            // 获取流程名称
+            String pipelineName = "执行#" + exec.getId();
+            Pipeline pipeline = pipelineMapper.selectById(exec.getPipelineId());
+            if (pipeline != null && pipeline.getName() != null) {
+                pipelineName = pipeline.getName();
             }
-            if (dir.isEmpty()) {
-                // 根目录文件，直接加到结果
-                result.addAll(children);
-            } else {
-                // 创建目录节点
-                FileTreeNode dirNode = new FileTreeNode(null, dir, dir, true, null, null, null);
-                dirNode.setChildren(children);
-                result.add(dirNode);
-            }
+
+            // 扫描目录，构建子节点
+            List<FileTreeNode> children = scanDirectory(outputDir, outputDir);
+            if (children.isEmpty()) continue;
+
+            // 创建执行记录节点（作为顶层目录）
+            FileTreeNode execNode = new FileTreeNode();
+            execNode.setName(pipelineName);
+            execNode.setPath(outputDir.getFileName().toString());
+            execNode.setFilePath(outputDir.toString());
+            execNode.setDirectory(true);
+            execNode.setExecutionId(exec.getId());
+            execNode.setPipelineName(pipelineName);
+            execNode.setModifiedAt(exec.getFinishedAt() != null ? exec.getFinishedAt().format(DATE_FMT) : null);
+            execNode.setChildren(children);
+            result.add(execNode);
         }
 
-        // 按目录优先、然后名称排序
-        result.sort((a, b) -> {
-            if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
-            return a.getName().compareToIgnoreCase(b.getName());
-        });
-
         return result;
+    }
+
+    /**
+     * 递归扫描目录，生成文件树节点列表
+     */
+    private List<FileTreeNode> scanDirectory(Path dir, Path rootDir) {
+        List<FileTreeNode> nodes = new ArrayList<>();
+        try (Stream<Path> entries = Files.list(dir)) {
+            entries.sorted((a, b) -> {
+                boolean aDir = Files.isDirectory(a);
+                boolean bDir = Files.isDirectory(b);
+                if (aDir != bDir) return aDir ? -1 : 1;
+                return a.getFileName().toString().compareToIgnoreCase(b.getFileName().toString());
+            }).forEach(entry -> {
+                FileTreeNode node = new FileTreeNode();
+                node.setName(entry.getFileName().toString());
+                node.setPath(rootDir.relativize(entry).toString());
+                node.setFilePath(entry.toString());
+                node.setDirectory(Files.isDirectory(entry));
+
+                if (Files.isDirectory(entry)) {
+                    node.setChildren(scanDirectory(entry, rootDir));
+                } else {
+                    try {
+                        node.setSize(Files.size(entry));
+                    } catch (IOException e) {
+                        node.setSize(0L);
+                    }
+                    node.setFileType(getFileExtension(entry.getFileName().toString()));
+                    try {
+                        node.setModifiedAt(Files.getLastModifiedTime(entry).toInstant()
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .format(DATE_FMT));
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+                nodes.add(node);
+            });
+        } catch (IOException e) {
+            log.warn("扫描目录失败: {}", dir, e);
+        }
+        return nodes;
     }
 
     // ========== 批量下载 ==========
 
     @Override
     public ByteArrayOutputStream batchDownload(Long projectId, List<Long> fileIds, long maxTotalBytes) {
-        List<DataFile> files = new ArrayList<>();
-        for (Long id : fileIds) {
-            DataFile f = dataFileMapper.selectById(id);
-            if (f != null && projectId.equals(f.getProjectId())) {
-                files.add(f);
+        // fileIds 在新方案中不用了（文件没有ID），保留接口兼容
+        // 实际通过 filePath 下载
+        throw new RuntimeException("请使用文件路径下载");
+    }
+
+    /**
+     * 按文件路径列表打包下载
+     */
+    public ByteArrayOutputStream batchDownloadByPaths(List<String> filePaths, long maxTotalBytes) {
+        if (filePaths.isEmpty()) throw new RuntimeException("未指定文件");
+
+        long totalSize = 0;
+        List<Path> validPaths = new ArrayList<>();
+        for (String fp : filePaths) {
+            Path p = Paths.get(fp);
+            if (Files.exists(p) && Files.isRegularFile(p)) {
+                try {
+                    totalSize += Files.size(p);
+                } catch (IOException e) { /* skip */ }
+                validPaths.add(p);
             }
         }
-        if (files.isEmpty()) throw new RuntimeException("未找到指定文件");
-
-        long totalSize = files.stream().mapToLong(f -> f.getFileSize() != null ? f.getFileSize() : 0).sum();
+        if (validPaths.isEmpty()) throw new RuntimeException("未找到有效文件");
         if (totalSize > maxTotalBytes) {
             throw new RuntimeException("文件总大小 " + formatSize(totalSize) + " 超过限制 " + formatSize(maxTotalBytes));
         }
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              ZipOutputStream zos = new ZipOutputStream(baos)) {
-
-            for (DataFile f : files) {
-                Path filePath = Paths.get(f.getPath());
-                if (!Files.exists(filePath)) {
-                    log.warn("文件不存在，跳过: {}", f.getPath());
-                    continue;
-                }
-                zos.putNextEntry(new ZipEntry(f.getName()));
-                Files.copy(filePath, zos);
+            for (Path p : validPaths) {
+                zos.putNextEntry(new ZipEntry(p.getFileName().toString()));
+                Files.copy(p, zos);
                 zos.closeEntry();
             }
             zos.finish();
@@ -307,5 +337,10 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / 1024.0 / 1024.0);
         return String.format("%.1f GB", bytes / 1024.0 / 1024.0 / 1024.0);
+    }
+
+    private String getFileExtension(String filename) {
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(dot + 1).toLowerCase() : "";
     }
 }

@@ -85,13 +85,15 @@ export function listAnalyses(projectId: number, params?: { page?: number; size?:
 // ========== 导出 API ==========
 
 export interface FileTreeNode {
-  id: number | null
   name: string
   path: string
+  filePath: string
   directory: boolean
   size: number | null
   fileType: string | null
-  createdAt: string | null
+  modifiedAt: string | null
+  executionId: number | null
+  pipelineName: string | null
   children?: FileTreeNode[]
 }
 
@@ -110,9 +112,9 @@ export function getFileTree(projectId: number) {
   return http.get<FileTreeNode[]>(`/api/admin/projects/${projectId}/files/tree`)
 }
 
-/** 批量打包下载文件 */
-export function batchDownload(projectId: number, fileIds: number[]) {
-  return http.post(`/api/admin/projects/${projectId}/files/batch-download`, fileIds, { responseType: 'blob' })
+/** 批量打包下载文件（按路径） */
+export function batchDownload(projectId: number, filePaths: string[]) {
+  return http.post(`/api/admin/projects/${projectId}/files/batch-download`, filePaths, { responseType: 'blob' })
 }
 
 /** 全部下载（zip） */
