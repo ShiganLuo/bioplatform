@@ -127,7 +127,12 @@ public class SecurityConfig {
                     "/swagger-ui.html"
                 ).permitAll()
                 // 前台公开接口
-                .requestMatchers("/api/front/**").permitAll()
+                .requestMatchers("/api/front/auth/login").permitAll()
+                .requestMatchers("/api/front/auth/register").permitAll()
+                .requestMatchers("/api/front/auth/sendEmailCode").permitAll()
+                .requestMatchers("/api/front/projects/**").permitAll()
+                .requestMatchers("/api/front/pipelines/**").permitAll()
+                .requestMatchers("/api/front/site-config").permitAll()
                 // WebSocket
                 .requestMatchers("/ws/**").permitAll()
                 // 其他所有请求需要认证

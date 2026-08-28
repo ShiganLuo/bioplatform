@@ -68,7 +68,12 @@ security:
   jwt:
     whitelist:
       # 公开接口白名单（无需认证）
-      - /api/front/**
+      - /api/front/auth/login
+      - /api/front/auth/register
+      - /api/front/auth/sendEmailCode
+      - /api/front/projects/**
+      - /api/front/pipelines/**
+      - /api/front/site-config
       - /api/admin/auth/login
       - /api/admin/auth/refreshToken
       - /api/admin/users/register
