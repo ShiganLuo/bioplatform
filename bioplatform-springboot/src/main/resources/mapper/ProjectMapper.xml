@@ -115,4 +115,18 @@
         ORDER BY `created_at` DESC
     </select>
 
+    <select id="selectDistinctOrganisms" resultType="string">
+        SELECT DISTINCT `organism`
+        FROM `projects`
+        WHERE `organism` IS NOT NULL AND `organism` != ''
+        ORDER BY `organism`
+    </select>
+
+    <select id="selectDistinctGenomeVersions" resultType="string">
+        SELECT DISTINCT `genome_version`
+        FROM `projects`
+        WHERE `genome_version` IS NOT NULL AND `genome_version` != ''
+        ORDER BY `genome_version`
+    </select>
+
 </mapper>

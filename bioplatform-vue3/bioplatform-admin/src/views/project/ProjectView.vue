@@ -88,10 +88,36 @@
           <el-input v-model="formData.description" type="textarea" :rows="3" placeholder="请输入项目描述" />
         </el-form-item>
         <el-form-item label="物种" prop="organism">
-          <el-input v-model="formData.organism" placeholder="如 Homo sapiens、Mus musculus" />
+          <el-select
+            v-model="formData.organism"
+            filterable
+            allow-create
+            placeholder="选择或输入物种"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in organismOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="基因组版本" prop="genomeVersion">
-          <el-input v-model="formData.genomeVersion" placeholder="如 hg38、mm10" />
+          <el-select
+            v-model="formData.genomeVersion"
+            filterable
+            allow-create
+            placeholder="选择或输入基因组版本"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in genomeVersionOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="私有项目">
           <el-switch v-model="formData.isPrivate" />
@@ -115,7 +141,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
 import { Plus } from '@element-plus/icons-vue'
-import { listProjects, createProject, updateProject, deleteProject } from '@/api/projectApi'
+import { listProjects, createProject, updateProject, deleteProject, getOrganisms, getGenomeVersions } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
 
 const loading = ref(false)
@@ -125,6 +151,8 @@ const router = useRouter()
 const isEdit = ref(false)
 const projectList = ref<Project[]>([])
 const formRef = ref<any>()
+const organismOptions = ref<string[]>([])
+const genomeVersionOptions = ref<string[]>([])
 
 const searchForm = reactive({
   name: '',
@@ -184,6 +212,16 @@ const loadProjects = async () => {
     console.error('Failed to load projects:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const loadOptions = async () => {
+  try {
+    const [organisms, versions] = await Promise.all([getOrganisms(), getGenomeVersions()])
+    organismOptions.value = (organisms as any) || []
+    genomeVersionOptions.value = (versions as any) || []
+  } catch (e) {
+    console.error('Failed to load options:', e)
   }
 }
 
@@ -263,6 +301,7 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   loadProjects()
+  loadOptions()
 })
 </script>
 

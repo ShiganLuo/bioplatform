@@ -58,6 +58,14 @@ export function listProjects(params: ProjectQuery) {
   return http.get<PageResult<Project>>('/api/admin/projects/list', { params })
 }
 
+export function getOrganisms() {
+  return http.get<string[]>('/api/admin/projects/organisms')
+}
+
+export function getGenomeVersions() {
+  return http.get<string[]>('/api/admin/projects/genome-versions')
+}
+
 export function getProject(id: number) {
   return http.get<Project>(`/api/admin/projects/${id}`)
 }

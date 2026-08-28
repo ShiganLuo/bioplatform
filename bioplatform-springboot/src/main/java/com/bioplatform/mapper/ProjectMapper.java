@@ -31,4 +31,8 @@ public interface ProjectMapper {
     int countByOwnerId(@Param("ownerId") Long ownerId);
 
     List<Project> selectPublic();
+
+    List<String> selectDistinctOrganisms();
+
+    List<String> selectDistinctGenomeVersions();
 }

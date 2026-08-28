@@ -33,16 +33,19 @@ public class AdminProjectController {
     private final com.bioplatform.service.ProjectService projectService;
     private final com.bioplatform.service.PipelineService pipelineService;
     private final ProjectExportService projectExportService;
+    private final com.bioplatform.mapper.ProjectMapper projectMapper;
 
     /** 全部下载大小限制：200MB */
     private static final long MAX_BATCH_DOWNLOAD_BYTES = 200L * 1024 * 1024;
 
     public AdminProjectController(com.bioplatform.service.ProjectService projectService,
                                   com.bioplatform.service.PipelineService pipelineService,
-                                  ProjectExportService projectExportService) {
+                                  ProjectExportService projectExportService,
+                                  com.bioplatform.mapper.ProjectMapper projectMapper) {
         this.projectService = projectService;
         this.pipelineService = pipelineService;
         this.projectExportService = projectExportService;
+        this.projectMapper = projectMapper;
     }
 
     /**
@@ -111,6 +114,22 @@ public class AdminProjectController {
                                                           @RequestParam(defaultValue = "10") int size) {
         PageResult<Pipeline> result = pipelineService.listAnalysesByProject(projectId, page, size);
         return ApiResponse.success(result);
+    }
+
+    /**
+     * Get distinct organisms from all projects.
+     */
+    @GetMapping("/organisms")
+    public ApiResponse<List<String>> getOrganisms() {
+        return ApiResponse.success(projectMapper.selectDistinctOrganisms());
+    }
+
+    /**
+     * Get distinct genome versions from all projects.
+     */
+    @GetMapping("/genome-versions")
+    public ApiResponse<List<String>> getGenomeVersions() {
+        return ApiResponse.success(projectMapper.selectDistinctGenomeVersions());
     }
 
     /**
