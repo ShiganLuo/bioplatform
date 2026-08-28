@@ -1,6 +1,6 @@
 # BioPlatform 远程部署编排
 # 与博客项目共用 MySQL/Redis，加入 blog_net 网络
-# 用法: docker compose -f docker-compose-remote.yml up -d
+# 用法: docker-compose -f docker-compose-remote.yml up -d
 
 services:
   # 后端
@@ -15,6 +15,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://blog_mysql:3306/bioplatform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: REDACTED_DB_PASSWORD
+      SPRING_DATA_REDIS_HOST: blog_redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: REDACTED_REDIS_PASSWORD
       TZ: Asia/Shanghai
     volumes:
       - bioplatform-uploads:/app/uploads

@@ -326,7 +326,12 @@ function handleProviderChange(providerKey: string) {
 async function handleFetchModels() {
   fetchingModels.value = true
   try {
-    const models = await fetchLlmModels({ baseUrl: llmConfig.baseUrl, apiKey: llmConfig.apiKey })
+    // 如果API Key不是遮蔽值，先加密再发送
+    let keyToSend = llmConfig.apiKey
+    if (keyToSend && !keyToSend.includes('***')) {
+      keyToSend = await encrypt(keyToSend)
+    }
+    const models = await fetchLlmModels({ baseUrl: llmConfig.baseUrl, apiKey: keyToSend })
     availableModels.value = (models as any) || []
     if (availableModels.value.length > 0 && !llmConfig.model) {
       llmConfig.model = availableModels.value[0]
