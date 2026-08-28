@@ -290,7 +290,7 @@ CREATE TABLE `operation_logs` (
     `id`         BIGINT       NOT NULL AUTO_INCREMENT,
     `user_id`    BIGINT       DEFAULT NULL,
     `operation`  VARCHAR(128) NOT NULL COMMENT 'e.g. user.login, pipeline.create',
-    `method`     VARCHAR(16)  DEFAULT NULL COMMENT 'HTTP method',
+    `method`     VARCHAR(500) DEFAULT NULL COMMENT 'HTTP method + class.method',
     `params`     TEXT         DEFAULT NULL COMMENT 'Request parameters JSON',
     `result`     TEXT         DEFAULT NULL COMMENT 'Result or error summary',
     `ip`         VARCHAR(64)  DEFAULT NULL,
