@@ -43,6 +43,9 @@ public class ProjectServiceImpl implements ProjectService {
         project.setOwnerId(userId);
         project.setStatus(1); // 默认活跃
         project.setIsPrivate(request.isPrivate() != null ? request.isPrivate() : false);
+        if (request.createdAt() != null) {
+            project.setCreatedAt(request.createdAt());
+        }
 
         projectMapper.insert(project);
         log.info("创建项目成功: projectId={}, name={}", project.getId(), project.getName());

@@ -25,9 +25,11 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `projects` (`name`, `description`, `organism`, `genome_version`,
-                                `owner_id`, `status`, `private`)
+                                `owner_id`, `status`, `private`
+                                <if test="createdAt != null">, `created_at`</if>)
         VALUES (#{name}, #{description}, #{organism}, #{genomeVersion},
-                #{ownerId}, #{status}, #{isPrivate})
+                #{ownerId}, #{status}, #{isPrivate}
+                <if test="createdAt != null">, #{createdAt}</if>)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">

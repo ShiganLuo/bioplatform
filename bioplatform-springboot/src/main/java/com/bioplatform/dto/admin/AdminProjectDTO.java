@@ -37,7 +37,8 @@ public final class AdminProjectDTO {
             String description,
             String organism,
             String genomeVersion,
-            Boolean isPrivate
+            Boolean isPrivate,
+            LocalDateTime createdAt
     ) {
     }
 

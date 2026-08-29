@@ -122,6 +122,17 @@
         <el-form-item label="私有项目">
           <el-switch v-model="formData.isPrivate" />
         </el-form-item>
+        <el-form-item label="创建时间" v-if="!isEdit">
+          <el-date-picker
+            v-model="formData.createdAt"
+            type="datetime"
+            placeholder="默认当前时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 100%"
+          />
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">留空则使用当前时间，补录历史项目时可手动指定</div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -171,7 +182,8 @@ const formData = reactive({
   description: '',
   organism: '',
   genomeVersion: '',
-  isPrivate: false
+  isPrivate: false,
+  createdAt: '' as string
 })
 
 const formRules: Record<string, any[]> = {
@@ -244,6 +256,7 @@ const handleCreate = () => {
   formData.organism = ''
   formData.genomeVersion = ''
   formData.isPrivate = false
+  formData.createdAt = ''
   dialogVisible.value = true
 }
 
@@ -286,7 +299,7 @@ const handleSubmit = async () => {
         await updateProject(formData.id, formData)
         ElMessage.success('更新成功')
       } else {
-        await createProject(formData)
+        await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false
