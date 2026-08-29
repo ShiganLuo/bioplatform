@@ -1,5 +1,7 @@
 package com.bioplatform.dto.admin;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.time.LocalDateTime;
 
 /**
@@ -38,7 +40,7 @@ public final class AdminProjectDTO {
             String organism,
             String genomeVersion,
             Boolean isPrivate,
-            LocalDateTime createdAt
+            @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime createdAt
     ) {
     }
 
