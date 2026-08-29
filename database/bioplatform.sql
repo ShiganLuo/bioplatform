@@ -296,6 +296,7 @@ CREATE TABLE `system_configs` (
     `config_key`   VARCHAR(128) NOT NULL,
     `config_value` TEXT         DEFAULT NULL,
     `config_desc`  VARCHAR(512) DEFAULT NULL,
+    `created_at`   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     `updated_at`   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_sc_key` (`config_key`)
