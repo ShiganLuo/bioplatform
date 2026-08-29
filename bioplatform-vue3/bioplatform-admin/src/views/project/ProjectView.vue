@@ -129,6 +129,7 @@
             placeholder="默认当前时间"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="YYYY-MM-DD HH:mm:ss"
+            :default-time="new Date(2000, 1, 1, 9, 0, 0)"
             style="width: 100%"
           />
           <div style="font-size: 12px; color: #909399; margin-top: 4px;">留空则使用当前时间，补录历史项目时可手动指定</div>
