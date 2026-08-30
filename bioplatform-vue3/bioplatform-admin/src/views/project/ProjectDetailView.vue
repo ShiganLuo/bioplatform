@@ -158,7 +158,6 @@
                       <input
                         v-model="metaColumns[ci]"
                         class="meta-header-input"
-                        :disabled="isFixedColumn(col)"
                       />
                       <el-button link size="small" type="danger" @click="removeColumn(ci)" v-if="!isFixedColumn(col)">
                         <el-icon><Close /></el-icon>
