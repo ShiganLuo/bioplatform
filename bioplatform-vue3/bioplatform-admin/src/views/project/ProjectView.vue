@@ -122,17 +122,17 @@
         <el-form-item label="私有项目">
           <el-switch v-model="formData.isPrivate" />
         </el-form-item>
-        <el-form-item label="创建时间" v-if="!isEdit">
+        <el-form-item label="创建时间">
           <el-date-picker
             v-model="formData.createdAt"
             type="datetime"
-            placeholder="默认当前时间"
+            :placeholder="isEdit ? '不修改请留空' : '默认当前时间'"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="YYYY-MM-DD HH:mm:ss"
             :default-time="new Date(2000, 1, 1, 9, 0, 0)"
             style="width: 100%"
           />
-          <div style="font-size: 12px; color: #909399; margin-top: 4px;">留空则使用当前时间，补录历史项目时可手动指定</div>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">{{ isEdit ? '留空则不修改原创建时间' : '留空则使用当前时间，补录历史项目时可手动指定' }}</div>
         </el-form-item>
       </el-form>
 
@@ -269,6 +269,7 @@ const handleEdit = (row: Project) => {
   formData.organism = row.organism || ''
   formData.genomeVersion = row.genomeVersion || ''
   formData.isPrivate = row.isPrivate || false
+  formData.createdAt = ''
   dialogVisible.value = true
 }
 
@@ -297,7 +298,11 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (isEdit.value) {
-        await updateProject(formData.id, formData)
+        const updateData = { ...formData }
+        if (!updateData.createdAt) {
+          (updateData as any).createdAt = undefined
+        }
+        await updateProject(formData.id, updateData)
         ElMessage.success('更新成功')
       } else {
         await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })

@@ -54,7 +54,8 @@ public final class AdminProjectDTO {
             String organism,
             String genomeVersion,
             Integer status,
-            Boolean isPrivate
+            Boolean isPrivate,
+            @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime createdAt
     ) {
     }
 }

@@ -65,6 +65,9 @@ public class ProjectServiceImpl implements ProjectService {
         project.setGenomeVersion(request.genomeVersion());
         project.setStatus(request.status());
         project.setIsPrivate(request.isPrivate());
+        if (request.createdAt() != null) {
+            project.setCreatedAt(request.createdAt());
+        }
 
         projectMapper.updateById(project);
         log.info("更新项目成功: projectId={}", id);

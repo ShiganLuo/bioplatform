@@ -92,7 +92,7 @@
           <div class="header-actions">
             <el-button size="small" @click="handleImportTsv">
               <el-icon><Upload /></el-icon>
-              导入TSV
+              导入文本
             </el-button>
             <el-button type="primary" size="small" @click="handleCreateMeta">
               <el-icon><Plus /></el-icon>
@@ -192,13 +192,13 @@
           </div>
         </el-tab-pane>
 
-        <!-- TSV 编辑模式 -->
-        <el-tab-pane label="TSV编辑" name="tsv">
+        <!-- 文本编辑模式 -->
+        <el-tab-pane label="文本编辑" name="tsv">
           <el-input
             v-model="metaTsvContent"
             type="textarea"
             :rows="15"
-            placeholder="粘贴 TSV 内容..."
+            placeholder="粘贴表格内容，支持制表符、逗号、分号、竖线等常见分隔符..."
             style="font-family: monospace"
           />
         </el-tab-pane>
@@ -210,13 +210,13 @@
       </template>
     </el-dialog>
 
-    <!-- 导入 TSV 对话框 -->
-    <el-dialog v-model="importTsvDialogVisible" title="导入 TSV" width="600px">
+    <!-- 导入文本对话框 -->
+    <el-dialog v-model="importTsvDialogVisible" title="导入文本" width="600px">
       <el-input
         v-model="importTsvContent"
         type="textarea"
         :rows="12"
-        placeholder="粘贴 TSV 内容..."
+        placeholder="粘贴表格内容，支持制表符、逗号、分号、竖线等常见分隔符..."
         style="font-family: monospace"
       />
       <div style="margin-top: 8px">
@@ -634,6 +634,20 @@ const handleModeChange = (mode: string) => {
   }
 }
 
+const detectDelimiter = (line: string): string => {
+  const candidates = ['\t', ',', ';', '|']
+  let best = '\t'
+  let maxCount = 0
+  for (const d of candidates) {
+    const count = line.split(d).length - 1
+    if (count > maxCount) {
+      maxCount = count
+      best = d
+    }
+  }
+  return best
+}
+
 const tsvToTable = (tsv: string) => {
   const lines = tsv.trim().split('\n')
   if (lines.length === 0) {
@@ -641,10 +655,11 @@ const tsvToTable = (tsv: string) => {
     metaRows.value = [metaColumns.value.map(() => '')]
     return
   }
-  metaColumns.value = lines[0].split('\t')
+  const delimiter = detectDelimiter(lines[0])
+  metaColumns.value = lines[0].split(delimiter).map(s => s.trim())
   metaRows.value = []
   for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split('\t')
+    const cells = lines[i].split(delimiter).map(s => s.trim())
     // 确保列数一致
     while (cells.length < metaColumns.value.length) cells.push('')
     metaRows.value.push(cells.slice(0, metaColumns.value.length))
