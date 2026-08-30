@@ -744,6 +744,7 @@ const handleEditMeta = (row: SampleMeta) => {
   metaForm.metaContent = row.metaContent
   metaEditTab.value = 'table'
   tsvToTable(row.metaContent)
+  metaTsvContent.value = row.metaContent || ''
   metaDialogVisible.value = true
 }
 
@@ -1053,6 +1054,32 @@ watch(() => route.params.id, (newId, oldId) => {
     loadFileTree()
     loadMetaList()
   }
+})
+
+// 切换tab时同步数据
+watch(metaEditTab, (newTab, oldTab) => {
+  if (newTab === oldTab) return
+  if (newTab === 'tsv') {
+    // 切到文本编辑：表格→文本
+    metaTsvContent.value = tableToTsv()
+  } else if (newTab === 'table') {
+    // 切到表格编辑：文本→表格
+    if (metaTsvContent.value.trim()) {
+      tsvToTable(metaTsvContent.value)
+    }
+  }
+})
+
+// 文本编辑实时同步到表格（防抖）
+let tsvSyncTimer: ReturnType<typeof setTimeout> | null = null
+watch(metaTsvContent, (val) => {
+  if (metaEditTab.value !== 'tsv') return
+  if (tsvSyncTimer) clearTimeout(tsvSyncTimer)
+  tsvSyncTimer = setTimeout(() => {
+    if (val.trim()) {
+      tsvToTable(val)
+    }
+  }, 300)
 })
 </script>
 
