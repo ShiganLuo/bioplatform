@@ -32,31 +32,6 @@ const axiosInstance = axios.create({
 let isRefreshing = false
 let requests: Array<(token: string | null) => void> = []
 
-/** 解析 JWT payload（不验证签名，仅读取过期时间） */
-function parseJwtPayload(token: string): { exp?: number } | null {
-  try {
-    const base64Url = token.split('.')[1]
-    if (!base64Url) return null
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    )
-    return JSON.parse(jsonPayload)
-  } catch {
-    return null
-  }
-}
-
-/** 检查 token 是否即将过期（默认 5 分钟内） */
-function isTokenExpiringSoon(token: string, withinMs: number = 5 * 60 * 1000): boolean {
-  const payload = parseJwtPayload(token)
-  if (!payload?.exp) return true
-  return payload.exp * 1000 - Date.now() < withinMs
-}
-
 /**
  * 延迟加载 userStore，避免循环依赖
  * (store -> api -> http -> store)
@@ -141,38 +116,10 @@ async function doRefreshToken(originalRequest: AxiosRequestConfig & { _retry?: b
 // ==================== 请求拦截器 ====================
 
 axiosInstance.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token')
     if (token) {
-      // 主动刷新：token 即将过期时提前刷新，避免 401
-      if (isTokenExpiringSoon(token) && !config.url?.includes('/refreshToken')) {
-        if (!isRefreshing) {
-          isRefreshing = true
-          try {
-            const refreshToken = localStorage.getItem('refresh_token')
-            if (refreshToken) {
-              const refreshRes = await axios.post(`${baseURL}/api/admin/auth/refreshToken`, { refreshToken })
-              const refreshData: IResponse<{ accessToken: string; refreshToken: string }> = refreshRes.data
-              if (refreshData.code === 200) {
-                localStorage.setItem('access_token', refreshData.result.accessToken)
-                localStorage.setItem('refresh_token', refreshData.result.refreshToken)
-                config.headers.Authorization = `Bearer ${refreshData.result.accessToken}`
-                requests.forEach((cb) => cb(refreshData.result.accessToken))
-                requests = []
-              }
-            }
-          } catch (e) {
-            console.warn('Proactive token refresh failed, will retry on 401')
-          } finally {
-            isRefreshing = false
-          }
-        }
-      }
-      // 使用最新的 token
-      const latestToken = localStorage.getItem('access_token')
-      if (latestToken) {
-        config.headers.Authorization = `Bearer ${latestToken}`
-      }
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
