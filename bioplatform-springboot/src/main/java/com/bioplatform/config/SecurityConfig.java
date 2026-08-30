@@ -3,6 +3,9 @@ package com.bioplatform.config;
 import com.bioplatform.filter.JwtAuthenticationFilter;
 import com.bioplatform.service.impl.CustomUserDetailsService;
 import com.bioplatform.common.util.JwtTokenProviderUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -12,8 +15,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
@@ -21,8 +26,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Spring Security配置类
@@ -81,6 +89,35 @@ public class SecurityConfig {
     }
 
     /**
+     * 认证入口点 - 未认证时返回JSON格式错误
+     */
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (HttpServletRequest request, HttpServletResponse response,
+                AuthenticationException authException) -> {
+            response.setContentType("application/json;charset=UTF-8");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+
+            String tokenHeader = request.getHeader("Authorization");
+            String message;
+            if (tokenHeader == null || tokenHeader.isBlank()) {
+                message = "未提供认证令牌，请先登录";
+            } else if (!tokenHeader.startsWith("Bearer ")) {
+                message = "认证头格式错误，应为: Bearer <token>";
+            } else {
+                message = "认证令牌无效或已过期，请重新登录";
+            }
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("code", 401);
+            body.put("message", message);
+            body.put("path", request.getRequestURI());
+
+            new ObjectMapper().writeValue(response.getOutputStream(), body);
+        };
+    }
+
+    /**
      * Security过滤器链配置
      */
     @Bean
@@ -111,6 +148,11 @@ public class SecurityConfig {
             // 响应头配置（禁用FrameOptions以支持Swagger）
             .headers(headers ->
                 headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
+            )
+
+            // 认证失败返回JSON
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authenticationEntryPoint())
             )
 
             // URL授权规则
