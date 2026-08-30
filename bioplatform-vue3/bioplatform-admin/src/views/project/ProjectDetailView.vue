@@ -451,7 +451,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
@@ -468,7 +468,7 @@ import type { DataFile } from '@/api/dataFileApi'
 
 const route = useRoute()
 const router = useRouter()
-const projectId = Number(route.params.id)
+const projectId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -495,7 +495,7 @@ const metaDialogVisible = ref(false)
 const metaDialogTitle = ref('新建 Meta')
 const metaSaving = ref(false)
 const metaEditTab = ref('table')
-const metaForm = reactive({ id: 0, projectId, name: '', metaMode: 'fastq', metaContent: '', description: '' })
+const metaForm = reactive({ id: 0, projectId: projectId.value, name: '', metaMode: 'fastq', metaContent: '', description: '' })
 const metaColumns = ref<string[]>([])
 const metaRows = ref<string[][]>([])
 const metaTsvContent = ref('')
@@ -536,7 +536,7 @@ const importDirPath = ref('')
 // --- Data loading ---
 const loadProject = async () => {
   try {
-    const res = await getProject(projectId)
+    const res = await getProject(projectId.value)
     Object.assign(project, res)
   } catch (e) {
     ElMessage.error('加载项目失败')
@@ -546,7 +546,7 @@ const loadProject = async () => {
 const loadAnalyses = async () => {
   loading.value = true
   try {
-    const res = await listAnalyses(projectId, { page: pagination.page, size: pagination.size })
+    const res = await listAnalyses(projectId.value, { page: pagination.page, size: pagination.size })
     analysesList.value = res.records
     pagination.total = res.total
   } catch (e) { console.error(e) }
@@ -556,7 +556,7 @@ const loadAnalyses = async () => {
 const loadFiles = async () => {
   fileLoading.value = true
   try {
-    const res = await listFiles({ projectId, page: filePagination.page, size: filePagination.size })
+    const res = await listFiles({ projectId: projectId.value, page: filePagination.page, size: filePagination.size })
     fileList.value = res.records
     filePagination.total = res.total
   } catch (e) { console.error(e) }
@@ -576,7 +576,7 @@ const loadTemplates = async () => {
 const loadFileTree = async () => {
   treeLoading.value = true
   try {
-    const res = await getFileTree(projectId)
+    const res = await getFileTree(projectId.value)
     // 展平为列表（带层级标识）
     const flat: any[] = []
     let keyIdx = 0
@@ -613,7 +613,7 @@ const handleTreeSelectionChange = (selection: any[]) => {
 const loadMetaList = async () => {
   metaLoading.value = true
   try {
-    metaList.value = await listSampleMeta(projectId) as any || []
+    metaList.value = await listSampleMeta(projectId.value) as any || []
   } catch (e) { console.error(e) }
   finally { metaLoading.value = false }
 }
@@ -745,7 +745,7 @@ const handleSaveMeta = async () => {
 
     const data = {
       id: metaForm.id || undefined,
-      projectId,
+      projectId: projectId.value,
       name: metaForm.name || 'meta_input',
       metaMode: metaForm.metaMode,
       metaContent: content,
@@ -780,7 +780,7 @@ const handleConfirmImportTsv = async () => {
   }
   try {
     await createSampleMeta({
-      projectId,
+      projectId: projectId.value,
       name: importTsvName.value || 'meta_input',
       metaMode: 'fastq',
       metaContent: importTsvContent.value.trim(),
@@ -805,7 +805,7 @@ const triggerBlobDownload = (blob: Blob, filename: string) => {
 const handleExportPpt = async () => {
   pptLoading.value = true
   try {
-    const blob = await exportPpt(projectId) as any
+    const blob = await exportPpt(projectId.value) as any
     triggerBlobDownload(blob, project.name + '_report.pptx')
   } catch (e: any) {
     ElMessage.error(e?.message || '导出PPT失败')
@@ -815,7 +815,7 @@ const handleExportPpt = async () => {
 const handleExportExcel = async () => {
   excelLoading.value = true
   try {
-    const blob = await exportExcel(projectId) as any
+    const blob = await exportExcel(projectId.value) as any
     triggerBlobDownload(blob, project.name + '_report.xlsx')
   } catch (e: any) {
     ElMessage.error(e?.message || '导出Excel失败')
@@ -825,7 +825,7 @@ const handleExportExcel = async () => {
 const handleDownloadAll = async () => {
   downloadAllLoading.value = true
   try {
-    const blob = await downloadAll(projectId) as any
+    const blob = await downloadAll(projectId.value) as any
     triggerBlobDownload(blob, project.name + '_all.zip')
   } catch (e: any) {
     ElMessage.error(e?.message || '下载失败（可能超过200MB限制）')
@@ -840,7 +840,7 @@ const handleBatchDownload = async () => {
   }
   batchDownloadLoading.value = true
   try {
-    const blob = await batchDownload(projectId, paths) as any
+    const blob = await batchDownload(projectId.value, paths) as any
     triggerBlobDownload(blob, project.name + '_selected.zip')
   } catch (e: any) {
     ElMessage.error(e?.message || '下载失败')
@@ -850,7 +850,7 @@ const handleBatchDownload = async () => {
 // --- File upload ---
 const handleUpload = async (file: File) => {
   try {
-    await uploadFile(file, projectId)
+    await uploadFile(file, projectId.value)
     ElMessage.success('上传成功')
     loadFiles()
   } catch (e) {
@@ -882,7 +882,7 @@ const handleImport = async () => {
   }
   importLoading.value = true
   try {
-    const res = await importLocalFiles(importDirPath.value, projectId)
+    const res = await importLocalFiles(importDirPath.value, projectId.value)
     ElMessage.success(`导入成功，共 ${res.count} 个文件`)
     importDialogVisible.value = false
     loadFiles()
@@ -927,7 +927,7 @@ const handleCreateAnalysis = async () => {
   }
   submitLoading.value = true
   try {
-    await createAnalysis(projectId, {
+    await createAnalysis(projectId.value, {
       workflowTemplateName: selectedTemplateName.value,
       name: analysisName.value || undefined,
       metaContent: metaContent.value,
@@ -971,6 +971,19 @@ onMounted(() => {
   loadAnalyses()
   loadFileTree()
   loadMetaList()
+})
+
+// 监听路由参数变化，组件复用时重新加载数据
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    pagination.page = 1
+    filePagination.page = 1
+    loadProject()
+    loadFiles()
+    loadAnalyses()
+    loadFileTree()
+    loadMetaList()
+  }
 })
 </script>
 

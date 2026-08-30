@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
@@ -192,6 +192,53 @@ const formRules: Record<string, any[]> = {
     { required: true, message: '请输入项目名称', trigger: 'blur' }
   ]
 }
+
+// 草稿自动保存 (localStorage)
+const DRAFT_KEY = 'project_create_draft'
+
+const saveDraft = () => {
+  if (isEdit.value) return // 编辑模式不保存草稿
+  const draft = {
+    name: formData.name,
+    description: formData.description,
+    organism: formData.organism,
+    genomeVersion: formData.genomeVersion,
+    isPrivate: formData.isPrivate,
+    createdAt: formData.createdAt
+  }
+  // 只在有实际内容时保存
+  if (draft.name || draft.description || draft.organism || draft.genomeVersion) {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  }
+}
+
+const restoreDraft = (): boolean => {
+  const raw = localStorage.getItem(DRAFT_KEY)
+  if (!raw) return false
+  try {
+    const draft = JSON.parse(raw)
+    formData.name = draft.name || ''
+    formData.description = draft.description || ''
+    formData.organism = draft.organism || ''
+    formData.genomeVersion = draft.genomeVersion || ''
+    formData.isPrivate = draft.isPrivate || false
+    formData.createdAt = draft.createdAt || ''
+    return true
+  } catch {
+    return false
+  }
+}
+
+const clearDraft = () => {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+// 监听对话框关闭，自动保存草稿（仅新建模式）
+watch(dialogVisible, (newVal, oldVal) => {
+  if (oldVal === true && newVal === false) {
+    saveDraft()
+  }
+})
 
 const getStatusType = (status: number): 'success' | 'warning' | 'info' | 'danger' => {
   const map: Record<number, 'success' | 'warning' | 'info' | 'danger'> = {
@@ -252,12 +299,17 @@ const resetSearch = () => {
 const handleCreate = () => {
   isEdit.value = false
   formData.id = 0
+  // 先清空，再尝试恢复草稿
   formData.name = ''
   formData.description = ''
   formData.organism = ''
   formData.genomeVersion = ''
   formData.isPrivate = false
   formData.createdAt = ''
+  restoreDraft()
+  if (formData.name || formData.description || formData.organism || formData.genomeVersion) {
+    ElMessage({ message: '已恢复上次未提交的草稿', type: 'info', duration: 2000 })
+  }
   dialogVisible.value = true
 }
 
@@ -307,6 +359,7 @@ const handleSubmit = async () => {
       } else {
         await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
         ElMessage.success('创建成功')
+        clearDraft() // 创建成功后清除草稿
       }
       dialogVisible.value = false
       loadProjects()
