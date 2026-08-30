@@ -20,7 +20,9 @@
         <div class="detail-meta">
           <div class="meta-item" v-if="project.organism">
             <span class="meta-label">物种</span>
-            <el-tag type="info" effect="plain" size="small">{{ project.organism }}</el-tag>
+            <div class="meta-tags">
+              <el-tag v-for="org in project.organism.split(',').filter(Boolean)" :key="org" type="info" effect="plain" size="small">{{ org.trim() }}</el-tag>
+            </div>
           </div>
           <div class="meta-item" v-if="project.genomeVersion">
             <span class="meta-label">基因组版本</span>
@@ -158,6 +160,12 @@ onMounted(() => {
   color: #303133;
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 

@@ -10,7 +10,12 @@
         <el-button @click="router.push('/projects')">返回列表</el-button>
       </div>
       <el-descriptions :column="4" border size="small" style="margin-top: 12px">
-        <el-descriptions-item label="物种">{{ project.organism || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="物种">
+          <template v-if="project.organism">
+            <el-tag v-for="org in project.organism.split(',').filter(Boolean)" :key="org" size="small" type="info" effect="plain" style="margin-right: 4px">{{ org.trim() }}</el-tag>
+          </template>
+          <span v-else>-</span>
+        </el-descriptions-item>
         <el-descriptions-item label="基因组版本">{{ project.genomeVersion || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="project.status === 1 ? 'success' : 'info'" size="small">

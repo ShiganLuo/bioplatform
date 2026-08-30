@@ -90,9 +90,10 @@
         </el-form-item>
         <el-form-item label="物种" prop="organism">
           <el-select
-            v-model="formData.organism"
+            v-model="formData.organismArray"
             filterable
             allow-create
+            multiple
             placeholder="选择或输入物种"
             style="width: 100%"
           >
@@ -183,6 +184,7 @@ const formData = reactive({
   name: '',
   description: '',
   organism: '',
+  organismArray: [] as string[],
   genomeVersion: '',
   isPrivate: false,
   createdAt: '' as string
@@ -202,7 +204,7 @@ const saveDraft = () => {
   const draft = {
     name: formData.name,
     description: formData.description,
-    organism: formData.organism,
+    organism: formData.organismArray.join(','),
     genomeVersion: formData.genomeVersion,
     isPrivate: formData.isPrivate,
     createdAt: formData.createdAt
@@ -221,6 +223,7 @@ const restoreDraft = (): boolean => {
     formData.name = draft.name || ''
     formData.description = draft.description || ''
     formData.organism = draft.organism || ''
+    formData.organismArray = draft.organism ? draft.organism.split(',').filter(Boolean) : []
     formData.genomeVersion = draft.genomeVersion || ''
     formData.isPrivate = draft.isPrivate || false
     formData.createdAt = draft.createdAt || ''
@@ -309,6 +312,7 @@ const handleCreate = () => {
   formData.name = ''
   formData.description = ''
   formData.organism = ''
+  formData.organismArray = []
   formData.genomeVersion = ''
   formData.isPrivate = false
   formData.createdAt = ''
@@ -325,6 +329,7 @@ const handleEdit = (row: Project) => {
   formData.name = row.name
   formData.description = row.description || ''
   formData.organism = row.organism || ''
+  formData.organismArray = row.organism ? row.organism.split(',').filter(Boolean) : []
   formData.genomeVersion = row.genomeVersion || ''
   formData.isPrivate = row.isPrivate || false
   formData.createdAt = ''
@@ -355,15 +360,21 @@ const handleSubmit = async () => {
     if (!valid) return
     submitLoading.value = true
     try {
+      // 将organismArray转换为逗号分隔的字符串
+      const submitData = {
+        ...formData,
+        organism: formData.organismArray.join(',')
+      }
+
       if (isEdit.value) {
-        const updateData = { ...formData }
+        const updateData = { ...submitData }
         if (!updateData.createdAt) {
           (updateData as any).createdAt = undefined
         }
         await updateProject(formData.id, updateData)
         ElMessage.success('更新成功')
       } else {
-        await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
+        await createProject(submitData.createdAt ? submitData : { ...submitData, createdAt: undefined })
         ElMessage.success('创建成功')
         submitted.value = true
         clearDraft()

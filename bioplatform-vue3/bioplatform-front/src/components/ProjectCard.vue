@@ -9,9 +9,11 @@
     <h3 class="project-name">{{ project.name }}</h3>
     <p class="project-desc">{{ project.description || '暂无描述' }}</p>
     <div class="card-tags">
-      <el-tag v-if="project.organism" size="small" type="info" effect="plain">
-        {{ project.organism }}
-      </el-tag>
+      <template v-if="project.organism">
+        <el-tag v-for="org in project.organism.split(',').filter(Boolean)" :key="org" size="small" type="info" effect="plain">
+          {{ org.trim() }}
+        </el-tag>
+      </template>
       <el-tag v-if="project.genomeVersion" size="small" type="warning" effect="plain">
         {{ project.genomeVersion }}
       </el-tag>
