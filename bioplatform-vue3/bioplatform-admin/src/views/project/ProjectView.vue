@@ -107,9 +107,10 @@
         </el-form-item>
         <el-form-item label="基因组版本" prop="genomeVersion">
           <el-select
-            v-model="formData.genomeVersion"
+            v-model="formData.genomeVersionArray"
             filterable
             allow-create
+            multiple
             placeholder="选择或输入基因组版本"
             style="width: 100%"
           >
@@ -186,6 +187,7 @@ const formData = reactive({
   organism: '',
   organismArray: [] as string[],
   genomeVersion: '',
+  genomeVersionArray: [] as string[],
   isPrivate: false,
   createdAt: '' as string
 })
@@ -200,16 +202,15 @@ const formRules: Record<string, any[]> = {
 const DRAFT_KEY = 'project_create_draft'
 
 const saveDraft = () => {
-  if (isEdit.value) return // 编辑模式不保存草稿
+  if (isEdit.value) return
   const draft = {
     name: formData.name,
     description: formData.description,
     organism: formData.organismArray.join(','),
-    genomeVersion: formData.genomeVersion,
+    genomeVersion: formData.genomeVersionArray.join(','),
     isPrivate: formData.isPrivate,
     createdAt: formData.createdAt
   }
-  // 只在有实际内容时保存
   if (draft.name || draft.description || draft.organism || draft.genomeVersion) {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
   }
@@ -225,6 +226,7 @@ const restoreDraft = (): boolean => {
     formData.organism = draft.organism || ''
     formData.organismArray = draft.organism ? draft.organism.split(',').filter(Boolean) : []
     formData.genomeVersion = draft.genomeVersion || ''
+    formData.genomeVersionArray = draft.genomeVersion ? draft.genomeVersion.split(',').filter(Boolean) : []
     formData.isPrivate = draft.isPrivate || false
     formData.createdAt = draft.createdAt || ''
     return true
@@ -314,10 +316,11 @@ const handleCreate = () => {
   formData.organism = ''
   formData.organismArray = []
   formData.genomeVersion = ''
+  formData.genomeVersionArray = []
   formData.isPrivate = false
   formData.createdAt = ''
   restoreDraft()
-  if (formData.name || formData.description || formData.organism || formData.genomeVersion) {
+  if (formData.name || formData.description || formData.organismArray.length || formData.genomeVersionArray.length) {
     ElMessage({ message: '已恢复上次未提交的草稿', type: 'info', duration: 2000 })
   }
   dialogVisible.value = true
@@ -331,6 +334,7 @@ const handleEdit = (row: Project) => {
   formData.organism = row.organism || ''
   formData.organismArray = row.organism ? row.organism.split(',').filter(Boolean) : []
   formData.genomeVersion = row.genomeVersion || ''
+  formData.genomeVersionArray = row.genomeVersion ? row.genomeVersion.split(',').filter(Boolean) : []
   formData.isPrivate = row.isPrivate || false
   formData.createdAt = ''
   dialogVisible.value = true
@@ -360,10 +364,11 @@ const handleSubmit = async () => {
     if (!valid) return
     submitLoading.value = true
     try {
-      // 将organismArray转换为逗号分隔的字符串
+      // 将organismArray和genomeVersionArray转换为逗号分隔的字符串
       const submitData = {
         ...formData,
-        organism: formData.organismArray.join(',')
+        organism: formData.organismArray.join(','),
+        genomeVersion: formData.genomeVersionArray.join(',')
       }
 
       if (isEdit.value) {

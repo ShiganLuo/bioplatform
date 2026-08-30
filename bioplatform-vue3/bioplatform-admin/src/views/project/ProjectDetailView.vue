@@ -16,7 +16,12 @@
           </template>
           <span v-else>-</span>
         </el-descriptions-item>
-        <el-descriptions-item label="基因组版本">{{ project.genomeVersion || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="基因组版本">
+          <template v-if="project.genomeVersion">
+            <el-tag v-for="ver in project.genomeVersion.split(',').filter(Boolean)" :key="ver" size="small" type="warning" effect="plain" style="margin-right: 4px">{{ ver.trim() }}</el-tag>
+          </template>
+          <span v-else>-</span>
+        </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="project.status === 1 ? 'success' : 'info'" size="small">
             {{ project.status === 1 ? '活跃' : project.status === 2 ? '归档' : '草稿' }}

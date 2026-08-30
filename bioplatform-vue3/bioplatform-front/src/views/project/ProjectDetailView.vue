@@ -26,7 +26,9 @@
           </div>
           <div class="meta-item" v-if="project.genomeVersion">
             <span class="meta-label">基因组版本</span>
-            <el-tag type="warning" effect="plain" size="small">{{ project.genomeVersion }}</el-tag>
+            <div class="meta-tags">
+              <el-tag v-for="ver in project.genomeVersion.split(',').filter(Boolean)" :key="ver" type="warning" effect="plain" size="small">{{ ver.trim() }}</el-tag>
+            </div>
           </div>
           <div class="meta-item">
             <span class="meta-label">负责人</span>

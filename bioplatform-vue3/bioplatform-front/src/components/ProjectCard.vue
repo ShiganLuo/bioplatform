@@ -14,9 +14,11 @@
           {{ org.trim() }}
         </el-tag>
       </template>
-      <el-tag v-if="project.genomeVersion" size="small" type="warning" effect="plain">
-        {{ project.genomeVersion }}
-      </el-tag>
+      <template v-if="project.genomeVersion">
+        <el-tag v-for="ver in project.genomeVersion.split(',').filter(Boolean)" :key="ver" size="small" type="warning" effect="plain">
+          {{ ver.trim() }}
+        </el-tag>
+      </template>
     </div>
     <div class="card-footer">
       <span class="owner">
