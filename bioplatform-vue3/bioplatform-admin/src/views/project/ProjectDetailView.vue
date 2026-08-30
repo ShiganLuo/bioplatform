@@ -90,10 +90,16 @@
         <div class="card-header">
           <span>样本信息</span>
           <div class="header-actions">
-            <el-button size="small" @click="handleImportTsv">
-              <el-icon><Upload /></el-icon>
-              导入文本
-            </el-button>
+            <el-upload
+              :show-file-list="false"
+              :before-upload="handleMetaFileUpload"
+              accept=".tsv,.csv,.txt"
+            >
+              <el-button size="small">
+                <el-icon><Upload /></el-icon>
+                导入文件
+              </el-button>
+            </el-upload>
             <el-button type="primary" size="small" @click="handleCreateMeta">
               <el-icon><Plus /></el-icon>
               新建
@@ -213,21 +219,37 @@
       </template>
     </el-dialog>
 
-    <!-- 导入文本对话框 -->
-    <el-dialog v-model="importTsvDialogVisible" title="导入文本" width="600px">
-      <el-input
-        v-model="importTsvContent"
-        type="textarea"
-        :rows="12"
-        placeholder="粘贴表格内容，支持制表符、逗号、分号、竖线等常见分隔符..."
-        style="font-family: monospace"
-      />
-      <div style="margin-top: 8px">
-        <el-input v-model="importTsvName" placeholder="Meta名称" />
+    <!-- 导入文件对话框 -->
+    <el-dialog v-model="importTsvDialogVisible" title="导入文件" width="600px">
+      <div v-if="!importTsvContent" style="text-align: center; padding: 20px">
+        <el-upload
+          drag
+          :show-file-list="false"
+          :before-upload="handleMetaFileUpload"
+          accept=".tsv,.csv,.txt"
+        >
+          <el-icon style="font-size: 40px; color: #c0c4cc"><Upload /></el-icon>
+          <div style="margin-top: 8px">拖拽文件到此处，或点击上传</div>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px">支持 .tsv / .csv / .txt</div>
+        </el-upload>
+      </div>
+      <div v-else>
+        <el-input v-model="importTsvName" placeholder="Meta名称" style="margin-bottom: 12px" />
+        <div style="font-size: 12px; color: #909399; margin-bottom: 8px">
+          已读取文件：<strong>{{ importedFileName }}</strong>（{{ importTsvContent.split('\n').length }} 行）
+        </div>
+        <el-input
+          v-model="importTsvContent"
+          type="textarea"
+          :rows="8"
+          readonly
+          style="font-family: monospace"
+        />
       </div>
       <template #footer>
-        <el-button @click="importTsvDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleConfirmImportTsv">导入</el-button>
+        <el-button @click="importTsvDialogVisible = false; resetImportFile()">取消</el-button>
+        <el-button v-if="importTsvContent" @click="resetImportFile">重新选择</el-button>
+        <el-button type="primary" :disabled="!importTsvContent" @click="handleConfirmImportTsv">导入</el-button>
       </template>
     </el-dialog>
 
@@ -502,6 +524,7 @@ const metaTsvContent = ref('')
 const importTsvDialogVisible = ref(false)
 const importTsvContent = ref('')
 const importTsvName = ref('')
+const importedFileName = ref('')
 
 const META_MODE_COLUMNS: Record<string, string[]> = {
   fastq: ['sample_id', 'design', 'fastq_1', 'fastq_2', 'group', 'organism'],
@@ -767,15 +790,39 @@ const handleSaveMeta = async () => {
   }
 }
 
-const handleImportTsv = () => {
+const handleMetaFileUpload = (file: File) => {
+  // 读取文件内容
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const content = e.target?.result as string
+    if (!content || !content.trim()) {
+      ElMessage.warning('文件内容为空')
+      return
+    }
+    importTsvContent.value = content.trim()
+    importedFileName.value = file.name
+    // 自动用文件名（去掉扩展名）作为 Meta 名称
+    if (!importTsvName.value) {
+      importTsvName.value = file.name.replace(/\.(tsv|csv|txt)$/i, '')
+    }
+    importTsvDialogVisible.value = true
+  }
+  reader.onerror = () => {
+    ElMessage.error('文件读取失败')
+  }
+  reader.readAsText(file)
+  return false // 阻止 el-upload 自动上传
+}
+
+const resetImportFile = () => {
   importTsvContent.value = ''
+  importedFileName.value = ''
   importTsvName.value = ''
-  importTsvDialogVisible.value = true
 }
 
 const handleConfirmImportTsv = async () => {
   if (!importTsvContent.value.trim()) {
-    ElMessage.warning('请输入TSV内容')
+    ElMessage.warning('请先上传文件')
     return
   }
   try {
@@ -787,6 +834,7 @@ const handleConfirmImportTsv = async () => {
     })
     ElMessage.success('导入成功')
     importTsvDialogVisible.value = false
+    resetImportFile()
     loadMetaList()
   } catch (e) {
     ElMessage.error('导入失败')
