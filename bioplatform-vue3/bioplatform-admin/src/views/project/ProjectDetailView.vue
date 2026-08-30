@@ -217,7 +217,7 @@
             v-model="metaTsvContent"
             type="textarea"
             :rows="15"
-            placeholder="粘贴表格内容，支持制表符、逗号、分号、竖线等常见分隔符..."
+            placeholder="粘贴表格内容，支持制表符、逗号、分号、竖线、多空格等分隔符..."
             style="font-family: monospace"
           />
         </el-tab-pane>
@@ -681,6 +681,11 @@ const detectDelimiter = (line: string): string => {
       best = d
     }
   }
+  // 检查多空格分隔（两个或以上连续空格）
+  const spaceCount = line.split(/\s{2,}/).length - 1
+  if (spaceCount > maxCount) {
+    return '__spaces__'
+  }
   return best
 }
 
@@ -692,10 +697,16 @@ const tsvToTable = (tsv: string) => {
     return
   }
   const delimiter = detectDelimiter(lines[0])
-  metaColumns.value = lines[0].split(delimiter).map(s => s.trim())
+  const splitLine = (line: string) => {
+    if (delimiter === '__spaces__') {
+      return line.split(/\s{2,}/).map(s => s.trim()).filter(s => s !== '')
+    }
+    return line.split(delimiter).map(s => s.trim())
+  }
+  metaColumns.value = splitLine(lines[0])
   metaRows.value = []
   for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split(delimiter).map(s => s.trim())
+    const cells = splitLine(lines[i])
     // 确保列数一致
     while (cells.length < metaColumns.value.length) cells.push('')
     metaRows.value.push(cells.slice(0, metaColumns.value.length))
