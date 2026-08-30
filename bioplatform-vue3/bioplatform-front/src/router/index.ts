@@ -24,6 +24,12 @@ const router = createRouter({
           meta: { title: '公开项目' },
         },
         {
+          path: 'projects/:id',
+          name: 'ProjectDetail',
+          component: () => import('@/views/project/ProjectDetailView.vue'),
+          meta: { title: '项目详情' },
+        },
+        {
           path: 'pipelines',
           name: 'Pipelines',
           component: () => import('@/views/pipeline/PipelineView.vue'),

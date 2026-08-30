@@ -7,7 +7,9 @@ import com.bioplatform.dto.admin.AdminProjectDTO.AdminProjectUpdateRequest;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.front.FrontProjectDTO.FrontProjectListDTO;
 import com.bioplatform.entity.Project;
+import com.bioplatform.entity.User;
 import com.bioplatform.mapper.ProjectMapper;
+import com.bioplatform.mapper.UserMapper;
 import com.bioplatform.service.ProjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +30,11 @@ public class ProjectServiceImpl implements ProjectService {
     private static final Logger log = LoggerFactory.getLogger(ProjectServiceImpl.class);
 
     private final ProjectMapper projectMapper;
+    private final UserMapper userMapper;
 
-    public ProjectServiceImpl(ProjectMapper projectMapper) {
+    public ProjectServiceImpl(ProjectMapper projectMapper, UserMapper userMapper) {
         this.projectMapper = projectMapper;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -106,13 +110,25 @@ public class ProjectServiceImpl implements ProjectService {
 
         // 转换为前台DTO
         List<FrontProjectListDTO> dtoList = projects.stream()
-                .map(p -> new FrontProjectListDTO(
-                        p.getId(),
-                        p.getName(),
-                        p.getDescription(),
-                        null, // ownerNickName需要关联查询，这里简化为null
-                        p.getCreatedAt()
-                ))
+                .map(p -> {
+                    String ownerNickName = null;
+                    if (p.getOwnerId() != null) {
+                        User owner = userMapper.selectById(p.getOwnerId());
+                        if (owner != null) {
+                            ownerNickName = owner.getNickName();
+                        }
+                    }
+                    return new FrontProjectListDTO(
+                            p.getId(),
+                            p.getName(),
+                            p.getDescription(),
+                            p.getOrganism(),
+                            p.getGenomeVersion(),
+                            p.getStatus(),
+                            ownerNickName,
+                            p.getCreatedAt()
+                    );
+                })
                 .collect(Collectors.toList());
 
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, dtoList);

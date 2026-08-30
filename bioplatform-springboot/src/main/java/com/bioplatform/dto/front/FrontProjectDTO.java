@@ -18,6 +18,9 @@ public final class FrontProjectDTO {
             Long id,
             String name,
             String description,
+            String organism,
+            String genomeVersion,
+            Integer status,
             String ownerNickName,
             LocalDateTime createdAt
     ) {
