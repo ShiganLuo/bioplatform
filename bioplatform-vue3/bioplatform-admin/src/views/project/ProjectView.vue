@@ -234,9 +234,13 @@ const clearDraft = () => {
 }
 
 // 监听对话框关闭，自动保存草稿（仅新建模式）
+let submitSuccess = false
 watch(dialogVisible, (newVal, oldVal) => {
   if (oldVal === true && newVal === false) {
-    saveDraft()
+    if (!submitSuccess) {
+      saveDraft()
+    }
+    submitSuccess = false // 重置标志
   }
 })
 
@@ -359,7 +363,8 @@ const handleSubmit = async () => {
       } else {
         await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
         ElMessage.success('创建成功')
-        clearDraft() // 创建成功后清除草稿
+        clearDraft()
+        submitSuccess = true
       }
       dialogVisible.value = false
       loadProjects()
