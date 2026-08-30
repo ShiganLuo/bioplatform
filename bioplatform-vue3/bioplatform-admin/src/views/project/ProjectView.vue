@@ -79,6 +79,7 @@
       v-model="dialogVisible"
       :title="isEdit ? '编辑项目' : '新建项目'"
       width="600px"
+      @close="handleDialogClose"
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="项目名称" prop="name">
@@ -233,9 +234,15 @@ const clearDraft = () => {
   localStorage.removeItem(DRAFT_KEY)
 }
 
+const submitted = ref(false)
+
 const handleCancel = () => {
-  if (!isEdit.value) saveDraft() // 取消时保存草稿
+  if (!isEdit.value && !submitted.value) saveDraft() // 取消时保存草稿（提交后不保存）
   dialogVisible.value = false
+}
+
+const handleDialogClose = () => {
+  if (!isEdit.value && !submitted.value) saveDraft()
 }
 
 const getStatusType = (status: number): 'success' | 'warning' | 'info' | 'danger' => {
@@ -296,6 +303,7 @@ const resetSearch = () => {
 
 const handleCreate = () => {
   isEdit.value = false
+  submitted.value = false
   formData.id = 0
   // 先清空，再尝试恢复草稿
   formData.name = ''
@@ -357,6 +365,7 @@ const handleSubmit = async () => {
       } else {
         await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
         ElMessage.success('创建成功')
+        submitted.value = true
         clearDraft()
       }
       dialogVisible.value = false
