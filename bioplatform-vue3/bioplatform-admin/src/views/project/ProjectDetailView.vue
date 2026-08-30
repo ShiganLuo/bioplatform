@@ -745,7 +745,7 @@ const handleSaveMeta = async () => {
     const data = {
       id: metaForm.id || undefined,
       projectId,
-      name: metaForm.name || '未命名Meta',
+      name: metaForm.name || 'meta_input',
       metaMode: metaForm.metaMode,
       metaContent: content,
       description: metaForm.description,
@@ -780,7 +780,7 @@ const handleConfirmImportTsv = async () => {
   try {
     await createSampleMeta({
       projectId,
-      name: importTsvName.value || '导入的Meta',
+      name: importTsvName.value || 'meta_input',
       metaMode: 'fastq',
       metaContent: importTsvContent.value.trim(),
     })
