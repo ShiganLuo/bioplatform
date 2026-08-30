@@ -155,7 +155,11 @@
                   <th style="width: 40px">#</th>
                   <th v-for="(col, ci) in metaColumns" :key="ci">
                     <div style="display: flex; align-items: center; gap: 4px">
-                      <span>{{ col }}</span>
+                      <input
+                        v-model="metaColumns[ci]"
+                        class="meta-header-input"
+                        :disabled="isFixedColumn(col)"
+                      />
                       <el-button link size="small" type="danger" @click="removeColumn(ci)" v-if="!isFixedColumn(col)">
                         <el-icon><Close /></el-icon>
                       </el-button>
@@ -720,9 +724,7 @@ const removeRow = (index: number) => {
 }
 
 const addColumn = () => {
-  const colName = prompt('请输入列名:')
-  if (!colName) return
-  metaColumns.value.push(colName)
+  metaColumns.value.push('new_col')
   metaRows.value.forEach(row => row.push(''))
 }
 
@@ -1081,5 +1083,31 @@ onMounted(() => {
 
 .meta-cell:focus {
   background: #ecf5ff;
+}
+
+.meta-header-input {
+  border: 1px solid transparent;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  width: 100%;
+  min-width: 60px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.meta-header-input:hover {
+  border-color: #c0c4cc;
+}
+
+.meta-header-input:focus {
+  border-color: #409eff;
+  background: #fff;
+}
+
+.meta-header-input:disabled {
+  color: #606266;
+  cursor: not-allowed;
 }
 </style>
