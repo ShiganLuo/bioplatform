@@ -137,7 +137,7 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="handleCancel">取消</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
           确定
         </el-button>
@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
@@ -233,16 +233,10 @@ const clearDraft = () => {
   localStorage.removeItem(DRAFT_KEY)
 }
 
-// 监听对话框关闭，自动保存草稿（仅新建模式）
-let submitSuccess = false
-watch(dialogVisible, (newVal, oldVal) => {
-  if (oldVal === true && newVal === false) {
-    if (!submitSuccess) {
-      saveDraft()
-    }
-    submitSuccess = false // 重置标志
-  }
-})
+const handleCancel = () => {
+  if (!isEdit.value) saveDraft() // 取消时保存草稿
+  dialogVisible.value = false
+}
 
 const getStatusType = (status: number): 'success' | 'warning' | 'info' | 'danger' => {
   const map: Record<number, 'success' | 'warning' | 'info' | 'danger'> = {
@@ -364,7 +358,6 @@ const handleSubmit = async () => {
         await createProject(formData.createdAt ? formData : { ...formData, createdAt: undefined })
         ElMessage.success('创建成功')
         clearDraft()
-        submitSuccess = true
       }
       dialogVisible.value = false
       loadProjects()
