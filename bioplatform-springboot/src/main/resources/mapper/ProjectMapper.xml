@@ -87,7 +87,7 @@
         <if test="status != null">
             AND `status` = #{status}
         </if>
-        ORDER BY `created_at` DESC
+         ORDER BY `updated_at` DESC
     </select>
 
     <select id="searchByName" resultMap="BaseResultMap">
@@ -100,7 +100,7 @@
         <if test="status != null">
             AND `status` = #{status}
         </if>
-        ORDER BY `created_at` DESC
+         ORDER BY `updated_at` DESC
     </select>
 
     <select id="countByOwnerId" resultType="int">
@@ -114,7 +114,7 @@
         FROM `projects`
         WHERE `private` = 0
           AND `status` = 1
-        ORDER BY `created_at` DESC
+         ORDER BY `updated_at` DESC
     </select>
 
     <select id="selectDistinctOrganisms" resultType="string">
