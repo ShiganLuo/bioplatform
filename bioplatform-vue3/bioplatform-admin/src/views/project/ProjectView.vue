@@ -95,6 +95,9 @@
             allow-create
             multiple
             placeholder="选择或输入物种"
+            collapse-tags
+            collapse-tags-tooltip
+            :max-collapse-tags="2"
             style="width: 100%"
           >
             <el-option
@@ -112,6 +115,9 @@
             allow-create
             multiple
             placeholder="选择或输入基因组版本"
+            collapse-tags
+            collapse-tags-tooltip
+            :max-collapse-tags="2"
             style="width: 100%"
           >
             <el-option
