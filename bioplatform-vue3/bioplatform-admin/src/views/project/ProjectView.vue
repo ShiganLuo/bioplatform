@@ -98,6 +98,7 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="2"
+            popper-class="project-select-dropdown"
             style="width: 100%"
           >
             <el-option
@@ -118,6 +119,7 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="2"
+            popper-class="project-select-dropdown"
             style="width: 100%"
           >
             <el-option
@@ -433,5 +435,11 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+</style>
+
+<style>
+.project-select-dropdown .el-select-dropdown__wrap {
+  max-height: 200px;
 }
 </style>
