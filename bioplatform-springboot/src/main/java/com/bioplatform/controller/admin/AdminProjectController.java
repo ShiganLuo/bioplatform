@@ -54,9 +54,11 @@ public class AdminProjectController {
     @GetMapping("/list")
     public ApiResponse<PageResult<Project>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String organism) {
         Long userId = LoginUserHolder.getCurrentUserId();
-        PageResult<Project> result = projectService.listUserProjects(userId, page, size);
+        PageResult<Project> result = projectService.listUserProjects(userId, page, size, name, organism);
         return ApiResponse.success(result);
     }
 

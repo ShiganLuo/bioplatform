@@ -94,9 +94,9 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public PageResult listUserProjects(Long userId, int pageNum, int pageSize) {
+    public PageResult listUserProjects(Long userId, int pageNum, int pageSize, String name, String organism) {
         PageHelper.startPage(pageNum, pageSize);
-        List<Project> projects = projectMapper.selectByOwnerId(userId, null);
+        List<Project> projects = projectMapper.selectByOwnerId(userId, null, name, organism);
         PageInfo<Project> pageInfo = new PageInfo<>(projects);
 
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, projects);

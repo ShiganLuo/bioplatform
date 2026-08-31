@@ -52,7 +52,7 @@ public interface ProjectService {
      * @param pageSize 每页大小
      * @return 分页结果
      */
-    PageResult listUserProjects(Long userId, int pageNum, int pageSize);
+    PageResult listUserProjects(Long userId, int pageNum, int pageSize, String name, String organism);
 
     /**
      * 分页查询公开项目列表（前台页面）

@@ -24,7 +24,8 @@ public interface ProjectMapper {
 
     int deleteById(@Param("id") Long id);
 
-    List<Project> selectByOwnerId(@Param("ownerId") Long ownerId, @Param("status") Integer status);
+    List<Project> selectByOwnerId(@Param("ownerId") Long ownerId, @Param("status") Integer status,
+                                  @Param("name") String name, @Param("organism") String organism);
 
     List<Project> searchByName(@Param("name") String name, @Param("ownerId") Long ownerId, @Param("status") Integer status);
 

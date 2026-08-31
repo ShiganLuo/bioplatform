@@ -87,20 +87,26 @@
         <if test="status != null">
             AND `status` = #{status}
         </if>
-         ORDER BY `updated_at` DESC
+        <if test="name != null and name != ''">
+            AND (`name` LIKE CONCAT('%', #{name}, '%') OR `description` LIKE CONCAT('%', #{name}, '%'))
+        </if>
+        <if test="organism != null and organism != ''">
+            AND `organism` LIKE CONCAT('%', #{organism}, '%')
+        </if>
+        ORDER BY `updated_at` DESC
     </select>
 
     <select id="searchByName" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM `projects`
-        WHERE `name` LIKE CONCAT('%', #{name}, '%')
+        WHERE (`name` LIKE CONCAT('%', #{name}, '%') OR `description` LIKE CONCAT('%', #{name}, '%'))
         <if test="ownerId != null">
             AND `owner_id` = #{ownerId}
         </if>
         <if test="status != null">
             AND `status` = #{status}
         </if>
-         ORDER BY `updated_at` DESC
+        ORDER BY `updated_at` DESC
     </select>
 
     <select id="countByOwnerId" resultType="int">
