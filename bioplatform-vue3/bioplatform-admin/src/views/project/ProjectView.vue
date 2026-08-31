@@ -3,8 +3,8 @@
     <!-- Search Bar -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="项目名称">
-          <el-input v-model="searchForm.name" placeholder="请输入项目名称" clearable />
+        <el-form-item label="关键词">
+          <el-input v-model="searchForm.name" placeholder="搜索项目名称或描述" clearable />
         </el-form-item>
         <el-form-item label="物种">
           <el-input v-model="searchForm.organism" placeholder="请输入物种" clearable />
