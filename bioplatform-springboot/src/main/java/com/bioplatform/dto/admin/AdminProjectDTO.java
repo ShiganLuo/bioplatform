@@ -18,6 +18,8 @@ public final class AdminProjectDTO {
      */
     public record AdminProjectListDTO(
             Long id,
+            Long parentId,
+            String parentName,
             String name,
             String description,
             String organism,
@@ -35,6 +37,7 @@ public final class AdminProjectDTO {
      * Admin create project request.
      */
     public record AdminProjectCreateRequest(
+            Long parentId,
             String name,
             String description,
             String organism,
@@ -49,6 +52,7 @@ public final class AdminProjectDTO {
      */
     public record AdminProjectUpdateRequest(
             Long id,
+            Long parentId,
             String name,
             String description,
             String organism,

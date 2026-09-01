@@ -35,6 +35,12 @@
             <el-button type="primary" link @click="router.push(`/projects/${row.id}`)">{{ row.name }}</el-button>
           </template>
         </el-table-column>
+        <el-table-column label="所属父项目" width="120">
+          <template #default="{ row }">
+            <span v-if="row.parentName">{{ row.parentName }}</span>
+            <span v-else style="color: #c0c4cc">—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column prop="organism" label="物种" width="120" />
         <el-table-column prop="genomeVersion" label="基因组版本" width="120" />
@@ -82,6 +88,11 @@
       @close="handleDialogClose"
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-form-item label="所属父项目">
+          <el-select v-model="formData.parentId" placeholder="无（顶级项目）" clearable style="width: 100%">
+            <el-option v-for="p in parentCandidates" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="项目名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入项目名称" />
         </el-form-item>
@@ -164,7 +175,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
 import { Plus } from '@element-plus/icons-vue'
-import { listProjects, createProject, updateProject, deleteProject, getOrganisms, getGenomeVersions } from '@/api/projectApi'
+import { listProjects, createProject, updateProject, deleteProject, getOrganisms, getGenomeVersions, getParentCandidates } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
 
 const loading = ref(false)
@@ -176,6 +187,7 @@ const projectList = ref<Project[]>([])
 const formRef = ref<any>()
 const organismOptions = ref<string[]>([])
 const genomeVersionOptions = ref<string[]>([])
+const parentCandidates = ref<Project[]>([])
 
 const searchForm = reactive({
   name: '',
@@ -190,6 +202,7 @@ const pagination = reactive({
 
 const formData = reactive({
   id: 0,
+  parentId: null as number | null,
   name: '',
   description: '',
   organism: '',
@@ -284,7 +297,7 @@ const loadProjects = async () => {
       size: pagination.size,
       ...searchForm
     })
-    projectList.value = res.records
+    projectList.value = res.records as any
     pagination.total = res.total
   } catch (error) {
     console.error('Failed to load projects:', error)
@@ -295,9 +308,10 @@ const loadProjects = async () => {
 
 const loadOptions = async () => {
   try {
-    const [organisms, versions] = await Promise.all([getOrganisms(), getGenomeVersions()])
+    const [organisms, versions, parents] = await Promise.all([getOrganisms(), getGenomeVersions(), getParentCandidates()])
     organismOptions.value = (organisms as any) || []
     genomeVersionOptions.value = (versions as any) || []
+    parentCandidates.value = (parents as any) || []
   } catch (e) {
     console.error('Failed to load options:', e)
   }
@@ -318,6 +332,7 @@ const handleCreate = () => {
   isEdit.value = false
   submitted.value = false
   formData.id = 0
+  formData.parentId = null
   // 先清空，再尝试恢复草稿
   formData.name = ''
   formData.description = ''
@@ -337,6 +352,7 @@ const handleCreate = () => {
 const handleEdit = (row: Project) => {
   isEdit.value = true
   formData.id = row.id
+  formData.parentId = row.parentId || null
   formData.name = row.name
   formData.description = row.description || ''
   formData.organism = row.organism || ''
@@ -375,6 +391,7 @@ const handleSubmit = async () => {
       // 将organismArray和genomeVersionArray转换为逗号分隔的字符串
       const submitData = {
         ...formData,
+        parentId: formData.parentId || null,
         organism: formData.organismArray.join(','),
         genomeVersion: formData.genomeVersionArray.join(',')
       }

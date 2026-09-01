@@ -91,6 +91,7 @@ CREATE TABLE `role_permissions` (
 DROP TABLE IF EXISTS `projects`;
 CREATE TABLE `projects` (
     `id`             BIGINT       NOT NULL AUTO_INCREMENT,
+    `parent_id`      BIGINT       DEFAULT NULL COMMENT '父项目ID，NULL=顶级项目',
     `name`           VARCHAR(128) NOT NULL,
     `description`    TEXT          DEFAULT NULL,
     `organism`       VARCHAR(128) DEFAULT NULL COMMENT 'e.g. Homo sapiens, Arabidopsis thaliana',
@@ -102,6 +103,7 @@ CREATE TABLE `projects` (
     `updated_at`     DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (`id`),
     INDEX `idx_projects_owner` (`owner_id`),
+    INDEX `idx_projects_parent` (`parent_id`),
     INDEX `idx_projects_status` (`status`),
     INDEX `idx_projects_organism` (`organism`),
     CONSTRAINT `fk_projects_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`)

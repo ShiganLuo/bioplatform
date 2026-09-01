@@ -49,17 +49,18 @@ public class AdminProjectController {
     }
 
     /**
-     * Paginated project list.
+     * Paginated project list (with parent name).
      */
     @GetMapping("/list")
-    public ApiResponse<PageResult<Project>> list(
+    public ApiResponse<PageResult<Map<String, Object>>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String organism) {
-        Long userId = LoginUserHolder.getCurrentUserId();
-        PageResult<Project> result = projectService.listUserProjects(userId, page, size, name, organism);
-        return ApiResponse.success(result);
+        com.github.pagehelper.PageHelper.startPage(page, size);
+        java.util.List<Map<String, Object>> list = projectMapper.selectAdminList(name, organism);
+        com.github.pagehelper.PageInfo<Map<String, Object>> pageInfo = new com.github.pagehelper.PageInfo<>(list);
+        return ApiResponse.success(PageResult.of(pageInfo.getTotal(), page, size, list));
     }
 
     /**
@@ -132,6 +133,14 @@ public class AdminProjectController {
     @GetMapping("/genome-versions")
     public ApiResponse<List<String>> getGenomeVersions() {
         return ApiResponse.success(projectMapper.selectDistinctGenomeVersions());
+    }
+
+    /**
+     * Get parent project candidates (top-level projects for dropdown).
+     */
+    @GetMapping("/parents")
+    public ApiResponse<List<Project>> getParentCandidates() {
+        return ApiResponse.success(projectMapper.selectParentCandidates());
     }
 
     /**

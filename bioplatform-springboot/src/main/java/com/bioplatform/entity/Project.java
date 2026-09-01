@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 public class Project {
     private Long id;
 
+    /** 父项目ID，null=顶级项目 */
+    private Long parentId;
+
     private String name;
 
     private String description;

@@ -40,6 +40,7 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public Project createProject(AdminProjectCreateRequest request, Long userId) {
         Project project = new Project();
+        project.setParentId(request.parentId());
         project.setName(request.name());
         project.setDescription(request.description());
         project.setOrganism(request.organism());
@@ -52,7 +53,7 @@ public class ProjectServiceImpl implements ProjectService {
         }
 
         projectMapper.insert(project);
-        log.info("创建项目成功: projectId={}, name={}", project.getId(), project.getName());
+        log.info("创建项目成功: projectId={}, name={}, parentId={}", project.getId(), project.getName(), project.getParentId());
         return project;
     }
 
@@ -63,6 +64,7 @@ public class ProjectServiceImpl implements ProjectService {
             throw new IllegalArgumentException("项目不存在");
         }
 
+        project.setParentId(request.parentId());
         project.setName(request.name());
         project.setDescription(request.description());
         project.setOrganism(request.organism());
@@ -74,7 +76,7 @@ public class ProjectServiceImpl implements ProjectService {
         }
 
         projectMapper.updateById(project);
-        log.info("更新项目成功: projectId={}", id);
+        log.info("更新项目成功: projectId={}, parentId={}", id, project.getParentId());
     }
 
     @Override
@@ -84,6 +86,8 @@ public class ProjectServiceImpl implements ProjectService {
             throw new IllegalArgumentException("项目不存在");
         }
 
+        // 先解绑子项目
+        projectMapper.unbindChildren(id);
         projectMapper.deleteById(id);
         log.info("删除项目成功: projectId={}", id);
     }

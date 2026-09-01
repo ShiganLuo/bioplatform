@@ -2,11 +2,14 @@ import http from '@/utils/http/axios'
 
 export interface Project {
   id: number
+  parentId: number | null
+  parentName?: string
   name: string
   description: string
   organism: string
   genomeVersion: string
   ownerId: number
+  ownerUsername?: string
   status: number
   isPrivate: boolean
   createdAt: string
@@ -64,6 +67,10 @@ export function getOrganisms() {
 
 export function getGenomeVersions() {
   return http.get<string[]>('/api/admin/projects/genome-versions')
+}
+
+export function getParentCandidates() {
+  return http.get<Project[]>('/api/admin/projects/parents')
 }
 
 export function getProject(id: number) {

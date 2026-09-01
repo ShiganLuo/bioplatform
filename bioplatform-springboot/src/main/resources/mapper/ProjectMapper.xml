@@ -5,6 +5,7 @@
 
     <resultMap id="BaseResultMap" type="com.bioplatform.entity.Project">
         <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
         <result column="name" property="name"/>
         <result column="description" property="description"/>
         <result column="organism" property="organism"/>
@@ -16,18 +17,35 @@
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
 
+    <!-- 带父项目名称的结果映射 -->
+    <resultMap id="WithParentResultMap" type="java.util.HashMap">
+        <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="organism" property="organism"/>
+        <result column="genome_version" property="genomeVersion"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="owner_username" property="ownerUsername"/>
+        <result column="status" property="status"/>
+        <result column="private" property="isPrivate"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="parent_name" property="parentName"/>
+    </resultMap>
+
     <sql id="Base_Column_List">
-        `id`, `name`, `description`, `organism`, `genome_version`,
+        `id`, `parent_id`, `name`, `description`, `organism`, `genome_version`,
         `owner_id`, `status`, `private`, `created_at`, `updated_at`
     </sql>
 
     <!-- ==================== Basic CRUD ==================== -->
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `projects` (`name`, `description`, `organism`, `genome_version`,
+        INSERT INTO `projects` (`parent_id`, `name`, `description`, `organism`, `genome_version`,
                                 `owner_id`, `status`, `private`
                                 <if test="createdAt != null">, `created_at`</if>)
-        VALUES (#{name}, #{description}, #{organism}, #{genomeVersion},
+        VALUES (#{parentId}, #{name}, #{description}, #{organism}, #{genomeVersion},
                 #{ownerId}, #{status}, #{isPrivate}
                 <if test="createdAt != null">, #{createdAt}</if>)
     </insert>
@@ -61,9 +79,40 @@
         ORDER BY `updated_at` DESC
     </select>
 
+    <!-- 管理后台列表：联表查父项目名+创建者用户名 -->
+    <select id="selectAdminList" resultType="java.util.Map">
+        SELECT p.`id`, p.`parent_id` AS parentId, p.`name`, p.`description`,
+               p.`organism`, p.`genome_version` AS genomeVersion,
+               p.`owner_id` AS ownerId, u.`username` AS ownerUsername,
+               p.`status`, p.`private` AS isPrivate,
+               p.`created_at` AS createdAt, p.`updated_at` AS updatedAt,
+               pp.`name` AS parentName
+        FROM `projects` p
+        LEFT JOIN `users` u ON p.`owner_id` = u.`id`
+        LEFT JOIN `projects` pp ON p.`parent_id` = pp.`id`
+        <where>
+            <if test="name != null and name != ''">
+                AND (p.`name` LIKE CONCAT('%', #{name}, '%') OR p.`description` LIKE CONCAT('%', #{name}, '%'))
+            </if>
+            <if test="organism != null and organism != ''">
+                AND p.`organism` = #{organism}
+            </if>
+        </where>
+        ORDER BY p.`updated_at` DESC
+    </select>
+
+    <!-- 获取所有顶级项目（用于父项目下拉选择） -->
+    <select id="selectParentCandidates" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `projects`
+        WHERE `parent_id` IS NULL
+        ORDER BY `name`
+    </select>
+
     <update id="updateById">
         UPDATE `projects`
         <set>
+            <if test="parentId != null">`parent_id` = #{parentId},</if>
             <if test="name != null and name != ''">`name` = #{name},</if>
             <if test="description != null">`description` = #{description},</if>
             <if test="organism != null">`organism` = #{organism},</if>
@@ -77,6 +126,11 @@
     <delete id="deleteById">
         DELETE FROM `projects` WHERE `id` = #{id}
     </delete>
+
+    <!-- 删除父项目时，子项目parent_id置NULL -->
+    <update id="unbindChildren">
+        UPDATE `projects` SET `parent_id` = NULL WHERE `parent_id` = #{parentId}
+    </update>
 
     <!-- ==================== Custom Queries ==================== -->
 
