@@ -56,6 +56,7 @@ public class AgentServiceImpl implements AgentService {
     private final OkHttpClient httpClient;
     private final LLMClient llmClient;
     private final AgentToolExecutor toolExecutor;
+    private final javax.sql.DataSource dataSource;
 
     public AgentServiceImpl(AgentConversationMapper conversationMapper,
                             AgentMessageMapper messageMapper,
@@ -63,7 +64,8 @@ public class AgentServiceImpl implements AgentService {
                             SystemService systemService,
                             ObjectMapper objectMapper,
                             LLMClient llmClient,
-                            AgentToolExecutor toolExecutor) {
+                            AgentToolExecutor toolExecutor,
+                            javax.sql.DataSource dataSource) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.toolMapper = toolMapper;
@@ -71,6 +73,7 @@ public class AgentServiceImpl implements AgentService {
         this.objectMapper = objectMapper;
         this.llmClient = llmClient;
         this.toolExecutor = toolExecutor;
+        this.dataSource = dataSource;
 
         // 配置OkHttp客户端（连接池复用，降低延迟）
         this.httpClient = new OkHttpClient.Builder()
@@ -281,16 +284,16 @@ public class AgentServiceImpl implements AgentService {
             }
         }
 
-        // 系统提示词
+        // 系统提示词（含数据库schema，避免LLM浪费轮次探索表结构）
         String systemPrompt = "你是一个专业的生物信息学助手，擅长解答基因组学、转录组学、蛋白质组学等生物信息学相关问题。" +
                 "你拥有以下工具能力：\n" +
                 "1. database_query: 直接查询平台MySQL数据库(bioplatform)，执行SELECT查询。" +
-                "当用户询问平台数据、项目数量、用户信息、任务状态等业务数据时，优先使用此工具。\n" +
-                "2. shell_execute: 在服务器上执行shell命令，可访问宿主机文件系统和工具。" +
-                "适用于查看文件、运行生信工具、检查系统状态等。\n" +
-                "当用户询问数据库相关问题时，必须使用 database_query 工具查询真实数据，不要凭空猜测。\n" +
-                "重要：查询数据库时，先用一条SQL获取所需数据（如 SELECT COUNT(*) FROM projects），不要分多步查询。" +
-                "尽量减少工具调用轮次，每轮只调用一次工具获取足够数据后直接回答。";
+                "当用户询问平台数据时使用此工具。数据库表结构如下：\n" + getDatabaseSchema() + "\n" +
+                "2. shell_execute: 在服务器上执行shell命令。适用于查看文件、运行生信工具等。\n" +
+                "重要规则：\n" +
+                "- 查询数据库时直接写SQL，不要先 SHOW TABLES 或 DESCRIBE（表结构已提供）\n" +
+                "- 用一条SQL获取数据（如 SELECT COUNT(*) FROM projects），不要分多步\n" +
+                "- 尽量1轮工具调用完成，最多不超过2轮\n";
 
         // 获取工具定义
         List<ToolDefinition> tools = toolExecutor.getAllToolDefinitions();
@@ -388,6 +391,40 @@ public class AgentServiceImpl implements AgentService {
         }
 
         return finalContent;
+    }
+
+    /**
+     * 获取数据库schema信息，注入到系统提示词中
+     * 避免LLM浪费工具调用轮次去探索表结构
+     */
+    private String getDatabaseSchema() {
+        try (java.sql.Connection conn = dataSource.getConnection();
+             java.sql.Statement stmt = conn.createStatement()) {
+            java.sql.ResultSet rs = stmt.executeQuery(
+                    "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE " +
+                    "FROM information_schema.COLUMNS " +
+                    "WHERE TABLE_SCHEMA = DATABASE() " +
+                    "ORDER BY TABLE_NAME, ORDINAL_POSITION");
+            StringBuilder sb = new StringBuilder();
+            String lastTable = "";
+            while (rs.next()) {
+                String table = rs.getString("TABLE_NAME");
+                String column = rs.getString("COLUMN_NAME");
+                String type = rs.getString("DATA_TYPE");
+                if (!table.equals(lastTable)) {
+                    if (!lastTable.isEmpty()) sb.append(")\n");
+                    sb.append(table).append("(").append(column).append(" ").append(type);
+                    lastTable = table;
+                } else {
+                    sb.append(", ").append(column).append(" ").append(type);
+                }
+            }
+            if (sb.length() > 0) sb.append(")");
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("获取数据库schema失败: {}", e.getMessage());
+            return "(schema获取失败，请先用 SHOW TABLES 探索)";
+        }
     }
 
     /**
