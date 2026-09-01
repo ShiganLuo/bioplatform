@@ -132,6 +132,11 @@
         UPDATE `projects` SET `parent_id` = NULL WHERE `parent_id` = #{parentId}
     </update>
 
+    <!-- 解除项目的父项目绑定 -->
+    <update id="clearParent">
+        UPDATE `projects` SET `parent_id` = NULL WHERE `id` = #{id}
+    </update>
+
     <!-- ==================== Custom Queries ==================== -->
 
     <select id="selectByOwnerId" resultMap="BaseResultMap">

@@ -88,11 +88,6 @@
       @close="handleDialogClose"
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="所属父项目">
-          <el-select v-model="formData.parentId" placeholder="无（顶级项目）" clearable style="width: 100%">
-            <el-option v-for="p in parentCandidates" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="项目名称" prop="name">
           <el-input v-model="formData.name" placeholder="请输入项目名称" />
         </el-form-item>

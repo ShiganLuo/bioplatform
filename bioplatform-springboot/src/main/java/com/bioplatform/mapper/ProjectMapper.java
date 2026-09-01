@@ -46,4 +46,7 @@ public interface ProjectMapper {
 
     /** 解除子项目绑定（父项目删除时） */
     int unbindChildren(@Param("parentId") Long parentId);
+
+    /** 解除项目的父项目绑定（设为NULL） */
+    int clearParent(@Param("id") Long id);
 }

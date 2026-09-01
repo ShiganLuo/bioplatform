@@ -35,6 +35,41 @@
       </el-descriptions>
     </el-card>
 
+    <!-- Sub Projects -->
+    <el-card class="table-card">
+      <template #header>
+        <div class="card-header">
+          <span>子项目 ({{ childProjects.length }})</span>
+          <el-button type="primary" size="small" @click="showAddChildDialog">
+            <el-icon><Plus /></el-icon>
+            添加子项目
+          </el-button>
+        </div>
+      </template>
+      <el-table v-if="childProjects.length > 0" :data="childProjects" size="small" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="项目名称" min-width="150">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="router.push(`/projects/${row.id}`)">{{ row.name }}</el-button>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">
+              {{ row.status === 1 ? '活跃' : '归档' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button type="danger" link size="small" @click="removeChild(row)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="暂无子项目" :image-size="40" />
+    </el-card>
+
     <!-- Data Files -->
     <el-card class="table-card">
       <template #header>
@@ -479,6 +514,24 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 添加子项目弹窗 -->
+    <el-dialog v-model="addChildVisible" title="添加子项目" width="500px">
+      <el-form label-width="80px">
+        <el-form-item label="选择项目">
+          <el-select v-model="addChildId" filterable placeholder="选择一个现有项目作为子项目" style="width: 100%">
+            <el-option v-for="p in availableChildren" :key="p.id" :label="p.name" :value="p.id">
+              <span>{{ p.name }}</span>
+              <span style="float: right; color: #909399; font-size: 12px">ID: {{ p.id }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addChildVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addChildLoading" @click="handleAddChild">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -489,7 +542,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
 import { Plus, Upload, FolderOpened, Document, Download, Folder, Close } from '@element-plus/icons-vue'
-import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFileTree, batchDownload, downloadAll } from '@/api/projectApi'
+import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFileTree, batchDownload, downloadAll, listProjects, updateProject, unbindParent } from '@/api/projectApi'
 import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
 import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } from '@/api/sampleMetaApi'
 import type { SampleMeta } from '@/api/sampleMetaApi'
@@ -510,6 +563,13 @@ const importLoading = ref(false)
 const createDialogVisible = ref(false)
 const importDialogVisible = ref(false)
 const createStep = ref(0)
+
+// 子项目状态
+const childProjects = ref<Project[]>([])
+const addChildVisible = ref(false)
+const addChildId = ref<number | null>(null)
+const addChildLoading = ref(false)
+const allProjects = ref<Project[]>([])
 
 // 文件浏览器状态
 const treeLoading = ref(false)
@@ -573,6 +633,59 @@ const loadProject = async () => {
     Object.assign(project, res)
   } catch (e) {
     ElMessage.error('加载项目失败')
+  }
+}
+
+// 子项目相关
+const availableChildren = computed(() => {
+  const childIds = new Set(childProjects.value.map(c => c.id))
+  return allProjects.value.filter(p => p.id !== projectId.value && !childIds.has(p.id))
+})
+
+const loadChildProjects = async () => {
+  try {
+    const res = await listProjects({ page: 1, size: 200 })
+    const all = (res.records || []) as any as Project[]
+    allProjects.value = all
+    childProjects.value = all.filter(p => p.parentId === projectId.value)
+  } catch (e) {
+    console.error('加载子项目失败:', e)
+  }
+}
+
+const showAddChildDialog = () => {
+  addChildId.value = null
+  addChildVisible.value = true
+}
+
+const handleAddChild = async () => {
+  if (!addChildId.value) {
+    ElMessage.warning('请选择一个项目')
+    return
+  }
+  addChildLoading.value = true
+  try {
+    const child = allProjects.value.find(p => p.id === addChildId.value)
+    if (!child) return
+    await updateProject(child.id, { ...child, parentId: projectId.value })
+    ElMessage.success('子项目添加成功')
+    addChildVisible.value = false
+    await loadChildProjects()
+  } catch (e) {
+    ElMessage.error('添加失败')
+  } finally {
+    addChildLoading.value = false
+  }
+}
+
+const removeChild = async (child: Project) => {
+  try {
+    await ElMessageBox.confirm(`确定将"${child.name}"从子项目中移除？`, '提示', { type: 'warning' })
+    await unbindParent(child.id)
+    ElMessage.success('已移除')
+    await loadChildProjects()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('移除失败')
   }
 }
 
@@ -1041,6 +1154,7 @@ onMounted(() => {
   loadAnalyses()
   loadFileTree()
   loadMetaList()
+  loadChildProjects()
 })
 
 // 监听路由参数变化，组件复用时重新加载数据
@@ -1053,6 +1167,7 @@ watch(() => route.params.id, (newId, oldId) => {
     loadAnalyses()
     loadFileTree()
     loadMetaList()
+    loadChildProjects()
   }
 })
 

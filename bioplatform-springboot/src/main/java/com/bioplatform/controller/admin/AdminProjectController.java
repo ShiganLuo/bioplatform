@@ -153,6 +153,16 @@ public class AdminProjectController {
         return ApiResponse.success();
     }
 
+    /**
+     * Unbind a project from its parent.
+     */
+    @PutMapping("/{id}/unbind-parent")
+    @OperLog(module = "项目管理", operation = "解除父项目绑定")
+    public ApiResponse<Void> unbindParent(@PathVariable Long id) {
+        projectMapper.clearParent(id);
+        return ApiResponse.success();
+    }
+
     // ========== 导出接口 ==========
 
     /**

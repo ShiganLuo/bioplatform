@@ -89,6 +89,10 @@ export function deleteProject(id: number) {
   return http.delete(`/api/admin/projects/${id}`)
 }
 
+export function unbindParent(id: number) {
+  return http.put(`/api/admin/projects/${id}/unbind-parent`)
+}
+
 export function createAnalysis(projectId: number, data: CreateAnalysisRequest) {
   return http.post<Pipeline>(`/api/admin/projects/${projectId}/analyses`, data)
 }
