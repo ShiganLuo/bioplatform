@@ -277,10 +277,10 @@ public class AgentServiceImpl implements AgentService {
 
         sendSse(emitter, "status", "正在分析问题...");
 
-        // 工具调用循环（最多3轮）
+        // 工具调用循环（最多5轮，防止死循环）
         LLMResponse response = llmClient.chatWithTools(messages, systemPrompt, tools);
         int toolRounds = 0;
-        while (response.hasToolCalls() && toolRounds < 3) {
+        while (response.hasToolCalls() && toolRounds < 5) {
             // 客户端已断开，停止工具调用循环
             if (disconnected.get()) {
                 log.info("SSE连接已断开，停止工具调用循环");
@@ -337,6 +337,18 @@ public class AgentServiceImpl implements AgentService {
 
             sendSse(emitter, "status", "正在根据工具结果生成回答...");
             response = llmClient.chatWithTools(messages, systemPrompt, tools);
+        }
+
+        // 如果循环结束后 response 仍含 tool_calls（3轮用完），再做一次无工具调用获取文本回复
+        if (response.hasToolCalls()) {
+            log.info("工具调用轮次已用完，执行无工具 LLM 调用生成文本回复");
+            // 把最后的助手 tool_calls 消息加入上下文
+            List<ChatMessage.ToolCallReference> lastRefs = response.getToolCalls().stream()
+                    .map(tc -> new ChatMessage.ToolCallReference(tc.id(), tc.name(), tc.arguments()))
+                    .toList();
+            messages.add(ChatMessage.assistantWithToolCalls(response.getContent(), lastRefs));
+            // 无工具调用
+            response = llmClient.chatWithTools(messages, systemPrompt, null);
         }
 
         // 获取最终文本回复
