@@ -667,7 +667,7 @@ const handleAddChild = async () => {
   try {
     const child = allProjects.value.find(p => p.id === addChildId.value)
     if (!child) return
-    await updateProject(child.id, { ...child, parentId: projectId.value })
+    await updateProject(child.id, { id: child.id, parentId: projectId.value } as any)
     ElMessage.success('子项目添加成功')
     addChildVisible.value = false
     await loadChildProjects()
