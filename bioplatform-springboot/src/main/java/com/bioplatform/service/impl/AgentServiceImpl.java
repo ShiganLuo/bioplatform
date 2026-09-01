@@ -288,7 +288,9 @@ public class AgentServiceImpl implements AgentService {
                 "当用户询问平台数据、项目数量、用户信息、任务状态等业务数据时，优先使用此工具。\n" +
                 "2. shell_execute: 在服务器上执行shell命令，可访问宿主机文件系统和工具。" +
                 "适用于查看文件、运行生信工具、检查系统状态等。\n" +
-                "当用户询问数据库相关问题时，必须使用 database_query 工具查询真实数据，不要凭空猜测。";
+                "当用户询问数据库相关问题时，必须使用 database_query 工具查询真实数据，不要凭空猜测。\n" +
+                "重要：查询数据库时，先用一条SQL获取所需数据（如 SELECT COUNT(*) FROM projects），不要分多步查询。" +
+                "尽量减少工具调用轮次，每轮只调用一次工具获取足够数据后直接回答。";
 
         // 获取工具定义
         List<ToolDefinition> tools = toolExecutor.getAllToolDefinitions();
