@@ -208,10 +208,15 @@ public class AgentServiceImpl implements AgentService {
                     }
                 }
 
-                // 发送完成事件
-                emitter.send(SseEmitter.event()
-                        .data("{\"done\":true,\"conversationId\":" + conversationId + "}"));
-                emitter.complete();
+                // 发送完成事件（连接可能已断开，忽略发送失败）
+                try {
+                    emitter.send(SseEmitter.event()
+                            .data("{\"done\":true,\"conversationId\":" + conversationId + "}"));
+                    emitter.complete();
+                } catch (Exception ex) {
+                    log.debug("SSE完成事件发送失败（客户端可能已断开）: {}", ex.getMessage());
+                    try { emitter.complete(); } catch (Exception ignored) {}
+                }
 
                 log.info("流式消息发送成功: conversationId={}, userId={}", conversationId, userId);
             } catch (Exception e) {
@@ -241,6 +246,12 @@ public class AgentServiceImpl implements AgentService {
      */
     private String processWithTools(String modelName, List<AgentMessage> historyMessages,
                                      SseEmitter emitter) throws Exception {
+        // 连接状态标记：SSE 断开时置 true，中断工具调用循环
+        java.util.concurrent.atomic.AtomicBoolean disconnected = new java.util.concurrent.atomic.AtomicBoolean(false);
+        emitter.onCompletion(() -> disconnected.set(true));
+        emitter.onTimeout(() -> disconnected.set(true));
+        emitter.onError(e -> disconnected.set(true));
+
         // 构建 ChatMessage 列表
         List<ChatMessage> messages = new java.util.ArrayList<>();
         for (AgentMessage msg : historyMessages) {
@@ -266,6 +277,12 @@ public class AgentServiceImpl implements AgentService {
         LLMResponse response = llmClient.chatWithTools(messages, systemPrompt, tools);
         int toolRounds = 0;
         while (response.hasToolCalls() && toolRounds < 3) {
+            // 客户端已断开，停止工具调用循环
+            if (disconnected.get()) {
+                log.info("SSE连接已断开，停止工具调用循环");
+                return null;
+            }
+
             toolRounds++;
             log.info("工具调用第{}轮: {}个工具", toolRounds, response.getToolCalls().size());
 
@@ -277,6 +294,12 @@ public class AgentServiceImpl implements AgentService {
 
             // 执行每个工具调用
             for (ToolCall toolCall : response.getToolCalls()) {
+                // 每次工具调用前检查连接状态
+                if (disconnected.get()) {
+                    log.info("SSE连接已断开，停止工具调用");
+                    return null;
+                }
+
                 log.info("执行工具: {}", toolCall.name());
 
                 // 推送工具调用事件
@@ -320,6 +343,7 @@ public class AgentServiceImpl implements AgentService {
 
         // 流式推送到前端（每20字符一个chunk，模拟流式效果）
         for (int i = 0; i < finalContent.length(); i += 20) {
+            if (disconnected.get()) break;
             int end = Math.min(i + 20, finalContent.length());
             String chunk = finalContent.substring(i, end);
             emitter.send(SseEmitter.event()

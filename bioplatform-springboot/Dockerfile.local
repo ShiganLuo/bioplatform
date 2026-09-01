@@ -1,7 +1,20 @@
-# 生物信息学云平台 - Spring Boot 后端 Dockerfile（本地 JAR 构建）
-FROM eclipse-temurin:17-jre-alpine
+# 生物信息学云平台 - Spring Boot 后端 Dockerfile
+# 使用本地已构建的 JAR 包（CI/CD 环境使用）
+
+FROM eclipse-temurin:17-jre
+
+LABEL maintainer="bioplatform"
+LABEL description="生物信息学云平台后端服务"
+
 WORKDIR /app
-COPY bioplatform-springboot/target/*.jar app.jar
-RUN mkdir -p /app/uploads
+
+# 复制本地已构建的 JAR 包
+COPY target/*.jar app.jar
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+
+RUN groupadd -r bioplatform && useradd -r -g bioplatform bioplatform
+RUN chown -R bioplatform:bioplatform /app
+USER bioplatform
+
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -Djava.security.egd=file:/dev/./urandom -jar app.jar"]
