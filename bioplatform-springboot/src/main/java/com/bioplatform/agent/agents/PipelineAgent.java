@@ -88,7 +88,10 @@ public class PipelineAgent extends BioAgent {
             toolRounds++;
             log.info("PipelineAgent工具调用第{}轮: {}个工具", toolRounds, response.getToolCalls().size());
 
-            messages.add(new ChatMessage("assistant", response.getContent(), null));
+            List<ChatMessage.ToolCallReference> toolCallRefs = response.getToolCalls().stream()
+                    .map(tc -> new ChatMessage.ToolCallReference(tc.id(), tc.name(), tc.arguments()))
+                    .toList();
+            messages.add(ChatMessage.assistantWithToolCalls(response.getContent(), toolCallRefs));
 
             for (ToolCall toolCall : response.getToolCalls()) {
                 String result = executeToolCall(toolCall);

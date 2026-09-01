@@ -85,7 +85,10 @@ public class DataAnalysisAgent extends BioAgent {
             log.info("DataAnalysisAgent工具调用第{}轮: {}个工具", toolRounds, response.getToolCalls().size());
 
             // 将助手消息（含工具调用）加入上下文
-            messages.add(new ChatMessage("assistant", response.getContent(), null));
+            List<ChatMessage.ToolCallReference> toolCallRefs = response.getToolCalls().stream()
+                    .map(tc -> new ChatMessage.ToolCallReference(tc.id(), tc.name(), tc.arguments()))
+                    .toList();
+            messages.add(ChatMessage.assistantWithToolCalls(response.getContent(), toolCallRefs));
 
             // 执行每个工具调用并收集结果
             for (ToolCall toolCall : response.getToolCalls()) {
