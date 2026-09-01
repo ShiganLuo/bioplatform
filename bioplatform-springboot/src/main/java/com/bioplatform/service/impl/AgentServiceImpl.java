@@ -179,20 +179,22 @@ public class AgentServiceImpl implements AgentService {
             t.setDaemon(true);
             return t;
         });
-        java.util.concurrent.ScheduledFuture<?> heartbeatTask = heartbeat.scheduleAtFixedRate(() -> {
+        // 用数组包装，解决 lambda 内引用未赋值变量的编译问题
+        java.util.concurrent.ScheduledFuture<?>[] heartbeatHolder = new java.util.concurrent.ScheduledFuture<?>[1];
+        heartbeatHolder[0] = heartbeat.scheduleAtFixedRate(() -> {
             try {
                 emitter.send(SseEmitter.event().comment("keepalive"));
             } catch (Exception e) {
                 // 连接已关闭，静默停止心跳
-                heartbeatTask.cancel(false);
+                heartbeatHolder[0].cancel(false);
                 heartbeat.shutdown();
             }
         }, 15, 15, java.util.concurrent.TimeUnit.SECONDS);
 
         // 连接结束时停止心跳
-        emitter.onCompletion(() -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
-        emitter.onTimeout(() -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
-        emitter.onError(e -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
+        emitter.onCompletion(() -> { heartbeatHolder[0].cancel(false); heartbeat.shutdown(); });
+        emitter.onTimeout(() -> { heartbeatHolder[0].cancel(false); heartbeat.shutdown(); });
+        emitter.onError(e -> { heartbeatHolder[0].cancel(false); heartbeat.shutdown(); });
 
         // 保存用户消息
         AgentMessage userMessage = new AgentMessage();
