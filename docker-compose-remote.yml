@@ -16,10 +16,10 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:mysql://blog_mysql:3306/bioplatform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: REDACTED_DB_PASSWORD
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATA_REDIS_HOST: blog_redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: REDACTED_REDIS_PASSWORD
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: Asia/Shanghai
     volumes:
       - bioplatform-uploads:/app/uploads

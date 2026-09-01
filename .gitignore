@@ -7,3 +7,6 @@
 **/.vscode
 
 bioplatform-springboot/src/main/resources/application-prod.yml
+
+# Environment secrets
+.env
