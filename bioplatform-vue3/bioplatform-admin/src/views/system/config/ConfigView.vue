@@ -134,8 +134,10 @@
               </div>
             </el-form-item>
             <el-form-item label="API Key">
-              <el-input v-model="llmConfig.apiKey" type="password" show-password placeholder="sk-..." @input="apiKeyDirty = true" />
-              <p style="font-size: 12px; color: #909399; margin-top: 4px;">切换提供商后请确认 API Key 是否匹配</p>
+              <el-input v-model="llmConfig.apiKey" type="password" show-password placeholder="sk-..." />
+              <p style="font-size: 12px; color: #909399; margin-top: 4px;">
+                已配置时显示遮蔽值，输入新值后保存即可更新
+              </p>
             </el-form-item>
             <el-form-item label="API Base URL">
               <el-input v-model="llmConfig.baseUrl" placeholder="根据提供商自动填充" />
@@ -201,8 +203,6 @@ const llmConfig = reactive({
   apiKey: '',
   model: ''
 })
-// 标记 API Key 是否被用户实际修改过
-const apiKeyDirty = ref(false)
 // 提供商列表（硬编码）
 const llmProviders = [
   { key: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
@@ -226,6 +226,7 @@ function collectSnapshot(): Record<string, string> {
   snap['llm_provider'] = llmConfig.provider
   snap['llm_base_url'] = llmConfig.baseUrl
   snap['llm_model'] = llmConfig.model
+  snap['llm_api_key'] = llmConfig.apiKey
   snap['site_contact_email'] = contactConfig.contactEmail
   snap['site_github_url'] = contactConfig.githubUrl
   snap['site_description'] = contactConfig.siteDescription
@@ -287,14 +288,10 @@ const handleSave = async () => {
 
     for (const [key, value] of Object.entries(currentSnapshot)) {
       if (originalSnapshot[key] !== value) {
+        // API Key 含遮蔽值说明未修改，跳过
+        if (key === 'llm_api_key' && value.includes('***')) continue
         changedConfigs.push({ key, value })
       }
-    }
-
-    // API Key 特殊处理：只在用户实际修改时才发送，且前端加密后再传输
-    if (apiKeyDirty.value && llmConfig.apiKey && !llmConfig.apiKey.includes('***')) {
-      const encryptedKey = await encrypt(llmConfig.apiKey)
-      changedConfigs.push({ key: 'llm_api_key', value: encryptedKey })
     }
 
     if (changedConfigs.length === 0) {
@@ -305,7 +302,12 @@ const handleSave = async () => {
 
     for (const config of changedConfigs) {
       try {
-        await updateConfig(0, { key: config.key, value: config.value } as any)
+        // API Key 需加密后传输
+        let sendValue = config.value
+        if (config.key === 'llm_api_key') {
+          sendValue = await encrypt(config.value)
+        }
+        await updateConfig(0, { key: config.key, value: sendValue } as any)
       } catch (e) {
         // Config might not exist yet, continue
       }
@@ -313,7 +315,6 @@ const handleSave = async () => {
 
     // 保存成功后更新快照
     originalSnapshot = collectSnapshot()
-    apiKeyDirty.value = false
     ElMessage.success(`配置保存成功（更新了 ${changedConfigs.length} 项）`)
   } catch (error) {
     ElMessage.error('配置保存失败')
