@@ -28,8 +28,17 @@ public class FormatInfoTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "查询生物信息学文件格式的详细说明，包括格式用途、结构、常用工具和注意事项。" +
-                "支持VCF、BAM、SAM、FASTA、FASTQ、BED、GFF、GTF、BigWig等格式。";
+        return "查询生物信息学文件格式的详细说明，支持VCF、BAM、FASTA、FASTQ、BED、GFF等格式。";
+    }
+
+    @Override
+    public String getTriggerDescription() {
+        return "当用户询问某种生信文件格式的用途、结构、常用工具时使用此工具。";
+    }
+
+    @Override
+    public int getPriority() {
+        return 40;
     }
 
     @Override

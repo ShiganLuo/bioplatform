@@ -32,8 +32,22 @@ public class FileInfoTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "读取生物信息学数据文件的元数据信息，包括文件名、类型、大小、物种、基因组版本等。" +
-                "通过文件ID查询文件详情。";
+        return "读取生物信息学数据文件的元数据信息，包括文件名、类型、大小、物种、基因组版本等。";
+    }
+
+    @Override
+    public String getTriggerDescription() {
+        return "当用户询问某个数据文件的详情、格式、大小等信息时使用此工具。";
+    }
+
+    @Override
+    public String getUsageHint() {
+        return "通过文件ID查询文件元数据。如果不知道文件ID，可先用database_query查询data_files表。";
+    }
+
+    @Override
+    public int getPriority() {
+        return 30;
     }
 
     @Override

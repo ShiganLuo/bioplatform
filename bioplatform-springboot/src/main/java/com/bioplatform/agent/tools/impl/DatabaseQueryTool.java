@@ -38,10 +38,63 @@ public class DatabaseQueryTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "查询平台 MySQL 数据库（bioplatform），执行 SELECT 查询并返回结果。" +
-                "可用于：查看项目列表、统计记录数、查询用户信息、查看分析任务状态等。" +
-                "只支持 SELECT 查询，禁止 INSERT/UPDATE/DELETE/DROP 等写操作。" +
-                "最多返回 " + MAX_ROWS + " 行数据。";
+        return "查询平台 MySQL 数据库（bioplatform），执行 SELECT 查询并返回结果。最多返回 " + MAX_ROWS + " 行数据。";
+    }
+
+    @Override
+    public String getTriggerDescription() {
+        return "当用户询问平台数据、项目数量、用户信息、任务状态等业务数据时使用此工具。";
+    }
+
+    @Override
+    public String getUsageHint() {
+        return "直接写 SQL SELECT 查询，不要先 SHOW TABLES 或 DESCRIBE（schema 已提供）。" +
+                "用一条 SQL 获取数据（如 SELECT COUNT(*) FROM projects），不要分多步。" +
+                "只支持 SELECT/SHOW/DESCRIBE 查询，禁止写操作。";
+    }
+
+    @Override
+    public int getPriority() {
+        return 10; // 高优先级，数据库查询是最常用的技能
+    }
+
+    @Override
+    public String getSystemPromptFragment() {
+        // 动态返回数据库 schema，让 LLM 知道表结构
+        return getDatabaseSchema();
+    }
+
+    /**
+     * 获取数据库 schema 信息
+     */
+    private String getDatabaseSchema() {
+        try (java.sql.Connection conn = dataSource.getConnection();
+             java.sql.Statement stmt = conn.createStatement()) {
+            java.sql.ResultSet rs = stmt.executeQuery(
+                    "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE " +
+                    "FROM information_schema.COLUMNS " +
+                    "WHERE TABLE_SCHEMA = DATABASE() " +
+                    "ORDER BY TABLE_NAME, ORDINAL_POSITION");
+            StringBuilder sb = new StringBuilder();
+            String lastTable = "";
+            while (rs.next()) {
+                String table = rs.getString("TABLE_NAME");
+                String column = rs.getString("COLUMN_NAME");
+                String type = rs.getString("DATA_TYPE");
+                if (!table.equals(lastTable)) {
+                    if (!lastTable.isEmpty()) sb.append(")\n");
+                    sb.append(table).append("(").append(column).append(" ").append(type);
+                    lastTable = table;
+                } else {
+                    sb.append(", ").append(column).append(" ").append(type);
+                }
+            }
+            if (sb.length() > 0) sb.append(")");
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("获取数据库schema失败: {}", e.getMessage());
+            return "(schema获取失败，请先用 SHOW TABLES 探索)";
+        }
     }
 
     @Override

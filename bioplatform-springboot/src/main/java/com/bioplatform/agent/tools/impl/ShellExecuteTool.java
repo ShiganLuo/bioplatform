@@ -93,12 +93,23 @@ public class ShellExecuteTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "在服务器上执行 shell 命令并返回结果。" +
-                "默认在当前宿主机上执行，可访问宿主机的文件系统和所有已安装的工具。" +
-                "指定 worker_id 可在远程计算节点上执行（适用于 NFS 共享存储或跨网络场景）。" +
-                "可用于：查看文件系统(ls/find/du)、查询数据库(mysql -e 'SELECT ...')、" +
-                "运行生信工具(samtools/bcftools)、检查系统状态(df/free/top)等。" +
-                "只读命令优先，禁止写操作(DROP/DELETE/INSERT/UPDATE)和危险操作(rm -rf)。";
+        return "在服务器上执行 shell 命令并返回结果。可访问宿主机文件系统和已安装的工具。";
+    }
+
+    @Override
+    public String getTriggerDescription() {
+        return "当用户需要查看文件系统、运行生信工具、检查系统状态等操作时使用此工具。";
+    }
+
+    @Override
+    public String getUsageHint() {
+        return "命令在宿主机上执行（通过chroot）。可用于ls/find/du查看文件、df/free/top检查系统状态。" +
+                "禁止危险操作(rm -rf)和数据库写操作。查询数据库优先使用database_query工具。";
+    }
+
+    @Override
+    public int getPriority() {
+        return 20;
     }
 
     @Override

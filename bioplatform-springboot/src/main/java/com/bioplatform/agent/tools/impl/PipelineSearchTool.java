@@ -33,8 +33,17 @@ public class PipelineSearchTool implements Tool {
 
     @Override
     public String getDescription() {
-        return "搜索和列出可用的生物信息学分析流水线。" +
-                "可按名称或分类筛选。返回流水线列表，包含名称、描述、分类等信息。";
+        return "搜索和列出可用的生物信息学分析流水线，可按名称或分类筛选。";
+    }
+
+    @Override
+    public String getTriggerDescription() {
+        return "当用户询问有哪些分析流程、pipeline、或想做某种分析时使用此工具。";
+    }
+
+    @Override
+    public int getPriority() {
+        return 30;
     }
 
     @Override
