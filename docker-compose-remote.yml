@@ -10,6 +10,8 @@ services:
     restart: always
     ports:
       - "8083:8080"
+    cap_add:
+      - SYS_CHROOT
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:mysql://blog_mysql:3306/bioplatform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
