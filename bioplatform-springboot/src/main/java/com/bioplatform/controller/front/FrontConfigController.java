@@ -29,8 +29,8 @@ public class FrontConfigController {
         Map<String, String> config = new HashMap<>();
         config.put("siteName", safeValue("site_name", "BioPlatform"));
         config.put("siteDescription", safeValue("site_description", "一站式生物信息学分析云平台"));
-        config.put("contactEmail", safeValue("site_contact_email", "support@bioplatform.com"));
-        config.put("githubUrl", safeValue("site_github_url", "https://github.com/bioplatform"));
+        config.put("contactEmail", safeValue("site_contact_email", ""));
+        config.put("githubUrl", safeValue("site_github_url", ""));
         return ApiResponse.success(config);
     }
 
