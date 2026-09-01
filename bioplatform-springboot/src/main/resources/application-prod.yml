@@ -1,0 +1,75 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://blog_mysql:3306/bioplatform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: ${SPRING_DATASOURCE_PASSWORD:bioplatform123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-timeout: 30000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+  data:
+    redis:
+      host: blog_redis
+      port: 6379
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  mail:
+    host: smtpdm.aliyun.com
+    port: 465
+    username: bio@mail.shiganluo.top
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+  main:
+    allow-circular-references: true
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+security:
+  jwt:
+    whitelist:
+      - /api/front/auth/login
+      - /api/front/auth/register
+      - /api/front/auth/sendEmailCode
+      - /api/front/projects/**
+      - /api/front/pipelines/**
+      - /api/front/site-config
+      - /api/admin/auth/login
+      - /api/admin/auth/refreshToken
+      - /api/admin/users/register
+      - /api/admin/util/get-captcha
+      - /swagger-ui.html
+      - /swagger-ui/**
+      - /v3/api-docs/**
+      - /doc.html
+      - /webjars/**
+    tokenHeader: Authorization
+    tokenHead: "Bearer "
+    secret: ${JWT_SECRET:bioplatform-prod-secret-key-2024-at-least-32-chars}
+    accessTokenExpiration: 3600000
+    refreshTokenExpiration: 604800000
+
+logging:
+  level:
+    com.bioplatform: INFO
+    org.springframework.security: INFO
