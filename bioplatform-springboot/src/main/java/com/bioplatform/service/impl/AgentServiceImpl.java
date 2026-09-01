@@ -170,6 +170,25 @@ public class AgentServiceImpl implements AgentService {
     public SseEmitter streamChat(Long conversationId, String content, Long userId) {
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L); // 5分钟超时
 
+        // SSE 心跳保活：每15秒发送一个注释行，防止 nginx/HTTP2 因空闲关闭连接
+        java.util.concurrent.ScheduledExecutorService heartbeat = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "sse-heartbeat-" + conversationId);
+            t.setDaemon(true);
+            return t;
+        });
+        java.util.concurrent.ScheduledFuture<?> heartbeatTask = heartbeat.scheduleAtFixedRate(() -> {
+            try {
+                emitter.send(SseEmitter.event().comment("keepalive"));
+            } catch (Exception e) {
+                heartbeat.shutdown();
+            }
+        }, 15, 15, java.util.concurrent.TimeUnit.SECONDS);
+
+        // 连接结束时停止心跳
+        emitter.onCompletion(() -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
+        emitter.onTimeout(() -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
+        emitter.onError(e -> { heartbeatTask.cancel(false); heartbeat.shutdown(); });
+
         // 保存用户消息
         AgentMessage userMessage = new AgentMessage();
         userMessage.setConversationId(conversationId);
