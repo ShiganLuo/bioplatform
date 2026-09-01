@@ -179,4 +179,36 @@ public class WorkerClient {
             return false;
         }
     }
+
+    /**
+     * 在 Worker 上同步执行 shell 命令
+     *
+     * @param workerUrl Worker 地址
+     * @param command   要执行的命令
+     * @param timeout   超时秒数
+     * @param workdir   工作目录（可为 null）
+     * @return 包含 exit_code, success, output 的 Map
+     */
+    public Map<String, Object> executeShell(String workerUrl, String command, int timeout, String workdir) {
+        try {
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("command", command);
+            body.put("timeout", timeout);
+            if (workdir != null) body.put("workdir", workdir);
+
+            String url = workerUrl + "/worker/shell/execute";
+            String response = HttpUtil.post(url, objectMapper.writeValueAsString(body));
+            JsonNode node = objectMapper.readTree(response);
+
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("exit_code", node.has("exit_code") ? node.get("exit_code").asInt() : -1);
+            result.put("success", node.has("success") && node.get("success").asBoolean());
+            result.put("output", node.has("output") ? node.get("output").asText() : "");
+            return result;
+        } catch (Exception e) {
+            log.error("Worker shell 执行失败: workerUrl={}, error={}", workerUrl, e.getMessage());
+            return Map.of("exit_code", -1, "success", false,
+                    "output", "Worker 调用失败: " + e.getMessage());
+        }
+    }
 }

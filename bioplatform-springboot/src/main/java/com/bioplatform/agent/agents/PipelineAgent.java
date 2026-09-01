@@ -107,7 +107,8 @@ public class PipelineAgent extends BioAgent {
         return allTools.stream()
                 .filter(t -> "pipeline_list".equals(t.name())
                         || "pipeline_detail".equals(t.name())
-                        || "file_info".equals(t.name()))
+                        || "file_info".equals(t.name())
+                        || "shell_execute".equals(t.name()))
                 .toList();
     }
 

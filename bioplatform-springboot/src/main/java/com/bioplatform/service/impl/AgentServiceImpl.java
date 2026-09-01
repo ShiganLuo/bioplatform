@@ -11,8 +11,15 @@ import com.bioplatform.entity.SystemConfig;
 import com.bioplatform.mapper.AgentConversationMapper;
 import com.bioplatform.mapper.AgentMessageMapper;
 import com.bioplatform.mapper.AgentToolMapper;
+import com.bioplatform.agent.ChatMessage;
+import com.bioplatform.agent.LLMClient;
+import com.bioplatform.agent.LLMResponse;
+import com.bioplatform.agent.ToolCall;
+import com.bioplatform.agent.ToolDefinition;
+import com.bioplatform.agent.tools.AgentToolExecutor;
 import com.bioplatform.service.SystemService;
 import com.bioplatform.service.AgentService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -46,17 +54,23 @@ public class AgentServiceImpl implements AgentService {
     private final SystemService systemService;
     private final ObjectMapper objectMapper;
     private final OkHttpClient httpClient;
+    private final LLMClient llmClient;
+    private final AgentToolExecutor toolExecutor;
 
     public AgentServiceImpl(AgentConversationMapper conversationMapper,
                             AgentMessageMapper messageMapper,
                             AgentToolMapper toolMapper,
                             SystemService systemService,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            LLMClient llmClient,
+                            AgentToolExecutor toolExecutor) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.toolMapper = toolMapper;
         this.systemService = systemService;
         this.objectMapper = objectMapper;
+        this.llmClient = llmClient;
+        this.toolExecutor = toolExecutor;
 
         // 配置OkHttp客户端（连接池复用，降低延迟）
         this.httpClient = new OkHttpClient.Builder()
@@ -169,12 +183,12 @@ public class AgentServiceImpl implements AgentService {
         // 捕获当前线程的 SecurityContext，传播到异步线程
         SecurityContext securityContext = SecurityContextHolder.getContext();
 
-        // 异步执行流式LLM调用
+        // 异步执行：工具调用循环 + 流式输出
         new Thread(() -> {
             SecurityContextHolder.setContext(securityContext);
             try {
                 AgentConversation conversation = conversationMapper.selectById(conversationId);
-                String assistantContent = streamLlmApi(conversation.getModelName(), historyMessages, emitter);
+                String assistantContent = processWithTools(conversation.getModelName(), historyMessages, emitter);
 
                 // 流结束，保存完整助手回复
                 if (assistantContent != null && !assistantContent.isEmpty()) {
@@ -188,7 +202,7 @@ public class AgentServiceImpl implements AgentService {
                     conversation.setUpdatedAt(LocalDateTime.now());
                     conversationMapper.updateById(conversation);
 
-                    // 生成对话标题（用用户首条消息截断）
+                    // 生成对话标题
                     if ("新对话".equals(conversation.getTitle())) {
                         generateTitle(conversation, content);
                     }
@@ -203,10 +217,8 @@ public class AgentServiceImpl implements AgentService {
             } catch (Exception e) {
                 log.error("流式消息发送失败: conversationId={}, userId={}, error={}", conversationId, userId, e.getMessage(), e);
                 try {
-                    // 通知前端错误信息
                     String errorMsg = e.getMessage();
                     if (errorMsg == null || errorMsg.isBlank()) errorMsg = "未知错误";
-                    // 转义JSON特殊字符
                     errorMsg = errorMsg.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
                     emitter.send(SseEmitter.event()
                             .data("{\"error\":\"" + errorMsg + "\",\"conversationId\":" + conversationId + "}"));
@@ -224,7 +236,113 @@ public class AgentServiceImpl implements AgentService {
     }
 
     /**
-     * 流式调用LLM API，逐token推送到SseEmitter
+     * 工具调用循环 + 实时流式输出
+     * 每个步骤（工具调用、工具结果、最终回复）都即时推送到前端
+     */
+    private String processWithTools(String modelName, List<AgentMessage> historyMessages,
+                                     SseEmitter emitter) throws Exception {
+        // 构建 ChatMessage 列表
+        List<ChatMessage> messages = new java.util.ArrayList<>();
+        for (AgentMessage msg : historyMessages) {
+            if ("user".equals(msg.getRole())) {
+                messages.add(ChatMessage.user(msg.getContent()));
+            } else if ("assistant".equals(msg.getRole())) {
+                messages.add(ChatMessage.assistant(msg.getContent()));
+            }
+        }
+
+        // 系统提示词
+        String systemPrompt = "你是一个专业的生物信息学助手，擅长解答基因组学、转录组学、蛋白质组学等生物信息学相关问题。" +
+                "你拥有服务器 shell 执行能力（shell_execute 工具），可以查询数据库、查看文件系统、运行生信工具。" +
+                "当用户询问平台数据、项目、文件、执行记录等业务信息时，必须先调用工具获取真实数据再回答，不要凭空猜测。";
+
+        // 获取工具定义
+        List<ToolDefinition> tools = toolExecutor.getAllToolDefinitions();
+        log.info("工具调用模式: {} 个工具可用", tools.size());
+
+        sendSse(emitter, "status", "正在分析问题...");
+
+        // 工具调用循环（最多3轮）
+        LLMResponse response = llmClient.chatWithTools(messages, systemPrompt, tools);
+        int toolRounds = 0;
+        while (response.hasToolCalls() && toolRounds < 3) {
+            toolRounds++;
+            log.info("工具调用第{}轮: {}个工具", toolRounds, response.getToolCalls().size());
+
+            // 将助手消息加入上下文（包含 tool_calls 信息，LLM API 要求）
+            List<ChatMessage.ToolCallReference> toolCallRefs = response.getToolCalls().stream()
+                    .map(tc -> new ChatMessage.ToolCallReference(tc.id(), tc.name(), tc.arguments()))
+                    .toList();
+            messages.add(ChatMessage.assistantWithToolCalls(response.getContent(), toolCallRefs));
+
+            // 执行每个工具调用
+            for (ToolCall toolCall : response.getToolCalls()) {
+                log.info("执行工具: {}", toolCall.name());
+
+                // 推送工具调用事件
+                String argsDisplay = toolCall.arguments();
+                try {
+                    Map<String, Object> parsed = objectMapper.readValue(toolCall.arguments(), new TypeReference<>() {});
+                    argsDisplay = objectMapper.writeValueAsString(parsed);
+                } catch (Exception ignored) {}
+                sendSse(emitter, "tool_call",
+                        "{\"name\":\"" + escapeJson(toolCall.name()) +
+                        "\",\"arguments\":" + argsDisplay + "}");
+
+                // 执行工具
+                String result;
+                try {
+                    Map<String, String> args = objectMapper.readValue(
+                            toolCall.arguments(), new TypeReference<>() {});
+                    result = toolExecutor.executeTool(toolCall.name(), args);
+                } catch (Exception e) {
+                    result = "{\"error\": \"工具执行失败: " + e.getMessage() + "\"}";
+                }
+
+                // 推送工具结果事件（截断过长的输出）
+                String resultPreview = result.length() > 500 ? result.substring(0, 500) + "..." : result;
+                sendSse(emitter, "tool_result",
+                        "{\"name\":\"" + escapeJson(toolCall.name()) +
+                        "\",\"output\":" + objectMapper.writeValueAsString(resultPreview) + "}");
+
+                messages.add(ChatMessage.tool(toolCall.id(), result));
+            }
+
+            sendSse(emitter, "status", "正在根据工具结果生成回答...");
+            response = llmClient.chatWithTools(messages, systemPrompt, tools);
+        }
+
+        // 获取最终文本回复
+        String finalContent = response.getContent();
+        if (finalContent == null || finalContent.isEmpty()) {
+            finalContent = "抱歉，我无法处理您的请求。";
+        }
+
+        // 流式推送到前端（每20字符一个chunk，模拟流式效果）
+        for (int i = 0; i < finalContent.length(); i += 20) {
+            int end = Math.min(i + 20, finalContent.length());
+            String chunk = finalContent.substring(i, end);
+            emitter.send(SseEmitter.event()
+                    .data("{\"delta\":\"" + escapeJson(chunk) + "\"}"));
+        }
+
+        return finalContent;
+    }
+
+    /**
+     * 发送 SSE 事件
+     */
+    private void sendSse(SseEmitter emitter, String eventType, String data) {
+        try {
+            emitter.send(SseEmitter.event()
+                    .data("{\"" + eventType + "\":" + data + "}"));
+        } catch (Exception e) {
+            log.warn("SSE 发送失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 流式调用LLM API，逐token推送到SseEmitter（保留作为无工具的备用方案）
      */
     private String streamLlmApi(String modelName, List<AgentMessage> historyMessages, SseEmitter emitter) throws Exception {
         String apiKey = systemService.getConfigValue("llm_api_key");

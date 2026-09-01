@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 任务执行服务
@@ -138,5 +139,56 @@ public class TaskExecutionService {
         task.setStatus("CANCELLED");
         task.setFinishedAt(LocalDateTime.now());
         return true;
+    }
+
+    /**
+     * 同步执行 shell 命令（Agent 工具调用专用）
+     * 阻塞等待命令执行完成，返回结果 Map
+     *
+     * @param command 要执行的命令
+     * @param timeout 超时秒数
+     * @param workdir 工作目录（可为 null）
+     * @return 包含 exit_code, success, output 的 Map
+     */
+    public Map<String, Object> executeShellSync(String command, int timeout, String workdir) {
+        log.info("同步执行 shell 命令: command={}, timeout={}, workdir={}", command, timeout, workdir);
+        try {
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+            pb.redirectErrorStream(true);
+            if (workdir != null && !workdir.isBlank()) {
+                pb.directory(new File(workdir));
+            }
+
+            Process process = pb.start();
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                    if (output.length() > 10240) {
+                        output.append("\n... [输出已截断，超过 10240 字符]");
+                        break;
+                    }
+                }
+            }
+
+            boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
+            int exitCode = finished ? process.exitValue() : -1;
+
+            if (!finished) {
+                process.destroyForcibly();
+                return Map.of("exit_code", -1, "success", false,
+                        "output", "命令执行超时（" + timeout + "秒）\n" + output);
+            }
+
+            log.info("shell 命令执行完成: exitCode={}, outputLength={}", exitCode, output.length());
+            return Map.of("exit_code", exitCode, "success", exitCode == 0,
+                    "output", output.toString());
+
+        } catch (Exception e) {
+            log.error("shell 命令执行异常: {}", e.getMessage());
+            return Map.of("exit_code", -1, "success", false,
+                    "output", "执行异常: " + e.getMessage());
+        }
     }
 }

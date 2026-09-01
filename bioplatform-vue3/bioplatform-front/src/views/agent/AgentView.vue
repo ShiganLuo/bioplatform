@@ -70,12 +70,34 @@
         </template>
 
         <!-- 流式渲染：独立于 messages 数组 -->
-        <div v-if="streamingContent" class="message-wrapper assistant-message">
+        <div v-if="streamingContent || streamingToolCalls.length > 0 || streamingStatus" class="message-wrapper assistant-message">
           <div class="message-avatar assistant-avatar">
             <el-icon><ChatDotRound /></el-icon>
           </div>
           <div class="message-content">
-            <div class="message-bubble assistant">
+            <!-- 工具调用展示 -->
+            <div v-if="streamingToolCalls.length > 0" class="tool-calls-section">
+              <div v-for="(tc, i) in streamingToolCalls" :key="i" class="tool-call-card">
+                <div class="tool-call-header">
+                  <el-icon><SetUp /></el-icon>
+                  <span class="tool-name">{{ tc.name }}</span>
+                  <span v-if="!tc.result" class="tool-status running">执行中...</span>
+                  <span v-else class="tool-status done">✓ 完成</span>
+                </div>
+                <div class="tool-call-args" v-if="tc.arguments">
+                  <code>{{ typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments, null, 2) }}</code>
+                </div>
+                <div v-if="tc.result" class="tool-call-result">
+                  <pre>{{ tc.result }}</pre>
+                </div>
+              </div>
+            </div>
+            <!-- 状态提示 -->
+            <div v-if="streamingStatus && !streamingContent" class="status-hint">
+              <span class="typing-dot"></span> {{ streamingStatus }}
+            </div>
+            <!-- 最终文本回复 -->
+            <div v-if="streamingContent" class="message-bubble assistant">
               <div class="message-text" v-html="renderStreamContent(streamingContent)"></div>
             </div>
           </div>
@@ -124,7 +146,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { ChatDotRound, Promotion, Plus, Expand, Fold, Delete } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, Plus, Expand, Fold, Delete, SetUp } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { chatStream, getConversations, getMessages, deleteConversation, batchDeleteConversations, deleteAllConversations } from '@/api/agentApi'
 import type { ChatMessage as ChatMessageType } from '@/api/agentApi'
@@ -146,6 +168,8 @@ const conversationId = ref('')
 const conversations = ref<any[]>([])
 const sidebarCollapsed = ref(false)
 const streamingContent = ref('')
+const streamingStatus = ref('')
+const streamingToolCalls = ref<Array<{ name: string; arguments: any; result?: string }>>([])
 const batchMode = ref(false)
 const selectedIds = ref<string[]>([])
 
@@ -178,22 +202,25 @@ async function sendMessage(text: string) {
   inputText.value = ''
   loading.value = true
   streamingContent.value = ''
+  streamingStatus.value = ''
+  streamingToolCalls.value = []
   scrollToBottom()
 
   chatStream(
     { message: text.trim(), conversationId: conversationId.value || undefined },
-    // onToken - 直接改 ref，Vue 保证响应式
+    // onToken
     (token) => {
       streamingContent.value += token
       scrollToBottom()
     },
-    // onDone - 把流式内容转入 messages 数组
+    // onDone
     (info) => {
       if (streamingContent.value) {
         messages.value.push({
           role: 'assistant',
           content: streamingContent.value,
           timestamp: Date.now(),
+          toolCalls: streamingToolCalls.value.length > 0 ? streamingToolCalls.value : undefined,
         })
       }
       if (info.conversationId) {
@@ -201,10 +228,12 @@ async function sendMessage(text: string) {
         loadConversations()
       }
       streamingContent.value = ''
+      streamingStatus.value = ''
+      streamingToolCalls.value = []
       loading.value = false
       scrollToBottom()
     },
-    // onError - 显示错误提示
+    // onError
     (errMsg) => {
       if (streamingContent.value) {
         messages.value.push({
@@ -214,6 +243,8 @@ async function sendMessage(text: string) {
         })
       }
       streamingContent.value = ''
+      streamingStatus.value = ''
+      streamingToolCalls.value = []
       loading.value = false
       if (errMsg.includes('401') || errMsg.includes('403')) {
         messages.value.push({
@@ -228,6 +259,25 @@ async function sendMessage(text: string) {
           timestamp: Date.now(),
         })
       }
+      scrollToBottom()
+    },
+    // onToolCall
+    (toolCall) => {
+      streamingToolCalls.value.push({ name: toolCall.name, arguments: toolCall.arguments })
+      streamingStatus.value = ''
+      scrollToBottom()
+    },
+    // onToolResult
+    (toolResult) => {
+      const last = streamingToolCalls.value[streamingToolCalls.value.length - 1]
+      if (last && last.name === toolResult.name) {
+        last.result = toolResult.output
+      }
+      scrollToBottom()
+    },
+    // onStatus
+    (status) => {
+      streamingStatus.value = status
       scrollToBottom()
     }
   )
@@ -644,5 +694,100 @@ onMounted(async () => {
   .messages-area {
     padding: 16px;
   }
+}
+
+/* Tool Call Cards */
+.tool-calls-section {
+  margin-bottom: 12px;
+}
+
+.tool-call-card {
+  background: #f8f9fb;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  max-width: 600px;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ecf5ff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+.tool-name {
+  flex: 1;
+}
+
+.tool-status {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.tool-status.running {
+  color: #e6a23c;
+}
+
+.tool-status.done {
+  color: #67c23a;
+}
+
+.tool-call-args {
+  padding: 6px 12px;
+  border-top: 1px solid #ebeef5;
+}
+
+.tool-call-args code {
+  font-size: 12px;
+  color: #606266;
+  word-break: break-all;
+  background: none;
+  padding: 0;
+}
+
+.tool-call-result {
+  padding: 6px 12px;
+  border-top: 1px solid #ebeef5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-call-result pre {
+  margin: 0;
+  font-size: 12px;
+  color: #606266;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: none;
+  padding: 0;
+}
+
+.status-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #409eff;
+  animation: typingPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 </style>

@@ -103,9 +103,12 @@ public class DataAnalysisAgent extends BioAgent {
     @Override
     public List<ToolDefinition> getTools() {
         List<ToolDefinition> allTools = toolExecutor.getAllToolDefinitions();
-        // 只返回data_analysis相关的工具
+        // 数据分析相关工具 + shell_execute 万能工具
         return allTools.stream()
-                .filter(t -> "file_info".equals(t.name()) || "format_info".equals(t.name()))
+                .filter(t -> "file_info".equals(t.name())
+                        || "format_info".equals(t.name())
+                        || "file_search".equals(t.name())
+                        || "shell_execute".equals(t.name()))
                 .toList();
     }
 

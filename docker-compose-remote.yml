@@ -21,6 +21,7 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - bioplatform-uploads:/app/uploads
+      - /:/host:ro
     networks:
       - blog_net
 

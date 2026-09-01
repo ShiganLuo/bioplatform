@@ -98,6 +98,30 @@ public class WorkerController {
         return List.of(); // 简化实现
     }
 
+    /**
+     * 同步执行 shell 命令（Agent 工具调用）
+     * 直接在宿主机上执行，返回结果
+     */
+    @PostMapping("/shell/execute")
+    public Map<String, Object> shellExecute(@RequestBody Map<String, Object> params) {
+        String command = params.getOrDefault("command", "").toString();
+        int timeout = 30;
+        if (params.containsKey("timeout")) {
+            try {
+                timeout = Integer.parseInt(params.get("timeout").toString());
+            } catch (NumberFormatException ignored) {}
+        }
+        timeout = Math.min(timeout, 300);
+
+        String workdir = params.containsKey("workdir") ? params.get("workdir").toString() : null;
+
+        if (command.isBlank()) {
+            return Map.of("exit_code", -1, "success", false, "output", "命令不能为空");
+        }
+
+        return taskService.executeShellSync(command, timeout, workdir);
+    }
+
     private String getHostname() {
         try {
             return java.net.InetAddress.getLocalHost().getHostName();

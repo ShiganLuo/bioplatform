@@ -1,5 +1,6 @@
 package com.bioplatform.agent;
 
+import com.bioplatform.common.util.AesEncryptUtil;
 import com.bioplatform.entity.SystemConfig;
 import com.bioplatform.mapper.SystemConfigMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -86,7 +87,7 @@ public class LLMClient {
         SystemConfig modelConfig = systemConfigMapper.selectByKey("llm_model");
         SystemConfig baseUrlConfig = systemConfigMapper.selectByKey("llm_base_url");
 
-        String apiKey = apiKeyConfig != null ? apiKeyConfig.getConfigValue() : "";
+        String apiKey = apiKeyConfig != null ? AesEncryptUtil.decrypt(apiKeyConfig.getConfigValue()) : "";
         String model = modelConfig != null ? modelConfig.getConfigValue() : "gpt-3.5-turbo";
         String baseUrl = baseUrlConfig != null ? baseUrlConfig.getConfigValue() : "https://api.openai.com/v1";
 
@@ -271,6 +272,18 @@ public class LLMClient {
             }
             if (msg.toolCallId() != null) {
                 msgNode.put("tool_call_id", msg.toolCallId());
+            }
+            // 序列化助手消息中的 tool_calls
+            if (msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
+                ArrayNode tcArray = msgNode.putArray("tool_calls");
+                for (ChatMessage.ToolCallReference tc : msg.toolCalls()) {
+                    ObjectNode tcNode = tcArray.addObject();
+                    tcNode.put("id", tc.id());
+                    tcNode.put("type", "function");
+                    ObjectNode fnNode = tcNode.putObject("function");
+                    fnNode.put("name", tc.name());
+                    fnNode.put("arguments", tc.arguments());
+                }
             }
         }
 
