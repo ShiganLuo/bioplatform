@@ -158,6 +158,9 @@ import { encrypt, isEncrypted } from '@/utils/crypto'
 const saving = ref(false)
 const activeTab = ref('basic')
 
+// 原始值快照，用于比对哪些配置被修改过
+let originalSnapshot: Record<string, string> = {}
+
 const basicConfig = reactive({
   platformName: '生物信息学云平台',
   platformDescription: '一站式生物信息学数据分析云平台',
@@ -213,6 +216,22 @@ const llmProviders = [
 const availableModels = ref<string[]>([])
 const fetchingModels = ref(false)
 
+/** 收集当前所有配置的 key-value 快照 */
+function collectSnapshot(): Record<string, string> {
+  const snap: Record<string, string> = {}
+  for (const [k, v] of Object.entries(basicConfig)) snap[`basic.${k}`] = String(v)
+  for (const [k, v] of Object.entries(securityConfig)) snap[`security.${k}`] = String(v)
+  for (const [k, v] of Object.entries(notificationConfig)) snap[`notification.${k}`] = String(v)
+  for (const [k, v] of Object.entries(executionConfig)) snap[`execution.${k}`] = String(v)
+  snap['llm_provider'] = llmConfig.provider
+  snap['llm_base_url'] = llmConfig.baseUrl
+  snap['llm_model'] = llmConfig.model
+  snap['site_contact_email'] = contactConfig.contactEmail
+  snap['site_github_url'] = contactConfig.githubUrl
+  snap['site_description'] = contactConfig.siteDescription
+  return snap
+}
+
 const loadConfigs = async () => {
   try {
     const res = await getConfigs()
@@ -248,6 +267,8 @@ const loadConfigs = async () => {
         }
       }
     })
+    // 加载完成后保存快照
+    originalSnapshot = collectSnapshot()
   } catch (error) {
     console.error('Failed to load configs:', error)
   }
@@ -260,41 +281,29 @@ const handleTabClick = () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    const allConfigs = [
-      ...Object.entries(basicConfig).map(([key, value]) => ({
-        key: `basic.${key}`,
-        value: String(value)
-      })),
-      ...Object.entries(securityConfig).map(([key, value]) => ({
-        key: `security.${key}`,
-        value: String(value)
-      })),
-      ...Object.entries(notificationConfig).map(([key, value]) => ({
-        key: `notification.${key}`,
-        value: String(value)
-      })),
-      ...Object.entries(executionConfig).map(([key, value]) => ({
-        key: `execution.${key}`,
-        value: String(value)
-      })),
-      // LLM 配置使用扁平 key，与数据库一致
-      { key: 'llm_provider', value: llmConfig.provider },
-      { key: 'llm_base_url', value: llmConfig.baseUrl },
-      { key: 'llm_model', value: llmConfig.model },
-      // 联系信息配置
-      { key: 'site_contact_email', value: contactConfig.contactEmail },
-      { key: 'site_github_url', value: contactConfig.githubUrl },
-      { key: 'site_description', value: contactConfig.siteDescription },
-    ]
-    // API Key 只在用户实际修改时才发送，且前端加密后再传输
-    if (llmConfig.apiKey && llmConfig.apiKey.includes('***')) {
-      ElMessage.warning('API Key 为遮蔽值未更新，请先输入真实的 API Key 再保存')
-    } else if (apiKeyDirty.value && llmConfig.apiKey) {
-      const encryptedKey = await encrypt(llmConfig.apiKey)
-      allConfigs.push({ key: 'llm_api_key', value: encryptedKey })
+    // 收集当前快照，与原始快照比对找出变化项
+    const currentSnapshot = collectSnapshot()
+    const changedConfigs: { key: string; value: string }[] = []
+
+    for (const [key, value] of Object.entries(currentSnapshot)) {
+      if (originalSnapshot[key] !== value) {
+        changedConfigs.push({ key, value })
+      }
     }
 
-    for (const config of allConfigs) {
+    // API Key 特殊处理：只在用户实际修改时才发送，且前端加密后再传输
+    if (apiKeyDirty.value && llmConfig.apiKey && !llmConfig.apiKey.includes('***')) {
+      const encryptedKey = await encrypt(llmConfig.apiKey)
+      changedConfigs.push({ key: 'llm_api_key', value: encryptedKey })
+    }
+
+    if (changedConfigs.length === 0) {
+      ElMessage.info('没有配置被修改')
+      saving.value = false
+      return
+    }
+
+    for (const config of changedConfigs) {
       try {
         await updateConfig(0, { key: config.key, value: config.value } as any)
       } catch (e) {
@@ -302,7 +311,10 @@ const handleSave = async () => {
       }
     }
 
-    ElMessage.success('配置保存成功')
+    // 保存成功后更新快照
+    originalSnapshot = collectSnapshot()
+    apiKeyDirty.value = false
+    ElMessage.success(`配置保存成功（更新了 ${changedConfigs.length} 项）`)
   } catch (error) {
     ElMessage.error('配置保存失败')
   } finally {
