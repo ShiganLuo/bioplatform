@@ -264,8 +264,12 @@ public class AgentServiceImpl implements AgentService {
 
         // 系统提示词
         String systemPrompt = "你是一个专业的生物信息学助手，擅长解答基因组学、转录组学、蛋白质组学等生物信息学相关问题。" +
-                "你拥有服务器 shell 执行能力（shell_execute 工具），可以查询数据库、查看文件系统、运行生信工具。" +
-                "当用户询问平台数据、项目、文件、执行记录等业务信息时，必须先调用工具获取真实数据再回答，不要凭空猜测。";
+                "你拥有以下工具能力：\n" +
+                "1. database_query: 直接查询平台MySQL数据库(bioplatform)，执行SELECT查询。" +
+                "当用户询问平台数据、项目数量、用户信息、任务状态等业务数据时，优先使用此工具。\n" +
+                "2. shell_execute: 在服务器上执行shell命令，可访问宿主机文件系统和工具。" +
+                "适用于查看文件、运行生信工具、检查系统状态等。\n" +
+                "当用户询问数据库相关问题时，必须使用 database_query 工具查询真实数据，不要凭空猜测。";
 
         // 获取工具定义
         List<ToolDefinition> tools = toolExecutor.getAllToolDefinitions();
