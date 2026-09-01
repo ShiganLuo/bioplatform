@@ -17,13 +17,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://blog_mysql:3306/bioplatform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_DATASOURCE_HIKARI_MAXIMUM-POOL-SIZE: 20
-      SPRING_DATASOURCE_HIKARI_MINIMUM-IDLE: 5
-      SPRING_DATASOURCE_HIKARI_MAX-LIFETIME: 600000
-      SPRING_DATASOURCE_HIKARI_CONNECTION-TEST-QUERY: "SELECT 1"
       SPRING_DATA_REDIS_HOST: blog_redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      BIOPLATFORM_AES_KEY: ${BIOPLATFORM_AES_KEY}
       TZ: Asia/Shanghai
     volumes:
       - bioplatform-uploads:/app/uploads
