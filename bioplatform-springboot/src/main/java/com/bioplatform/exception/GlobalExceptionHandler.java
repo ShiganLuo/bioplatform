@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.io.IOException;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +53,15 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleDuplicateUserException(DuplicateUserException ex) {
         log.warn("Duplicate user: {}", ex.getMessage());
         return ApiResponse.error(ResultCodeEnum.CONFLICT.getCode(), ex.getMessage());
+    }
+
+    /**
+     * Handle SSE/async IOException (Broken pipe) — 客户端断开连接，非服务端错误
+     */
+    @ExceptionHandler(IOException.class)
+    public void handleIOException(IOException ex) {
+        log.debug("SSE连接断开（客户端断开）: {}", ex.getMessage());
+        // SSE 连接断开不需要返回响应，直接忽略
     }
 
     /**

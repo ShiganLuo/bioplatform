@@ -183,6 +183,8 @@ public class AgentServiceImpl implements AgentService {
             try {
                 emitter.send(SseEmitter.event().comment("keepalive"));
             } catch (Exception e) {
+                // 连接已关闭，静默停止心跳
+                heartbeatTask.cancel(false);
                 heartbeat.shutdown();
             }
         }, 15, 15, java.util.concurrent.TimeUnit.SECONDS);
