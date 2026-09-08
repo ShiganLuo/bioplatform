@@ -32,6 +32,9 @@ const axiosInstance = axios.create({
 let isRefreshing = false
 let requests: Array<(token: string | null) => void> = []
 
+// 共享的登出 Promise，防止并发401触发多次logout API调用
+let logoutPromise: Promise<void> | null = null
+
 /**
  * 延迟加载 userStore，避免循环依赖
  * (store -> api -> http -> store)
@@ -44,6 +47,20 @@ async function getUserStore() {
     _userStore = mod.useUserStore()
   }
   return _userStore
+}
+
+/**
+ * 统一登出：共享同一个 Promise，避免并发401触发多次 logout API 调用
+ */
+async function doLogout(): Promise<void> {
+  if (logoutPromise) return logoutPromise
+  logoutPromise = (async () => {
+    const userStore = await getUserStore()
+    await userStore.logout()
+  })().finally(() => {
+    logoutPromise = null
+  })
+  return logoutPromise
 }
 
 /**
@@ -88,10 +105,10 @@ async function doRefreshToken(originalRequest: AxiosRequestConfig & { _retry?: b
         throw new Error(refreshData.message || 'Refresh token failed')
       }
     } catch (err) {
-      // 刷新失败，退出登录
+      // 刷新失败，统一登出
       requests.forEach((cb) => cb(null))
       requests = []
-      userStore.logout()
+      await doLogout()
       ElMessage.error('登录状态已过期，请重新登录')
       return Promise.reject(err)
     } finally {
@@ -156,8 +173,7 @@ axiosInstance.interceptors.response.use(
         isRefreshing = false
         requests.forEach((cb) => cb(null))
         requests = []
-        const userStore = await getUserStore()
-        userStore.logout()
+        await doLogout()
         ElMessage.error('登录状态已过期，请重新登录')
         return Promise.reject(new Error('Refresh Token 失效'))
       }

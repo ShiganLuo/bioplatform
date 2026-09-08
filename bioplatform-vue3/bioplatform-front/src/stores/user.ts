@@ -28,11 +28,13 @@ export const useUserStore = defineStore(
         if (payload.exp) {
           const msLeft = payload.exp * 1000 - Date.now()
           if (msLeft <= 0) {
+            // token 已过期，立即登出
             logout()
             return
           }
-          // 提前10秒检查，避免边界情况
-          _logoutTimer = setTimeout(() => logout(), msLeft + 10000)
+          // 提前10秒触发刷新，给 refreshToken 留窗口；最小1秒防止精度问题
+          const delay = Math.max(msLeft - 10000, 1000)
+          _logoutTimer = setTimeout(() => logout(), delay)
         }
       } catch {
         // token 解析失败，不做处理

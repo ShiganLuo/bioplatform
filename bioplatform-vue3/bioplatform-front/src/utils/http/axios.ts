@@ -56,7 +56,10 @@ const axiosInstance: AxiosInstance = axios.create({
 // ============================================================
 
 let isRefreshing = false
-let requests: (() => void)[] = []
+let requests: ((token: string | null) => void)[] = []
+
+// 共享的登出 Promise，防止并发401触发多次logout
+let logoutPromise: Promise<void> | null = null
 
 /***
  * 从 localStorage 读取 bio_user 中存储的 accessToken 和 refreshToken
@@ -92,30 +95,67 @@ function getStoredRefreshToken(): string {
  * 检查是否是刷新 token 的请求（防止死循环）
  */
 function isRefreshRequest(config?: AxiosRequestConfig): boolean {
-  return !!config?.url?.includes('/admin/auth/refreshToken')
+  return !!config?.url?.includes('/auth/refreshToken')
+}
+
+/**
+ * 统一登出：共享同一个 Promise，避免并发401触发多次 logout API 调用
+ */
+function doLogout(): Promise<void> {
+  if (logoutPromise) return logoutPromise
+  logoutPromise = (async () => {
+    const userStore = useUserStore()
+    await userStore.logout()
+  })().finally(() => {
+    logoutPromise = null
+  })
+  return logoutPromise
 }
 
 /**
  * 处理 401 响应，尝试刷新 token
+ * 使用 _retry 标记 + 共享 Promise，确保每个请求只触发一次刷新/登出
  */
 async function handleUnauthorized(
-  originalRequest: InternalAxiosRequestConfig
+  originalRequest: InternalAxiosRequestConfig & { _retry?: boolean; _retrying?: boolean }
 ): Promise<AxiosResponse> {
-  const userStore = useUserStore()
-  const currentToken = getStoredToken()
-
   // 如果刷新请求本身返回 401，说明 refresh token 也失效了，强制登出
   if (isRefreshRequest(originalRequest)) {
     isRefreshing = false
-    requests.forEach((cb) => cb())
+    requests.forEach((cb) => cb(null))
     requests = []
-    userStore.logout()
+    await doLogout()
     ElMessage.error('登录状态已过期，请重新登录')
     return Promise.reject(new Error('Refresh Token 失效'))
   }
 
-  // 如果用户已登录，尝试刷新 token
+  // 已经在重试中（由挂起队列唤醒后重试的请求），不要再进入刷新流程
+  if (originalRequest._retrying) {
+    return Promise.reject(new Error('重试后仍然 401'))
+  }
+
+  // 防止同一个请求重复进入刷新流程
+  if (originalRequest._retry) {
+    // 已经在刷新中，挂起等待
+    return new Promise((resolve, reject) => {
+      requests.push((newToken) => {
+        if (!newToken) {
+          reject(new Error('刷新 token 失败'))
+          return
+        }
+        originalRequest._retrying = true
+        originalRequest.headers.set('Authorization', `Bearer ${newToken}`)
+        resolve(axiosInstance(originalRequest))
+      })
+    })
+  }
+
+  const currentToken = getStoredToken()
+
+  // 如果用户有 token，尝试刷新
   if (currentToken) {
+    originalRequest._retry = true
+
     if (!isRefreshing) {
       isRefreshing = true
       try {
@@ -129,42 +169,45 @@ async function handleUnauthorized(
         const newAccessToken: string = refreshRes?.accessToken
 
         // 更新 store 中的 token（pinia-plugin-persistedstate 会自动持久化）
+        const userStore = useUserStore()
         userStore.token = newAccessToken
 
         // 让所有挂起请求重新执行
-        requests.forEach((cb) => cb())
+        requests.forEach((cb) => cb(newAccessToken))
         requests = []
 
         // 重试原请求
+        originalRequest._retrying = true
         originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`)
         return axiosInstance(originalRequest)
       } catch {
-        // 刷新失败，退出登录
-        userStore.logout()
-        ElMessage.error('登录状态已过期，请重新登录')
-        requests.forEach((cb) => cb())
+        // 刷新失败，统一登出
+        requests.forEach((cb) => cb(null))
         requests = []
+        await doLogout()
+        ElMessage.error('登录状态已过期，请重新登录')
         return Promise.reject(new Error('刷新 Token 失败'))
       } finally {
         isRefreshing = false
       }
     } else {
       // 已经在刷新 token，把请求挂起
-      return new Promise((resolve) => {
-        requests.push(() => {
-          // token 刷新完成后重试原请求
-          const newToken = getStoredToken()
-          if (newToken) {
-            originalRequest.headers.set('Authorization', `Bearer ${newToken}`)
-            resolve(axiosInstance(originalRequest))
+      return new Promise((resolve, reject) => {
+        requests.push((newToken) => {
+          if (!newToken) {
+            reject(new Error('刷新 token 失败'))
+            return
           }
+          originalRequest._retrying = true
+          originalRequest.headers.set('Authorization', `Bearer ${newToken}`)
+          resolve(axiosInstance(originalRequest))
         })
       })
     }
   }
 
-  // 未登录状态，直接登出
-  userStore.logout()
+  // 未登录状态，统一登出
+  await doLogout()
   ElMessage.error('登录已过期，请重新登录')
   return Promise.reject(new Error('未登录'))
 }
