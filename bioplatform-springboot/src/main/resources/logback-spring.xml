@@ -33,7 +33,7 @@
     </springProfile>
 
     <springProfile name="docker">
-        <root level="DEBUG">
+        <root level="WARN">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>
         </root>

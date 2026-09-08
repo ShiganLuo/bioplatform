@@ -124,10 +124,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-aop</artifactId>
 		</dependency>
-		<!-- Spring Boot DevTools -->
+		<!-- Spring Boot DevTools (provided scope: IDE自动加载，不打进生产jar) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<!-- Lombok -->
 		<dependency>

@@ -8,11 +8,11 @@
 server:
   port: 8080
   tomcat:
-    max-threads: 200          # 最大工作线程数
-    min-spare-threads: 20     # 最小空闲线程数
-    max-connections: 8192     # 最大连接数
-    accept-count: 100         # 等待队列长度
-    connection-timeout: 20000 # 连接超时时间（毫秒）
+    max-threads: 50            # 最大工作线程数（个人项目50足够）
+    min-spare-threads: 5       # 最小空闲线程数
+    max-connections: 512       # 最大连接数
+    accept-count: 50           # 等待队列长度
+    connection-timeout: 20000  # 连接超时时间（毫秒）
 
 spring:
   datasource:
@@ -24,8 +24,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # HikariCP 连接池配置（Spring Boot 默认连接池）
     hikari:
-      maximum-pool-size: 20      # 最大连接数
-      minimum-idle: 5            # 最小空闲连接
+      maximum-pool-size: 10      # 最大连接数（个人项目10足够）
+      minimum-idle: 2            # 最小空闲连接
       idle-timeout: 600000       # 空闲连接超时（10分钟）
       max-lifetime: 1200000      # 连接最大存活时间（20分钟，必须比MySQL wait_timeout 1800s至少短30s）
       connection-timeout: 30000  # 获取连接超时（30秒）
@@ -44,9 +44,9 @@ spring:
       # Lettuce 连接池配置
       lettuce:
         pool:
-          max-active: 16     # 最大活跃连接
-          max-idle: 8        # 最大空闲连接
-          min-idle: 2        # 最小空闲连接
+          max-active: 8      # 最大活跃连接
+          max-idle: 4        # 最大空闲连接
+          min-idle: 1        # 最小空闲连接
           max-wait: 3000ms   # 获取连接最大等待时间
 
   servlet:

@@ -1,7 +1,7 @@
 # 生物信息学云平台 - Spring Boot 后端 Dockerfile
 # 使用本地已构建的 JAR 包
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="bioplatform"
 LABEL description="生物信息学云平台后端服务"

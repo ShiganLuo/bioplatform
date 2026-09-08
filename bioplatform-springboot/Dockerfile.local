@@ -1,7 +1,7 @@
 # 生物信息学云平台 - Spring Boot 后端 Dockerfile
 # 使用本地已构建的 JAR 包（CI/CD 环境使用）
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="bioplatform"
 LABEL description="生物信息学云平台后端服务"
@@ -13,7 +13,7 @@ COPY target/*.jar app.jar
 
 EXPOSE 8080
 
-RUN groupadd -r bioplatform && useradd -r -g bioplatform bioplatform
+RUN addgroup -S bioplatform && adduser -S -G bioplatform bioplatform
 RUN chown -R bioplatform:bioplatform /app
 USER bioplatform
 

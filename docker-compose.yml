@@ -74,7 +74,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker   # 激活Docker环境配置
       DB_PASSWORD: bioplatform123       # 数据库密码（与MySQL一致）
       JWT_SECRET: REDACTED_DOCKER_JWT_SECRET  # JWT密钥
-      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Djava.security.egd=file:/dev/./urandom"
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=256m -XX:+UseStringDeduplication -XX:ReservedCodeCacheSize=128m -XX:-TieredCompilation -Djava.security.egd=file:/dev/./urandom"
       TZ: Asia/Shanghai
     volumes:
       - /home/luosg/uploads/bioplatform:/data/bioplatform/uploads  # 文件上传目录映射
