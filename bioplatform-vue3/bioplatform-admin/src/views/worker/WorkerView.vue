@@ -40,8 +40,9 @@
             <el-switch :model-value="row.status === 1" @change="(val: boolean) => toggleEnabled(row, val)" size="small" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140">
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
+            <el-button size="small" type="primary" link @click="editNode(row)">编辑</el-button>
             <el-button size="small" type="primary" link @click="testNode(row)">测试连接</el-button>
             <el-button size="small" type="danger" link @click="removeNode(row)">删除</el-button>
           </template>
@@ -107,6 +108,28 @@
         <el-button type="primary" @click="addNode" :loading="adding">直接添加</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑节点对话框 -->
+    <el-dialog v-model="showEditDialog" title="编辑计算节点" width="480px">
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="节点ID">
+          <el-input :model-value="editForm.nodeId" disabled />
+        </el-form-item>
+        <el-form-item label="节点地址" required>
+          <el-input v-model="editForm.url" placeholder="http://host.docker.internal:18081" />
+          <p style="font-size:12px;color:#909399;margin-top:4px;">
+            Docker 容器内请用 host.docker.internal 代替 localhost
+          </p>
+        </el-form-item>
+        <el-form-item label="主机名">
+          <el-input v-model="editForm.hostname" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveEdit" :loading="saving">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -130,9 +153,12 @@ interface WorkerInfo {
 
 const workers = ref<WorkerInfo[]>([])
 const showAddDialog = ref(false)
+const showEditDialog = ref(false)
 const adding = ref(false)
 const testing = ref(false)
+const saving = ref(false)
 const addForm = ref({ url: '', hostname: '', remark: '' })
+const editForm = ref({ nodeId: '', url: '', hostname: '' })
 
 const onlineCount = computed(() => workers.value.filter(w => w.healthy).length)
 
@@ -188,6 +214,32 @@ async function testAndAdd() {
   }
 }
 
+function editNode(node: WorkerInfo) {
+  editForm.value = { nodeId: node.id, url: node.url, hostname: node.hostname || '' }
+  showEditDialog.value = true
+}
+
+async function saveEdit() {
+  if (!editForm.value.url.trim()) {
+    ElMessage.warning('请输入节点地址')
+    return
+  }
+  saving.value = true
+  try {
+    await http.put(`/api/admin/workers/${editForm.value.nodeId}`, {
+      url: editForm.value.url.trim(),
+      hostname: editForm.value.hostname.trim() || undefined
+    })
+    ElMessage.success('更新成功')
+    showEditDialog.value = false
+    await loadWorkers()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '更新失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 async function removeNode(node: WorkerInfo) {
   try {
     await ElMessageBox.confirm(`确定删除节点 ${node.id}（${node.url}）？`, '确认删除', { type: 'warning' })
@@ -215,6 +267,7 @@ async function testNode(node: WorkerInfo) {
     } else {
       ElMessage.warning(`${node.id} 连接失败`)
     }
+    await loadWorkers()
   } catch {
     ElMessage.error('测试失败')
   }

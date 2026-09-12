@@ -66,6 +66,29 @@ public class WorkerRegistry {
     }
 
     /**
+     * 更新计算节点信息（URL/主机名）
+     */
+    public WorkerInfo updateNode(String nodeId, String url, String hostname) {
+        ComputeNode node = nodeMapper.selectByNodeId(nodeId);
+        if (node == null) return null;
+        ComputeNode update = new ComputeNode();
+        update.setId(node.getId());
+        if (url != null && !url.isBlank()) {
+            update.setUrl(url.replaceAll("/+$", ""));
+        }
+        if (hostname != null) {
+            update.setHostname(hostname);
+        }
+        nodeMapper.updateById(update);
+        // 更新内存缓存
+        ComputeNode refreshed = nodeMapper.selectByNodeId(nodeId);
+        WorkerInfo info = fromEntity(refreshed);
+        workers.put(nodeId, info);
+        log.info("更新计算节点: id={}, url={}", nodeId, info.getUrl());
+        return info;
+    }
+
+    /**
      * 删除计算节点
      */
     public void removeNode(String nodeId) {
@@ -134,14 +157,29 @@ public class WorkerRegistry {
     }
 
     /**
+     * 更新节点健康状态（测试连接后调用）
+     */
+    public void updateNodeHealth(String nodeId, boolean healthy) {
+        WorkerInfo info = workers.get(nodeId);
+        if (info != null) {
+            info.setHealthy(healthy);
+            info.setLastHeartbeat(System.currentTimeMillis());
+            nodeMapper.updateHealth(nodeId, healthy ? 1 : 0, info.getCpuCores(), info.getFreeMemoryGB());
+        }
+    }
+
+    /**
      * 测试节点连接
      */
     public boolean testConnection(String url) {
         try {
             String response = HttpUtil.get(url + "/worker/health");
             JsonNode node = objectMapper.readTree(response);
-            return "UP".equals(node.path("status").asText());
+            boolean ok = "UP".equals(node.path("status").asText());
+            log.info("测试连接 {}: {}", url, ok ? "成功" : "失败(status=" + node.path("status").asText() + ")");
+            return ok;
         } catch (Exception e) {
+            log.error("测试连接失败: url={}, error={}", url, e.getMessage());
             return false;
         }
     }
@@ -172,6 +210,7 @@ public class WorkerRegistry {
                 // 更新数据库
                 nodeMapper.updateHealth(info.getId(), healthy ? 1 : 0, cpuCores, freeMemoryGB);
             } catch (Exception e) {
+                log.error("计算节点健康检查失败: id={}, url={}, error={}", info.getId(), info.getUrl(), e.getMessage());
                 info.setHealthy(false);
                 nodeMapper.updateHealth(info.getId(), 0, 0, 0L);
             }

@@ -54,6 +54,21 @@ public class AdminWorkerController {
     }
 
     /**
+     * 更新计算节点信息（URL/主机名）
+     */
+    @PutMapping("/{nodeId}")
+    public ApiResponse<WorkerRegistry.WorkerInfo> updateWorker(@PathVariable String nodeId,
+                                                                @RequestBody Map<String, String> params) {
+        String url = params.get("url");
+        String hostname = params.get("hostname");
+        WorkerRegistry.WorkerInfo info = workerRegistry.updateNode(nodeId, url, hostname);
+        if (info == null) {
+            return ApiResponse.error(404, "节点不存在");
+        }
+        return ApiResponse.success(info);
+    }
+
+    /**
      * 启用/禁用节点
      */
     @PutMapping("/{nodeId}/status")
@@ -72,7 +87,14 @@ public class AdminWorkerController {
         if (url == null || url.isBlank()) {
             return ApiResponse.error(400, "节点地址不能为空");
         }
-        boolean ok = workerRegistry.testConnection(url.replaceAll("/+$", ""));
+        url = url.replaceAll("/+$", "");
+        boolean ok = workerRegistry.testConnection(url);
+        // 如果 URL 匹配已注册节点，更新其健康状态
+        String testUrl = url;
+        workerRegistry.getAllWorkers().stream()
+                .filter(w -> w.getUrl().equals(testUrl))
+                .findFirst()
+                .ifPresent(w -> workerRegistry.updateNodeHealth(w.getId(), ok));
         if (ok) {
             return ApiResponse.success(Map.of("connected", true, "message", "连接成功"));
         } else {
