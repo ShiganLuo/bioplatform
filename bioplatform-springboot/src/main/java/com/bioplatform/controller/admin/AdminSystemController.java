@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
  * Admin system configuration and dashboard controller.
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/system")
 public class AdminSystemController {
 
@@ -38,11 +37,13 @@ public class AdminSystemController {
     }
 
     @GetMapping("/configs")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<com.bioplatform.entity.SystemConfig>> listConfigs() {
         return ApiResponse.success(systemService.getAllConfigs());
     }
 
     @PutMapping("/configs")
+    @PreAuthorize("hasRole('ADMIN')")
     @com.bioplatform.common.annotation.OperLog(module = "系统管理", operation = "更新系统配置")
     public ApiResponse<Void> updateConfig(@RequestBody Map<String, String> params) {
         String key = params.get("key");
@@ -64,6 +65,7 @@ public class AdminSystemController {
      * 请求参数: baseUrl, apiKey（明文，仅此次调用使用，不存储）
      */
     @PostMapping("/llm/fetch-models")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<String>> fetchModels(@RequestBody Map<String, String> params) {
         String baseUrl = params.get("baseUrl");
         String apiKey = params.get("apiKey");
