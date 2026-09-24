@@ -108,12 +108,8 @@ public class SecurityConfig {
                 message = "认证令牌无效或已过期，请重新登录";
             }
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("code", 401);
-            body.put("message", message);
-            body.put("path", request.getRequestURI());
-
-            new ObjectMapper().writeValue(response.getOutputStream(), body);
+            new ObjectMapper().writeValue(response.getOutputStream(),
+                    new com.bioplatform.dto.common.ApiResponse<>(401, message, null));
         };
     }
 

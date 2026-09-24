@@ -168,14 +168,19 @@ axiosInstance.interceptors.response.use(
     if (code === 401) {
       const originalRequest = response.config as AxiosRequestConfig & { _retry?: boolean }
 
-      // 防止刷新请求自身死循环
+      // logout 接口返回 401 → 直接 reject，让 userStore.logout() 的 catch/finally 自行处理
+      if (originalRequest.url?.includes('/logout')) {
+        return Promise.reject(new Error('认证已失效'))
+      }
+
+      // refreshToken 接口返回 401 → 登出并提示
       if (originalRequest.url?.includes('/refreshToken')) {
         isRefreshing = false
         requests.forEach((cb) => cb(null))
         requests = []
         await doLogout()
         ElMessage.error('登录状态已过期，请重新登录')
-        return Promise.reject(new Error('Refresh Token 失效'))
+        return Promise.reject(new Error('认证已失效'))
       }
 
       if (!originalRequest._retry) {
@@ -201,9 +206,12 @@ axiosInstance.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response
 
-      // 401 也走 token 刷新
+      // HTTP 401 → logout 直接 reject，其他尝试刷新 token
       if (status === 401) {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
+        if (originalRequest?.url?.includes('/logout')) {
+          return Promise.reject(error)
+        }
         if (originalRequest && !originalRequest.url?.includes('/refreshToken') && !originalRequest._retry) {
           originalRequest._retry = true
           return doRefreshToken(originalRequest)
