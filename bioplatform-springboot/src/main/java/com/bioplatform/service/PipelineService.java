@@ -23,6 +23,8 @@ public interface PipelineService {
 
     PageResult<Pipeline> listPipelines(String category, int pageNum, int pageSize);
 
+    PageResult<Pipeline> listPipelinesByOwner(Long userId, String category, int pageNum, int pageSize);
+
     /**
      * 从项目上下文创建分析
      */

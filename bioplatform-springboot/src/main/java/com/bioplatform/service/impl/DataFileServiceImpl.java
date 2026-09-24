@@ -7,6 +7,7 @@ import com.bioplatform.dto.datafile.StorageInfo;
 import com.bioplatform.entity.DataFile;
 import com.bioplatform.entity.User;
 import com.bioplatform.mapper.DataFileMapper;
+import com.bioplatform.mapper.ProjectMapper;
 import com.bioplatform.mapper.UserMapper;
 import com.bioplatform.service.DataFileService;
 import com.bioplatform.storage.StorageStrategy;
@@ -35,12 +36,14 @@ public class DataFileServiceImpl implements DataFileService {
 
     private final DataFileMapper dataFileMapper;
     private final UserMapper userMapper;
+    private final ProjectMapper projectMapper;
     private final StorageStrategy storage;
 
     public DataFileServiceImpl(DataFileMapper dataFileMapper, UserMapper userMapper,
-                                StorageStrategy storage) {
+                                ProjectMapper projectMapper, StorageStrategy storage) {
         this.dataFileMapper = dataFileMapper;
         this.userMapper = userMapper;
+        this.projectMapper = projectMapper;
         this.storage = storage;
     }
 
@@ -138,6 +141,21 @@ public class DataFileServiceImpl implements DataFileService {
         List<DataFile> files = dataFileMapper.selectAll(new DataFile());
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
+    }
+
+    @Override
+    public PageResult listByUserId(Long userId, int pageNum, int pageSize) {
+        PageHelper.startPage(pageNum, pageSize);
+        DataFile param = new DataFile();
+        param.setUploadedBy(userId);
+        List<DataFile> files = dataFileMapper.selectAll(param);
+        PageInfo<DataFile> pageInfo = new PageInfo<>(files);
+        return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
+    }
+
+    @Override
+    public com.bioplatform.entity.Project getProjectById(Long projectId) {
+        return projectMapper.selectById(projectId);
     }
 
     @Override

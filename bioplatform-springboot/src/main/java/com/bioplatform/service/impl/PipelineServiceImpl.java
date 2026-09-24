@@ -120,6 +120,14 @@ public class PipelineServiceImpl implements PipelineService {
     }
 
     @Override
+    public PageResult<Pipeline> listPipelinesByOwner(Long userId, String category, int pageNum, int pageSize) {
+        PageHelper.startPage(pageNum, pageSize);
+        List<Pipeline> pipelines = pipelineMapper.selectByOwnerId(userId);
+        PageInfo<Pipeline> pageInfo = new PageInfo<>(pipelines);
+        return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, pipelines);
+    }
+
+    @Override
     public Pipeline createAnalysis(Long projectId, CreateAnalysisRequest request, Long userId) {
         // 查找流程模板
         WorkflowTemplate query = new WorkflowTemplate();

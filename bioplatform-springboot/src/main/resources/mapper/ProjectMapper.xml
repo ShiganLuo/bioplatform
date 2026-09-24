@@ -101,6 +101,27 @@
         ORDER BY p.`updated_at` DESC
     </select>
 
+    <!-- 管理后台列表（按owner过滤） -->
+    <select id="selectAdminListByOwner" resultType="java.util.Map">
+        SELECT p.`id`, p.`parent_id` AS parentId, p.`name`, p.`description`,
+               p.`organism`, p.`genome_version` AS genomeVersion,
+               p.`owner_id` AS ownerId, u.`username` AS ownerUsername,
+               p.`status`, p.`private` AS isPrivate,
+               p.`created_at` AS createdAt, p.`updated_at` AS updatedAt,
+               pp.`name` AS parentName
+        FROM `projects` p
+        LEFT JOIN `users` u ON p.`owner_id` = u.`id`
+        LEFT JOIN `projects` pp ON p.`parent_id` = pp.`id`
+        WHERE p.`owner_id` = #{ownerId}
+        <if test="name != null and name != ''">
+            AND (p.`name` LIKE CONCAT('%', #{name}, '%') OR p.`description` LIKE CONCAT('%', #{name}, '%'))
+        </if>
+        <if test="organism != null and organism != ''">
+            AND p.`organism` = #{organism}
+        </if>
+        ORDER BY p.`updated_at` DESC
+    </select>
+
     <!-- 获取所有顶级项目（用于父项目下拉选择） -->
     <select id="selectParentCandidates" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>

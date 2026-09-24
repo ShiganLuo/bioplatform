@@ -2,6 +2,7 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.OwnershipUtils;
 import com.bioplatform.dto.admin.AdminPipelineDTO.AdminPipelineCreateRequest;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
@@ -35,7 +36,13 @@ public class AdminPipelineController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String category) {
-        PageResult result = pipelineService.listPipelines(category, page, size);
+        PageResult result;
+        if (OwnershipUtils.isAdmin()) {
+            result = pipelineService.listPipelines(category, page, size);
+        } else {
+            Long userId = OwnershipUtils.getCurrentUserId();
+            result = pipelineService.listPipelinesByOwner(userId, category, page, size);
+        }
         return ApiResponse.success(result);
     }
 
@@ -48,6 +55,7 @@ public class AdminPipelineController {
         if (pipeline == null) {
             return ApiResponse.error(404, "流水线不存在");
         }
+        OwnershipUtils.checkOwnership(pipeline.getOwnerId(), "流水线");
         return ApiResponse.success(pipeline);
     }
 
@@ -68,6 +76,9 @@ public class AdminPipelineController {
     @PutMapping("/update")
     @OperLog(module = "流水线管理", operation = "更新流水线")
     public ApiResponse<Void> update(@RequestBody @Valid com.bioplatform.dto.admin.AdminPipelineDTO.AdminPipelineUpdateRequest request) {
+        Pipeline existing = pipelineService.getPipelineById(request.id());
+        if (existing == null) return ApiResponse.error(404, "流水线不存在");
+        OwnershipUtils.checkOwnership(existing.getOwnerId(), "流水线");
         pipelineService.updatePipeline(request.id(),
                 new AdminPipelineCreateRequest(request.name(), request.type(), request.templateId(),
                         request.projectId(), request.metaContent(), request.metaType(), request.extraParams(),
@@ -82,6 +93,9 @@ public class AdminPipelineController {
     @DeleteMapping("/{id}")
     @OperLog(module = "流水线管理", operation = "删除流水线")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        Pipeline existing = pipelineService.getPipelineById(id);
+        if (existing == null) return ApiResponse.error(404, "流水线不存在");
+        OwnershipUtils.checkOwnership(existing.getOwnerId(), "流水线");
         pipelineService.deletePipeline(id);
         return ApiResponse.success();
     }

@@ -61,6 +61,10 @@ public interface DataFileService {
      */
     PageResult listAllFiles(int pageNum, int pageSize);
 
+    PageResult listByUserId(Long userId, int pageNum, int pageSize);
+
+    com.bioplatform.entity.Project getProjectById(Long projectId);
+
     /**
      * 根据ID获取文件信息
      *

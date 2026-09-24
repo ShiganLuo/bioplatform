@@ -2,6 +2,7 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.OwnershipUtils;
 import com.bioplatform.dto.admin.AdminProjectDTO.AdminProjectCreateRequest;
 import com.bioplatform.dto.admin.AdminProjectDTO.AdminProjectUpdateRequest;
 import com.bioplatform.dto.admin.AdminPipelineDTO.CreateAnalysisRequest;
@@ -50,6 +51,7 @@ public class AdminProjectController {
 
     /**
      * Paginated project list (with parent name).
+     * 普通用户只能看自己的项目，管理员看所有
      */
     @GetMapping("/list")
     public ApiResponse<PageResult<Map<String, Object>>> list(
@@ -58,7 +60,13 @@ public class AdminProjectController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String organism) {
         com.github.pagehelper.PageHelper.startPage(page, size);
-        java.util.List<Map<String, Object>> list = projectMapper.selectAdminList(name, organism);
+        java.util.List<Map<String, Object>> list;
+        if (OwnershipUtils.isAdmin()) {
+            list = projectMapper.selectAdminList(name, organism);
+        } else {
+            Long userId = OwnershipUtils.getCurrentUserId();
+            list = projectMapper.selectAdminListByOwner(userId, name, organism);
+        }
         com.github.pagehelper.PageInfo<Map<String, Object>> pageInfo = new com.github.pagehelper.PageInfo<>(list);
         return ApiResponse.success(PageResult.of(pageInfo.getTotal(), page, size, list));
     }
@@ -72,6 +80,7 @@ public class AdminProjectController {
         if (project == null) {
             return ApiResponse.error(404, "项目不存在");
         }
+        OwnershipUtils.checkProjectOwnership(project.getOwnerId());
         return ApiResponse.success(project);
     }
 
@@ -92,6 +101,9 @@ public class AdminProjectController {
     @PutMapping("/update")
     @OperLog(module = "项目管理", operation = "更新项目")
     public ApiResponse<Void> update(@RequestBody @Valid AdminProjectUpdateRequest request) {
+        Project existing = projectService.getProjectById(request.id());
+        if (existing == null) return ApiResponse.error(404, "项目不存在");
+        OwnershipUtils.checkProjectOwnership(existing.getOwnerId());
         projectService.updateProject(request.id(), request);
         return ApiResponse.success();
     }
@@ -149,6 +161,9 @@ public class AdminProjectController {
     @DeleteMapping("/{id}")
     @OperLog(module = "项目管理", operation = "删除项目")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        Project existing = projectService.getProjectById(id);
+        if (existing == null) return ApiResponse.error(404, "项目不存在");
+        OwnershipUtils.checkProjectOwnership(existing.getOwnerId());
         projectService.deleteProject(id);
         return ApiResponse.success();
     }

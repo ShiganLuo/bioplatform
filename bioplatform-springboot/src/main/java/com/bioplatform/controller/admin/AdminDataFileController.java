@@ -2,6 +2,7 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.OwnershipUtils;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.datafile.StorageInfo;
@@ -60,9 +61,19 @@ public class AdminDataFileController {
             @RequestParam(defaultValue = "10") int size) {
         PageResult result;
         if (projectId != null) {
+            // 按项目查文件时，校验项目归属
+            com.bioplatform.entity.Project project = dataFileService.getProjectById(projectId);
+            if (project != null) {
+                OwnershipUtils.checkProjectOwnership(project.getOwnerId());
+            }
             result = dataFileService.listByProjectId(projectId, page, size);
         } else {
-            result = dataFileService.listAllFiles(page, size);
+            if (OwnershipUtils.isAdmin()) {
+                result = dataFileService.listAllFiles(page, size);
+            } else {
+                Long userId = OwnershipUtils.getCurrentUserId();
+                result = dataFileService.listByUserId(userId, page, size);
+            }
         }
         return ApiResponse.success(result);
     }
@@ -161,6 +172,9 @@ public class AdminDataFileController {
     @DeleteMapping("/{id}")
     @OperLog(module = "数据文件管理", operation = "删除文件")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        DataFile existing = dataFileService.getFileById(id);
+        if (existing == null) return ApiResponse.error(404, "文件不存在");
+        OwnershipUtils.checkOwnership(existing.getUploadedBy(), "文件");
         dataFileService.deleteFile(id);
         return ApiResponse.success();
     }
@@ -174,6 +188,7 @@ public class AdminDataFileController {
         if (dataFile == null) {
             return ApiResponse.error(404, "文件不存在");
         }
+        OwnershipUtils.checkOwnership(dataFile.getUploadedBy(), "文件");
         return ApiResponse.success(dataFile);
     }
 
@@ -186,6 +201,7 @@ public class AdminDataFileController {
         if (dataFile == null) {
             return ResponseEntity.notFound().build();
         }
+        OwnershipUtils.checkOwnership(dataFile.getUploadedBy(), "文件");
         Path filePath = dataFileService.getFilePath(id);
         Resource resource = new FileSystemResource(filePath.toFile());
         String filename = dataFile.getName() != null ? dataFile.getName() : "download";
