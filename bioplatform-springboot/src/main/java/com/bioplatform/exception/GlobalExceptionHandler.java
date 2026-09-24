@@ -5,6 +5,8 @@ import com.bioplatform.enums.ResultCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -62,6 +64,16 @@ public class GlobalExceptionHandler {
     public void handleIOException(IOException ex) {
         log.debug("SSE连接断开（客户端断开）: {}", ex.getMessage());
         // SSE 连接断开不需要返回响应，直接忽略
+    }
+
+    /**
+     * Handle @PreAuthorize / @PostAuthorize 权限不足
+     */
+    @ExceptionHandler({AuthorizationDeniedException.class, AccessDeniedException.class})
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleAccessDeniedException(Exception ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        return ApiResponse.error(403, "权限不足，需要管理员角色");
     }
 
     /**
