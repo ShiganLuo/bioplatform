@@ -67,37 +67,37 @@ const routes: RouteRecordRaw[] = [
         path: 'system/users',
         name: 'SystemUsers',
         component: () => import('@/views/system/user/UserView.vue'),
-        meta: { title: '用户管理', icon: 'User', parent: 'system' }
+        meta: { title: '用户管理', icon: 'User', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'system/config',
         name: 'SystemConfig',
         component: () => import('@/views/system/config/ConfigView.vue'),
-        meta: { title: '系统配置', icon: 'Setting', parent: 'system' }
+        meta: { title: '系统配置', icon: 'Setting', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'system/templates',
         name: 'SystemTemplates',
         component: () => import('@/views/system/template/TemplateView.vue'),
-        meta: { title: '流程模板', icon: 'Menu', parent: 'system' }
+        meta: { title: '流程模板', icon: 'Menu', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'monitor/logs',
         name: 'MonitorLogs',
         component: () => import('@/views/monitor/LogView.vue'),
-        meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor' }
+        meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'feedback',
         name: 'Feedback',
         component: () => import('@/views/feedback/FeedbackView.vue'),
-        meta: { title: '用户反馈', icon: 'Comment', parent: 'system' }
+        meta: { title: '用户反馈', icon: 'Comment', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'workers',
         name: 'Workers',
         component: () => import('@/views/worker/WorkerView.vue'),
-        meta: { title: '计算节点', icon: 'Cpu', parent: 'system' }
+        meta: { title: '计算节点', icon: 'Cpu', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'profile',
@@ -129,6 +129,16 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth !== false) {
     if (!userStore.isAuthenticated()) {
       next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
+
+  // Role-based route guard
+  const requiredRoles = to.meta.roles as string[] | undefined
+  if (requiredRoles && requiredRoles.length > 0) {
+    const hasRole = requiredRoles.some(role => userStore.hasRole(role))
+    if (!hasRole) {
+      next({ path: '/dashboard' })
       return
     }
   }

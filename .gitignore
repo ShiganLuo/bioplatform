@@ -5,7 +5,7 @@
 .hermes
 **/logs
 **/.vscode
-
+**/*.code-workspace
 
 # Environment secrets
 .env

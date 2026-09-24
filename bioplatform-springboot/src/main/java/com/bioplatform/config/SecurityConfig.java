@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -40,18 +41,22 @@ import java.util.Map;
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final CustomUserDetailsService customUserDetailsService;
     private final SecurityJwtProperties securityJwtProperties;
+    private final AccessDeniedEntryPoint accessDeniedEntryPoint;
 
     public SecurityConfig(JwtTokenProviderUtil jwtTokenProviderUtil,
                           CustomUserDetailsService customUserDetailsService,
-                          SecurityJwtProperties securityJwtProperties) {
+                          SecurityJwtProperties securityJwtProperties,
+                          AccessDeniedEntryPoint accessDeniedEntryPoint) {
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.customUserDetailsService = customUserDetailsService;
         this.securityJwtProperties = securityJwtProperties;
+        this.accessDeniedEntryPoint = accessDeniedEntryPoint;
     }
 
     /**
@@ -146,9 +151,10 @@ public class SecurityConfig {
                 headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
             )
 
-            // 认证失败返回JSON
+            // 认证/授权失败返回JSON
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authenticationEntryPoint())
+                .accessDeniedHandler(accessDeniedEntryPoint)
             )
 
             // URL授权规则

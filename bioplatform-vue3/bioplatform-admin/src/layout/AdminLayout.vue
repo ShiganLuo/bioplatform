@@ -44,7 +44,7 @@
           <template #title>AI 助手</template>
         </el-menu-item>
 
-        <el-sub-menu index="system">
+        <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="system">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
@@ -71,7 +71,7 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="monitor">
+        <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="monitor">
           <template #title>
             <el-icon><DataLine /></el-icon>
             <span>系统监控</span>

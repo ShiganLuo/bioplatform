@@ -7,6 +7,7 @@ import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.WorkflowTemplate;
 import com.bioplatform.service.WorkflowTemplateService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 /**
@@ -15,6 +16,7 @@ import java.util.Map;
  * @author luosg
  */
 @RestController
+@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/templates")
 public class AdminWorkflowTemplateController {
 

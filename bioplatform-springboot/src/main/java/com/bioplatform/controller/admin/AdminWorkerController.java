@@ -2,6 +2,7 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.worker.WorkerRegistry;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Map;
  * 计算节点管理接口
  */
 @RestController
+@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/workers")
 public class AdminWorkerController {
 

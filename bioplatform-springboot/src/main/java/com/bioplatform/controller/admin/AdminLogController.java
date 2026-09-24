@@ -4,6 +4,7 @@ import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.OperationLog;
 import com.bioplatform.service.OperationLogService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * @author luosg
  */
 @RestController
+@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/logs")
 public class AdminLogController {
 

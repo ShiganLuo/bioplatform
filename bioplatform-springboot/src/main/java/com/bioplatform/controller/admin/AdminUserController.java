@@ -9,6 +9,7 @@ import com.bioplatform.dto.admin.AdminUserDTO.AdminUserUpdateRequest;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * @author luosg
  */
 @RestController
+@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/users")
 public class AdminUserController {
 

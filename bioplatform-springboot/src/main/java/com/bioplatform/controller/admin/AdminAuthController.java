@@ -8,11 +8,13 @@ import com.bioplatform.dto.front.FrontUserDTO.FrontLoginRequest;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginResponse;
 import com.bioplatform.dto.front.FrontUserDTO.FrontUserInfoDTO;
 import com.bioplatform.entity.User;
+import com.bioplatform.service.RoleService;
 import com.bioplatform.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,11 +28,14 @@ public class AdminAuthController {
 
     private final UserService userService;
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
+    private final RoleService roleService;
 
     public AdminAuthController(UserService userService,
-                               JwtTokenProviderUtil jwtTokenProviderUtil) {
+                               JwtTokenProviderUtil jwtTokenProviderUtil,
+                               RoleService roleService) {
         this.userService = userService;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
+        this.roleService = roleService;
     }
 
     /**
@@ -78,11 +83,17 @@ public class AdminAuthController {
             return ApiResponse.error(404, "用户不存在");
         }
 
+        List<com.bioplatform.entity.Role> roles = roleService.getRolesByUserId(userId);
+        List<String> roleNames = roles.stream()
+                .map(com.bioplatform.entity.Role::getRoleName)
+                .collect(java.util.stream.Collectors.toList());
+
         FrontUserInfoDTO userInfoDTO = new FrontUserInfoDTO(
                 user.getId(),
                 user.getUsername(),
                 user.getNickName(),
-                user.getAvatarUrl()
+                user.getAvatarUrl(),
+                roleNames
         );
         return ApiResponse.success(userInfoDTO);
     }

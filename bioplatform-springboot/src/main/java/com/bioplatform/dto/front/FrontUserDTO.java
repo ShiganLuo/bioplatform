@@ -1,5 +1,7 @@
 package com.bioplatform.dto.front;
 
+import java.util.List;
+
 /**
  * Front-end user operation DTOs.
  */
@@ -16,7 +18,8 @@ public final class FrontUserDTO {
             Long id,
             String username,
             String nickName,
-            String avatarUrl
+            String avatarUrl,
+            List<String> roles
     ) {
     }
 

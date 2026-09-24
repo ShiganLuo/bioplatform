@@ -96,12 +96,18 @@ public class UserServiceImpl implements UserService {
         String accessToken = jwtTokenProviderUtil.generateAccessToken(user.getId(), user.getUsername());
         String refreshToken = jwtTokenProviderUtil.generateRefreshToken(user.getId(), user.getUsername());
 
-        // 构建用户信息DTO
+        // 构建用户信息DTO（含角色）
+        List<Role> userRoles = roleMapper.selectByUserId(user.getId());
+        List<String> roleNames = userRoles.stream()
+                .map(Role::getRoleName)
+                .collect(Collectors.toList());
+
         FrontUserInfoDTO userInfoDTO = new FrontUserInfoDTO(
                 user.getId(),
                 user.getUsername(),
                 user.getNickName(),
-                user.getAvatarUrl()
+                user.getAvatarUrl(),
+                roleNames
         );
 
         log.info("用户登录成功: {}", user.getUsername());
@@ -138,11 +144,17 @@ public class UserServiceImpl implements UserService {
 
         log.info("用户注册成功: {}", user.getUsername());
 
+        List<Role> userRoles = roleMapper.selectByUserId(user.getId());
+        List<String> roleNames = userRoles.stream()
+                .map(Role::getRoleName)
+                .collect(Collectors.toList());
+
         return new FrontUserInfoDTO(
                 user.getId(),
                 user.getUsername(),
                 user.getNickName(),
-                user.getAvatarUrl()
+                user.getAvatarUrl(),
+                roleNames
         );
     }
 
