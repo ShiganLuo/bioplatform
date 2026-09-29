@@ -119,7 +119,7 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
 
   // Set page title
@@ -130,6 +130,14 @@ router.beforeEach((to, from, next) => {
     if (!userStore.isAuthenticated()) {
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
+    }
+
+    // Page refresh: token exists in localStorage but Pinia userInfo is null.
+    // Restore from localStorage first, then fetch fresh data from server.
+    if (!userStore.userInfo) {
+      userStore.initUserInfo()
+      // Fire-and-forget: fetch latest user info from server (roles may change)
+      userStore.fetchUserInfo()
     }
   }
 
