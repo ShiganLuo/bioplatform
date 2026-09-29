@@ -33,9 +33,20 @@ public class EmailCodeService {
     }
 
     /**
-     * 发送验证码邮件
+     * 发送验证码邮件（通用，可指定场景）
      */
     public void sendCode(String email) {
+        sendCode(email, "注册验证码");
+    }
+
+    /**
+     * 发送重置密码验证码
+     */
+    public void sendCodeForReset(String email) {
+        sendCode(email, "重置密码验证码");
+    }
+
+    private void sendCode(String email, String scene) {
         String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
         // 存入Redis，5分钟过期
         redisTemplate.opsForValue().set(REDIS_PREFIX + email, code, CODE_EXPIRE_MINUTES, TimeUnit.MINUTES);
@@ -43,10 +54,10 @@ public class EmailCodeService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(mailFrom);
         message.setTo(email);
-        message.setSubject("生信云平台 - 注册验证码");
-        message.setText("您好！您的注册验证码是：" + code + "。有效期" + CODE_EXPIRE_MINUTES + "分钟，请勿泄露。");
+        message.setSubject("生信云平台 - " + scene);
+        message.setText("您好！您的" + scene + "是：" + code + "。有效期" + CODE_EXPIRE_MINUTES + "分钟，请勿泄露。");
         mailSender.send(message);
-        log.info("验证码已发送至: {}", email);
+        log.info("{}已发送至: {}", scene, email);
     }
 
     /**

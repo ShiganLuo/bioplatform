@@ -51,6 +51,14 @@ public interface UserService {
     User getUserByUsername(String username);
 
     /**
+     * 根据邮箱获取用户
+     *
+     * @param email 邮箱
+     * @return 用户信息
+     */
+    User getUserByEmail(String email);
+
+    /**
      * 更新用户信息
      *
      * @param user 用户信息
@@ -93,4 +101,12 @@ public interface UserService {
      * @param request 重置密码请求
      */
     void resetUserPassword(AdminUserResetPasswordRequest request);
+
+    /**
+     * 通过邮箱验证码重置密码（自助，无需登录）
+     *
+     * @param email       用户邮箱
+     * @param newPassword 新密码
+     */
+    void resetPasswordByEmail(String email, String newPassword);
 }

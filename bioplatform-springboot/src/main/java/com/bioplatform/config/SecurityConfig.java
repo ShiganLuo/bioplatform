@@ -174,6 +174,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/front/auth/login").permitAll()
                 .requestMatchers("/api/front/auth/register").permitAll()
                 .requestMatchers("/api/front/auth/sendEmailCode").permitAll()
+                .requestMatchers("/api/admin/auth/sendResetCode").permitAll()
+                .requestMatchers("/api/admin/auth/resetPassword").permitAll()
                 .requestMatchers("/api/front/projects/**").permitAll()
                 .requestMatchers("/api/front/pipelines/**").permitAll()
                 .requestMatchers("/api/front/site-config").permitAll()

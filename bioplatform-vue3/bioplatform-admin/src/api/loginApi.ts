@@ -41,3 +41,11 @@ export function getUserInfo() {
 export function logout() {
   return http.post('/api/admin/auth/logout')
 }
+
+export function sendResetCode(email: string) {
+  return http.post<void>('/api/admin/auth/sendResetCode', { email })
+}
+
+export function resetPassword(data: { email: string; code: string; newPassword: string }) {
+  return http.post<void>('/api/admin/auth/resetPassword', data)
+}

@@ -29,13 +29,16 @@ public class AdminAuthController {
     private final UserService userService;
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final RoleService roleService;
+    private final com.bioplatform.service.EmailCodeService emailCodeService;
 
     public AdminAuthController(UserService userService,
                                JwtTokenProviderUtil jwtTokenProviderUtil,
-                               RoleService roleService) {
+                               RoleService roleService,
+                               com.bioplatform.service.EmailCodeService emailCodeService) {
         this.userService = userService;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.roleService = roleService;
+        this.emailCodeService = emailCodeService;
     }
 
     /**
@@ -104,5 +107,58 @@ public class AdminAuthController {
     @PostMapping("/logout")
     public ApiResponse<Void> logout() {
         return ApiResponse.success();
+    }
+
+    /**
+     * 发送重置密码验证码（无需登录）
+     */
+    @PostMapping("/sendResetCode")
+    public ApiResponse<Void> sendResetCode(@RequestBody Map<String, String> params) {
+        String email = params.get("email");
+        if (email == null || email.isBlank()) {
+            return ApiResponse.error(400, "邮箱不能为空");
+        }
+        // 检查邮箱是否已注册
+        User user = userService.getUserByEmail(email.trim());
+        if (user == null) {
+            return ApiResponse.error(404, "该邮箱未注册");
+        }
+        try {
+            emailCodeService.sendCodeForReset(email.trim());
+            return ApiResponse.success();
+        } catch (Exception e) {
+            return ApiResponse.error(500, "验证码发送失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 通过邮箱验证码重置密码（无需登录）
+     */
+    @PostMapping("/resetPassword")
+    public ApiResponse<Void> resetPassword(@RequestBody Map<String, String> params) {
+        String email = params.get("email");
+        String code = params.get("code");
+        String newPassword = params.get("newPassword");
+
+        if (email == null || email.isBlank()) {
+            return ApiResponse.error(400, "邮箱不能为空");
+        }
+        if (code == null || code.isBlank()) {
+            return ApiResponse.error(400, "验证码不能为空");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return ApiResponse.error(400, "密码长度不能少于6位");
+        }
+
+        if (!emailCodeService.verifyCode(email.trim(), code.trim())) {
+            return ApiResponse.error(400, "验证码错误或已过期");
+        }
+
+        try {
+            userService.resetPasswordByEmail(email.trim(), newPassword);
+            return ApiResponse.success();
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(400, e.getMessage());
+        }
     }
 }

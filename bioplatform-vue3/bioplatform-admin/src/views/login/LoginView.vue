@@ -62,6 +62,38 @@
     </div>
 
     <p class="login-footer">© {{ currentYear }} 生信云平台 Bioinformatics Cloud Platform</p>
+
+    <!-- 忘记密码弹窗 -->
+    <el-dialog v-model="resetDialogVisible" title="重置密码" width="420px" :close-on-click-modal="false">
+      <el-form ref="resetFormRef" :model="resetForm" :rules="resetRules" label-width="80px">
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="resetForm.email" placeholder="请输入注册邮箱" />
+        </el-form-item>
+        <el-form-item label="验证码" prop="code">
+          <div style="display: flex; gap: 8px; width: 100%">
+            <el-input v-model="resetForm.code" placeholder="请输入验证码" />
+            <el-button
+              :disabled="codeCooldown > 0"
+              @click="handleSendCode"
+              :loading="sendingCode"
+              style="white-space: nowrap"
+            >
+              {{ codeCooldown > 0 ? `${codeCooldown}s` : '发送验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="resetForm.newPassword" type="password" show-password placeholder="至少6位" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="resetForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="resetting" @click="handleResetPassword">确认重置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -72,6 +104,7 @@ import { ElMessage } from 'element-plus'
 
 import { User, Lock, DataBoard } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { sendResetCode, resetPassword } from '@/api/loginApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -98,8 +131,98 @@ const loginRules: Record<string, any[]> = {
   ]
 }
 
+// ===== 忘记密码 =====
+const resetDialogVisible = ref(false)
+const resetFormRef = ref<any>()
+const sendingCode = ref(false)
+const resetting = ref(false)
+const codeCooldown = ref(0)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+const resetForm = reactive({
+  email: '',
+  code: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
+  if (value !== resetForm.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const resetRules: Record<string, any[]> = {
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' }
+  ]
+}
+
 const handleForgotPassword = () => {
-  ElMessage.info('请联系系统管理员在"用户管理"中重置密码，默认会重置为 123456')
+  resetForm.email = ''
+  resetForm.code = ''
+  resetForm.newPassword = ''
+  resetForm.confirmPassword = ''
+  resetDialogVisible.value = true
+}
+
+const handleSendCode = async () => {
+  if (!resetForm.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  sendingCode.value = true
+  try {
+    await sendResetCode(resetForm.email)
+    ElMessage.success('验证码已发送，请查收邮箱')
+    codeCooldown.value = 60
+    cooldownTimer = setInterval(() => {
+      codeCooldown.value--
+      if (codeCooldown.value <= 0 && cooldownTimer) {
+        clearInterval(cooldownTimer)
+        cooldownTimer = null
+      }
+    }, 1000)
+  } catch {
+    // 错误已由拦截器处理
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+const handleResetPassword = async () => {
+  if (!resetFormRef.value) return
+  await resetFormRef.value.validate(async (valid: boolean) => {
+    if (!valid) return
+    resetting.value = true
+    try {
+      await resetPassword({
+        email: resetForm.email,
+        code: resetForm.code,
+        newPassword: resetForm.newPassword
+      })
+      ElMessage.success('密码重置成功，请使用新密码登录')
+      resetDialogVisible.value = false
+    } catch {
+      // 错误已由拦截器处理
+    } finally {
+      resetting.value = false
+    }
+  })
 }
 
 const handleLogin = async () => {

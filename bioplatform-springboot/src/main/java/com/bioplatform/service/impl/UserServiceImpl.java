@@ -169,6 +169,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getUserByEmail(String email) {
+        return userMapper.selectByEmail(email);
+    }
+
+    @Override
     @Transactional
     public void updateUser(AdminUserUpdateRequest request) {
         User user = userMapper.selectById(request.id());
@@ -299,6 +304,19 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
         log.info("重置用户密码: userId={}", request.id());
 
+    }
+
+    @Override
+    public void resetPasswordByEmail(String email, String newPassword) {
+        User user = userMapper.selectByEmail(email);
+        if (user == null) {
+            throw new IllegalArgumentException("该邮箱未注册");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(user);
+        // 重置登录尝试次数，防止锁定
+        userMapper.resetLoginAttempts(user.getId());
+        log.info("用户通过邮箱验证码重置密码: userId={}, email={}", user.getId(), email);
     }
 
     private void assignRoles(Long userId, List<String> requestedRoles, boolean fallbackToDefaultUserRole) {
