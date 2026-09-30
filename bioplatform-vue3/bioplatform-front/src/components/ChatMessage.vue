@@ -124,6 +124,8 @@ function truncate(text: string, max: number) {
   border-radius: 12px;
   line-height: 1.6;
   font-size: 14px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message-bubble.assistant {
@@ -136,6 +138,7 @@ function truncate(text: string, max: number) {
   background: linear-gradient(135deg, #409eff, #66b1ff);
   color: #fff;
   border-top-right-radius: 4px;
+  margin-left: auto;
 }
 
 .message-text :deep(p) {

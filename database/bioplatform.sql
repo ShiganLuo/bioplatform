@@ -495,7 +495,13 @@ INSERT INTO `system_configs` (`config_key`, `config_value`, `config_desc`) VALUE
 ('llm_api_key',  '«redacted:sk-…»',          'LLM provider API key'),
 ('llm_model',    'deepseek-chat',                 'Default LLM model name'),
 ('llm_base_url', 'https://api.deepseek.com/v1',  'LLM API base URL'),
-('upload_max_size', '1073741824',                 'Max upload size in bytes (1 GB)');
+('upload_max_size', '1073741824',                 'Max upload size in bytes (1 GB)'),
+('llm_provider_deepseek', '{"name":"DeepSeek","baseUrl":"https://api.deepseek.com/v1","defaultModel":"deepseek-chat"}', 'LLM提供商: DeepSeek'),
+('llm_provider_mimo', '{"name":"Xiaomi MiMo","baseUrl":"https://token-plan-cn.xiaomimimo.com/v1","defaultModel":"mimo-v2.5-pro"}', 'LLM提供商: Xiaomi MiMo'),
+('llm_provider_openai', '{"name":"OpenAI","baseUrl":"https://api.openai.com/v1","defaultModel":"gpt-4o"}', 'LLM提供商: OpenAI'),
+('llm_provider_qwen', '{"name":"Qwen","baseUrl":"https://dashscope.aliyuncs.com/compatible-mode/v1","defaultModel":"qwen-plus"}', 'LLM提供商: Qwen'),
+('llm_provider_zhipu', '{"name":"GLM","baseUrl":"https://open.bigmodel.cn/api/paas/v4","defaultModel":"glm-4-flash"}', 'LLM提供商: GLM'),
+('llm_provider_minimax', '{"name":"MiniMax","baseUrl":"https://api.minimax.io/v1","defaultModel":"MiniMax-M3"}', 'LLM提供商: MiniMax');
 
 -- ----------------------------
 -- Default agent tools

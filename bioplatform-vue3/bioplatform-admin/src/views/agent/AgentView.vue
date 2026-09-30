@@ -320,11 +320,24 @@ const sendMessage = async () => {
       sending.value = false
       scrollToBottom()
     },
-    // onError - 静默处理
-    () => {
-      if (!streamingContent.value) {
-        // 什么都没收到，不产生消息
+    // onError - 显示错误提示
+    (errMsg) => {
+      if (streamingContent.value) {
+        messages.value.push({
+          id: Date.now().toString(),
+          conversationId: currentConversationId.value,
+          role: 'assistant',
+          content: streamingContent.value,
+          createdAt: new Date().toISOString()
+        } as ChatMessage)
       }
+      messages.value.push({
+        id: Date.now().toString(),
+        conversationId: currentConversationId.value,
+        role: 'assistant',
+        content: '服务不可用',
+        createdAt: new Date().toISOString()
+      } as ChatMessage)
       streamingContent.value = ''
       sending.value = false
       scrollToBottom()
@@ -483,6 +496,8 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   line-height: 1.6;
   font-size: 14px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message-text :deep(p) {

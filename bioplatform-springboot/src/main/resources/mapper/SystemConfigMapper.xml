@@ -72,4 +72,9 @@
             `config_desc`  = VALUES(`config_desc`)
     </insert>
 
+    <!-- Delete by key -->
+    <delete id="deleteByKey">
+        DELETE FROM `system_configs` WHERE `config_key` = #{configKey}
+    </delete>
+
 </mapper>

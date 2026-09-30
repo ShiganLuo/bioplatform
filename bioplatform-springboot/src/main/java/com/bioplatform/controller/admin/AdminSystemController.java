@@ -55,6 +55,17 @@ public class AdminSystemController {
         return ApiResponse.success();
     }
 
+    @DeleteMapping("/configs/{key}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @com.bioplatform.common.annotation.OperLog(module = "系统管理", operation = "删除系统配置")
+    public ApiResponse<Void> deleteConfig(@PathVariable String key) {
+        if (key == null || key.isBlank()) {
+            return ApiResponse.error(400, "配置键不能为空");
+        }
+        systemService.deleteConfig(key);
+        return ApiResponse.success();
+    }
+
     @GetMapping("/dashboard")
     public ApiResponse<Map<String, Object>> dashboard() {
         return ApiResponse.success(systemService.getDashboardStats());

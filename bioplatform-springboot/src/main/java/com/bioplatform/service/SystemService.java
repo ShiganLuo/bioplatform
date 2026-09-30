@@ -38,6 +38,11 @@ public interface SystemService {
     void updateConfig(String key, String value);
 
     /**
+     * 删除配置
+     */
+    void deleteConfig(String key);
+
+    /**
      * 获取仪表盘统计数据
      *
      * @return 统计数据（用户数、项目数、流水线数、执行数）

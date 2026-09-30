@@ -27,4 +27,6 @@ public interface SystemConfigMapper {
     SystemConfig selectByKey(@Param("configKey") String configKey);
 
     int upsertByKey(SystemConfig config);
+
+    int deleteByKey(@Param("configKey") String configKey);
 }

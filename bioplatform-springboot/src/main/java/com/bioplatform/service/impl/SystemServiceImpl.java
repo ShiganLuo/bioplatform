@@ -113,6 +113,12 @@ public class SystemServiceImpl implements SystemService {
     }
 
     @Override
+    public void deleteConfig(String key) {
+        systemConfigMapper.deleteByKey(key);
+        log.info("删除系统配置: key={}", key);
+    }
+
+    @Override
     public Map<String, Object> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
 

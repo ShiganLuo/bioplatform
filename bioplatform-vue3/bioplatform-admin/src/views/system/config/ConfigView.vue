@@ -103,14 +103,26 @@
         <el-tab-pane label="LLM 配置" name="llm">
           <el-form :model="llmConfig" label-width="120px" class="config-form">
             <el-form-item label="LLM 提供商">
-              <el-select v-model="llmConfig.provider" placeholder="选择提供商" @change="handleProviderChange" style="width: 100%">
-                <el-option
-                  v-for="p in llmProviders"
-                  :key="p.key"
-                  :label="p.name"
-                  :value="p.key"
-                />
-              </el-select>
+              <div style="display: flex; gap: 8px; width: 100%">
+                <el-select v-model="llmConfig.provider" placeholder="选择提供商" @change="handleProviderChange" style="flex: 1">
+                  <el-option
+                    v-for="p in llmProviders"
+                    :key="p.key"
+                    :label="p.name"
+                    :value="p.key"
+                  >
+                    <span>{{ p.name }}</span>
+                    <el-icon v-if="p.key !== 'custom'" class="provider-delete-icon" @click.stop="deleteProvider(p.key)"><Delete /></el-icon>
+                  </el-option>
+                </el-select>
+                <el-button @click="addProvider">添加</el-button>
+              </div>
+            </el-form-item>
+            <el-form-item label="默认模型">
+              <el-input v-model="llmProviderDefaultModel" placeholder="如 deepseek-chat" />
+            </el-form-item>
+            <el-form-item label="API Base URL">
+              <el-input v-model="llmConfig.baseUrl" placeholder="https://api.deepseek.com/v1" />
             </el-form-item>
             <el-form-item label="模型名称">
               <div style="display: flex; gap: 8px; width: 100%">
@@ -139,10 +151,6 @@
                 已配置时显示遮蔽值，输入新值后保存即可更新
               </p>
             </el-form-item>
-            <el-form-item label="API Base URL">
-              <el-input v-model="llmConfig.baseUrl" placeholder="根据提供商自动填充" />
-              <p style="font-size: 12px; color: #909399; margin-top: 4px;">选择提供商后自动填充，也可手动修改</p>
-            </el-form-item>
           </el-form>
         </el-tab-pane>
       </el-tabs>
@@ -152,9 +160,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Check } from '@element-plus/icons-vue'
-import { getConfigs, updateConfig, fetchLlmModels } from '@/api/systemApi'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Check, Delete } from '@element-plus/icons-vue'
+import { getConfigs, updateConfig, deleteConfig, fetchLlmModels } from '@/api/systemApi'
 import { encrypt, isEncrypted } from '@/utils/crypto'
 
 const saving = ref(false)
@@ -203,15 +211,10 @@ const llmConfig = reactive({
   apiKey: '',
   model: ''
 })
-// 提供商列表（硬编码）
-const llmProviders = [
-  { key: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
-  { key: 'mimo', name: 'Xiaomi MiMo', baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1' },
-  { key: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
-  { key: 'qwen', name: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
-  { key: 'zhipu', name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4' },
-  { key: 'custom', name: '自定义', baseUrl: '' },
-]
+// 提供商默认模型（与选中提供商同步，可直接编辑）
+const llmProviderDefaultModel = ref('')
+// 提供商列表：全部从数据库 llm_provider_* 加载，不硬编码
+const llmProviders = ref<{ key: string; name: string; baseUrl: string; defaultModel: string }[]>([])
 // 动态模型列表（从 API 拉取）
 const availableModels = ref<string[]>([])
 const fetchingModels = ref(false)
@@ -230,6 +233,15 @@ function collectSnapshot(): Record<string, string> {
   snap['site_contact_email'] = contactConfig.contactEmail
   snap['site_github_url'] = contactConfig.githubUrl
   snap['site_description'] = contactConfig.siteDescription
+  // 当前选中提供商的配置（用编辑框的值，不是内存中的旧值）
+  if (llmConfig.provider && llmConfig.provider !== 'custom') {
+    const currentP = llmProviders.value.find(p => p.key === llmConfig.provider)
+    snap[`llm_provider_${llmConfig.provider}`] = JSON.stringify({
+      name: currentP?.name || llmConfig.provider,
+      baseUrl: llmConfig.baseUrl,
+      defaultModel: llmProviderDefaultModel.value
+    })
+  }
   return snap
 }
 
@@ -255,6 +267,22 @@ const loadConfigs = async () => {
         contactConfig.githubUrl = configValue || ''
       } else if (configKey === 'site_description') {
         contactConfig.siteDescription = configValue || ''
+      } else if (configKey.startsWith('llm_provider_') && configKey !== 'llm_provider') {
+        // 提供商配置条目：llm_provider_deepseek 等
+        try {
+          const providerKey = configKey.replace('llm_provider_', '')
+          const providerData = JSON.parse(configValue)
+          const existing = llmProviders.value.find(p => p.key === providerKey)
+          if (existing) {
+            existing.name = providerData.name || existing.name
+            existing.baseUrl = providerData.baseUrl ?? existing.baseUrl
+            existing.defaultModel = providerData.defaultModel ?? existing.defaultModel
+          } else {
+            llmProviders.value.push({ key: providerKey, ...providerData })
+          }
+        } catch (e) {
+          console.warn('解析提供商配置失败:', configKey, e)
+        }
       } else {
         const [category, key] = configKey.split('.')
         if (category === 'basic' && key in basicConfig) {
@@ -268,6 +296,15 @@ const loadConfigs = async () => {
         }
       }
     })
+    // 确保"自定义"选项始终存在
+    if (!llmProviders.value.find(p => p.key === 'custom')) {
+      llmProviders.value.push({ key: 'custom', name: '自定义', baseUrl: '', defaultModel: '' })
+    }
+    // 同步当前选中提供商的默认模型到编辑框
+    const currentProvider = llmProviders.value.find(p => p.key === llmConfig.provider)
+    if (currentProvider) {
+      llmProviderDefaultModel.value = currentProvider.defaultModel || ''
+    }
     // 加载完成后保存快照
     originalSnapshot = collectSnapshot()
   } catch (error) {
@@ -328,12 +365,55 @@ onMounted(async () => {
 })
 
 function handleProviderChange(providerKey: string) {
-  const p = llmProviders.find(p => p.key === providerKey)
+  const p = llmProviders.value.find(p => p.key === providerKey)
   if (p) {
     llmConfig.baseUrl = p.baseUrl
+    llmConfig.model = p.defaultModel || ''
+    llmProviderDefaultModel.value = p.defaultModel || ''
+  } else {
+    // custom 或未知
+    llmProviderDefaultModel.value = ''
   }
-  llmConfig.model = ''
   availableModels.value = []
+}
+
+function addProvider() {
+  ElMessageBox.prompt('输入提供商标识（英文，如 anthropic）', '添加提供商', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPattern: /^[a-zA-Z][a-zA-Z0-9_-]*$/,
+    inputErrorMessage: '标识只能包含英文字母、数字、下划线和连字符'
+  }).then(({ value }) => {
+    const key = value.trim().toLowerCase()
+    if (key === 'custom') return
+    if (llmProviders.value.find(p => p.key === key)) {
+      ElMessage.warning('标识已存在')
+      return
+    }
+    llmProviders.value.push({ key, name: key, baseUrl: '', defaultModel: '' })
+    llmConfig.provider = key
+    llmConfig.baseUrl = ''
+    llmConfig.model = ''
+    llmProviderDefaultModel.value = ''
+  }).catch(() => {})
+}
+
+async function deleteProvider(key: string) {
+  if (!key || key === 'custom') return
+  try {
+    await ElMessageBox.confirm(`确定删除提供商 "${key}"？`, '提示', { type: 'warning' })
+  } catch { return }
+  llmProviders.value = llmProviders.value.filter(p => p.key !== key)
+  try {
+    await deleteConfig(`llm_provider_${key}`)
+  } catch {}
+  if (llmConfig.provider === key) {
+    llmConfig.provider = ''
+    llmConfig.baseUrl = ''
+    llmConfig.model = ''
+    llmProviderDefaultModel.value = ''
+  }
+  ElMessage.success('提供商已删除')
 }
 
 async function handleFetchModels() {
@@ -371,5 +451,14 @@ async function handleFetchModels() {
 
 .config-form {
   max-width: 600px;
+}
+
+.provider-delete-icon {
+  float: right;
+  color: #c0c4cc;
+  font-size: 12px;
+}
+.provider-delete-icon:hover {
+  color: #f56c6c;
 }
 </style>

@@ -32,6 +32,10 @@ export function updateConfig(id: number, data: Partial<SystemConfig>) {
   return http.put<SystemConfig>(`/api/admin/system/configs`, data)
 }
 
+export function deleteConfig(key: string) {
+  return http.delete(`/api/admin/system/configs/${key}`)
+}
+
 export function getDashboard() {
   return http.get<DashboardData>('/api/admin/system/dashboard')
 }

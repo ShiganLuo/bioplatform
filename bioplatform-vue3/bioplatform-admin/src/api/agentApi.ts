@@ -47,11 +47,11 @@ export function chatStream(
     signal: abortController.signal,
   }).then(async (response) => {
     if (!response.ok) {
-      onError(`HTTP ${response.status}`)
+      onError('服务不可用')
       return
     }
     const reader = response.body?.getReader()
-    if (!reader) { onError('无法读取响应流'); return }
+    if (!reader) { onError('服务不可用'); return }
     const decoder = new TextDecoder()
     let buffer = ''
     try {
@@ -67,17 +67,17 @@ export function chatStream(
           if (!jsonStr) continue
           try {
             const obj = JSON.parse(jsonStr)
-            if (obj.error) { onError(obj.error); return }
+            if (obj.error) { onError('服务不可用'); return }
             if (obj.done) { onDone({ conversationId: String(obj.conversationId) }); return }
             if (obj.delta) { onToken(obj.delta) }
           } catch { /* skip malformed */ }
         }
       }
     } catch (e: any) {
-      if (e.name !== 'AbortError') onError(e.message || '流式读取异常')
+      if (e.name !== 'AbortError') onError('服务不可用')
     }
   }).catch((e: any) => {
-    if (e.name !== 'AbortError') onError(e.message || '请求失败')
+    if (e.name !== 'AbortError') onError('服务不可用')
   })
   return abortController
 }

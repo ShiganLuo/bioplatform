@@ -255,7 +255,7 @@ async function sendMessage(text: string) {
       } else {
         messages.value.push({
           role: 'assistant',
-          content: '❌ 请求失败：' + errMsg,
+          content: '服务不可用',
           timestamp: Date.now(),
         })
       }
@@ -654,6 +654,8 @@ onMounted(async () => {
   border-radius: 12px;
   line-height: 1.6;
   font-size: 14px;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .message-bubble.assistant {
