@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * 数据库查询工具 - 让 Agent 能直接查询 MySQL 数据库
@@ -127,10 +128,10 @@ public class DatabaseQueryTool implements Tool {
             return toJson(-1, "只允许 SELECT/SHOW/DESCRIBE 查询，禁止写操作");
         }
 
-        // 额外拦截危险关键词
+        // 额外拦截危险关键词（用单词边界匹配，避免误判 created_at 等列名）
         String upper = sql.toUpperCase();
         for (String keyword : List.of("INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE")) {
-            if (upper.contains(keyword)) {
+            if (Pattern.compile("\\b" + keyword + "\\b").matcher(upper).find()) {
                 return toJson(-1, "SQL 包含禁止的关键字: " + keyword);
             }
         }

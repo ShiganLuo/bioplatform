@@ -29,6 +29,25 @@ export function chat(data: ChatRequest) {
   return http.post<ChatResponse>('/api/admin/agent/chat', data, { silent: true } as any)
 }
 
+async function tryRefreshToken(): Promise<string | null> {
+  const rt = localStorage.getItem('refresh_token')
+  if (!rt) return null
+  try {
+    const res = await fetch('/api/admin/auth/refreshToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    })
+    const json = await res.json()
+    if (json.code === 200 && json.result) {
+      localStorage.setItem('access_token', json.result.accessToken)
+      localStorage.setItem('refresh_token', json.result.refreshToken)
+      return json.result.accessToken
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
 export function chatStream(
   data: ChatRequest,
   onToken: (token: string) => void,
@@ -36,16 +55,27 @@ export function chatStream(
   onError: (err: string) => void
 ): AbortController {
   const abortController = new AbortController()
-  const token = localStorage.getItem('access_token') || ''
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  fetch(`/api/admin/agent/chat/stream`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
-    signal: abortController.signal,
-  }).then(async (response) => {
+  async function doFetch(accessToken: string) {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
+    return fetch(`/api/admin/agent/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal: abortController.signal,
+    })
+  }
+
+  const token = localStorage.getItem('access_token') || ''
+  doFetch(token).then(async (response) => {
+    // token 过期：尝试刷新后重试一次
+    if (response.status === 401) {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        response = await doFetch(newToken)
+      }
+    }
     if (!response.ok) {
       onError('服务不可用')
       return
