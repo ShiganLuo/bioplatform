@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BioPlatform 系统架构图</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'JetBrains Mono', 'Noto Sans SC', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    .header { margin-bottom: 2rem; }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    svg { width: 100%; min-width: 1000px; display: block; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>BioPlatform 系统架构</h1>
+      </div>
+      <p class="subtitle">Spring Boot 3.4.2 分层后端 · Vue3 双前端 · MySQL/Redis · AI Agent 多智能体 · 流水线 Worker 分布式执行</p>
+    </div>
+
+    <!-- Main Diagram -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 1000 960">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowheadCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowheadEmerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowheadViolet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrowheadOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb923c" />
+          </marker>
+          <marker id="arrowheadAmber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowheadRose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="1000" height="960" fill="url(#grid)" />
+
+        <!-- ======================= ARROWS (behind boxes) ======================= -->
+
+        <!-- Users -> nginx -->
+        <line x1="127" y1="75" x2="246" y2="75" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowheadCyan)"/>
+        <text x="186" y="68" fill="#94a3b8" font-size="8" text-anchor="middle">HTTPS</text>
+
+        <!-- nginx -> front / admin -->
+        <line x1="312" y1="107" x2="279" y2="146" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowheadCyan)"/>
+        <line x1="388" y1="107" x2="490" y2="146" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowheadCyan)"/>
+
+        <!-- front / admin -> backend -->
+        <line x1="277" y1="207" x2="277" y2="236" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowheadCyan)"/>
+        <line x1="492" y1="207" x2="492" y2="236" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowheadCyan)"/>
+        <text x="384" y="226" fill="#94a3b8" font-size="7" text-anchor="middle">反代 /api /ws → :8080</text>
+
+        <!-- security -> controllers -->
+        <line x1="250" y1="314" x2="250" y2="326" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+        <line x1="590" y1="314" x2="590" y2="326" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+
+        <!-- controllers -> service -->
+        <line x1="250" y1="402" x2="250" y2="414" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+        <line x1="590" y1="402" x2="590" y2="414" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+
+        <!-- service -> agent / worker -->
+        <line x1="320" y1="484" x2="320" y2="496" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+        <line x1="595" y1="484" x2="595" y2="496" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+
+        <!-- agent / worker -> persistence -->
+        <line x1="320" y1="652" x2="320" y2="664" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+        <line x1="595" y1="652" x2="595" y2="664" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowheadEmerald)"/>
+
+        <!-- backend -> MySQL / Redis / volume -->
+        <line x1="300" y1="817" x2="279" y2="841" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowheadViolet)"/>
+        <text x="310" y="832" fill="#94a3b8" font-size="7">JDBC</text>
+        <line x1="500" y1="817" x2="475" y2="841" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowheadViolet)"/>
+        <text x="512" y="832" fill="#94a3b8" font-size="7">验证码/缓存</text>
+        <line x1="657" y1="796" x2="657" y2="841" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowheadViolet)"/>
+        <text x="666" y="822" fill="#94a3b8" font-size="7">读写文件</text>
+
+        <!-- backend -> LLM provider (SSE) -->
+        <line x1="747" y1="515" x2="789" y2="515" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowheadOrange)"/>
+        <text x="768" y="507" fill="#fb923c" font-size="7" text-anchor="middle">SSE</text>
+
+        <!-- backend -> worker node -->
+        <line x1="747" y1="630" x2="789" y2="652" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowheadAmber)"/>
+        <text x="766" y="624" fill="#fbbf24" font-size="7" text-anchor="middle">HTTP</text>
+
+        <!-- backend -> SMTP -->
+        <line x1="747" y1="360" x2="789" y2="360" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowheadRose)"/>
+        <text x="768" y="352" fill="#fb7185" font-size="7" text-anchor="middle">邮件</text>
+
+        <!-- ======================= DEPLOYMENT BOUNDARY ======================= -->
+        <rect x="145" y="25" width="630" height="895" rx="12" fill="rgba(251, 191, 36, 0.04)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="160" y="42" fill="#fbbf24" font-size="10" font-weight="600">生产部署 · 阿里云 ECS · docker-compose-remote.yml · blog_net</text>
+
+        <!-- ======================= TOP ROW ======================= -->
+        <!-- Users (outside boundary) -->
+        <rect x="15" y="50" width="112" height="50" rx="6" fill="#0f172a"/>
+        <rect x="15" y="50" width="112" height="50" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="71" y="72" fill="white" font-size="11" font-weight="600" text-anchor="middle">研究者</text>
+        <text x="71" y="88" fill="#94a3b8" font-size="9" text-anchor="middle">Browser</text>
+
+        <!-- nginx-proxy -->
+        <rect x="250" y="55" width="200" height="50" rx="6" fill="#0f172a"/>
+        <rect x="250" y="55" width="200" height="50" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="350" y="76" fill="white" font-size="11" font-weight="600" text-anchor="middle">nginx-proxy</text>
+        <text x="350" y="92" fill="#94a3b8" font-size="8" text-anchor="middle">HTTPS :443 · 反代 / /api /ws · 与博客共用</text>
+
+        <!-- front -->
+        <rect x="185" y="150" width="185" height="55" rx="6" fill="#0f172a"/>
+        <rect x="185" y="150" width="185" height="55" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="277" y="171" fill="white" font-size="11" font-weight="600" text-anchor="middle">bioplatform-front</text>
+        <text x="277" y="185" fill="#94a3b8" font-size="8" text-anchor="middle">Vue3 + TS + Nginx 静态/反代</text>
+        <text x="277" y="198" fill="#22d3ee" font-size="7" text-anchor="middle">bio.shiganluo.top :3000</text>
+
+        <!-- admin -->
+        <rect x="400" y="150" width="185" height="55" rx="6" fill="#0f172a"/>
+        <rect x="400" y="150" width="185" height="55" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="492" y="171" fill="white" font-size="11" font-weight="600" text-anchor="middle">bioplatform-admin</text>
+        <text x="492" y="185" fill="#94a3b8" font-size="8" text-anchor="middle">Vue3 + Element Plus</text>
+        <text x="492" y="198" fill="#22d3ee" font-size="7" text-anchor="middle">bioadmin.shiganluo.top :3001</text>
+
+        <!-- ======================= BACKEND BOUNDARY ======================= -->
+        <rect x="175" y="240" width="570" height="575" rx="12" fill="rgba(6, 78, 59, 0.08)" stroke="#34d399" stroke-width="1.2" stroke-dasharray="8,4"/>
+        <text x="195" y="262" fill="#34d399" font-size="10" font-weight="600">bioplatform-backend · Spring Boot 3.4.2 / Java 17 · 容器 :8080</text>
+
+        <!-- Security strip -->
+        <rect x="195" y="272" width="530" height="40" rx="6" fill="#0f172a"/>
+        <rect x="195" y="272" width="530" height="40" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="460" y="289" fill="white" font-size="9" font-weight="600" text-anchor="middle">安全与公共组件 · JwtAuthenticationFilter (JWT) · Spring Security 路由鉴权</text>
+        <text x="460" y="303" fill="#94a3b8" font-size="8" text-anchor="middle">/api/admin/** 需认证 · /api/front/** 白名单放行 · OperLogAspect AOP 日志 · 全局异常处理</text>
+
+        <!-- Controller: admin -->
+        <rect x="195" y="330" width="255" height="70" rx="6" fill="#0f172a"/>
+        <rect x="195" y="330" width="255" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="322" y="348" fill="white" font-size="11" font-weight="600" text-anchor="middle">controller/admin (15)</text>
+        <text x="322" y="362" fill="#94a3b8" font-size="7" text-anchor="middle">auth · users · roles · projects</text>
+        <text x="322" y="373" fill="#94a3b8" font-size="7" text-anchor="middle">pipelines · executions · datafiles · templates</text>
+        <text x="322" y="384" fill="#94a3b8" font-size="7" text-anchor="middle">agent(SSE) · system · logs · workers</text>
+        <text x="322" y="395" fill="#94a3b8" font-size="7" text-anchor="middle">feedback · sample-meta · chunk-upload</text>
+
+        <!-- Controller: front -->
+        <rect x="465" y="330" width="260" height="70" rx="6" fill="#0f172a"/>
+        <rect x="465" y="330" width="260" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="595" y="348" fill="white" font-size="11" font-weight="600" text-anchor="middle">controller/front (6) + WebSocket</text>
+        <text x="595" y="362" fill="#94a3b8" font-size="7" text-anchor="middle">auth · projects · pipelines</text>
+        <text x="595" y="373" fill="#94a3b8" font-size="7" text-anchor="middle">agent (SSE 流式对话) · feedback</text>
+        <text x="595" y="384" fill="#94a3b8" font-size="7" text-anchor="middle">site-config</text>
+        <text x="595" y="395" fill="#94a3b8" font-size="7" text-anchor="middle">/ws/feedback FeedbackWebSocketHandler</text>
+
+        <!-- Service layer -->
+        <rect x="195" y="418" width="530" height="64" rx="6" fill="#0f172a"/>
+        <rect x="195" y="418" width="530" height="64" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="460" y="436" fill="white" font-size="11" font-weight="600" text-anchor="middle">service + impl (16 个业务服务)</text>
+        <text x="460" y="450" fill="#94a3b8" font-size="8" text-anchor="middle">AgentService · PipelineExecutionService · PipelineService · ProjectService · DataFileService</text>
+        <text x="460" y="462" fill="#94a3b8" font-size="8" text-anchor="middle">SystemService (system_configs KV · AES 解密) · EmailCodeService (Redis) · SampleMetaService</text>
+        <text x="460" y="474" fill="#94a3b8" font-size="7" text-anchor="middle">RoleService · UserService · WorkflowTemplateService · FeedbackService · ChunkUploadService · ProjectExportService</text>
+
+        <!-- Agent module -->
+        <rect x="195" y="500" width="255" height="150" rx="6" fill="#0f172a"/>
+        <rect x="195" y="500" width="255" height="150" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="322" y="518" fill="white" font-size="11" font-weight="600" text-anchor="middle">AI Agent 模块</text>
+        <text x="322" y="532" fill="#94a3b8" font-size="7.5" text-anchor="middle">AgentOrchestrator 意图识别路由</text>
+        <text x="322" y="544" fill="#94a3b8" font-size="7.5" text-anchor="middle">DataAnalysis / Pipeline / QA Agent</text>
+        <text x="322" y="558" fill="#94a3b8" font-size="7.5" text-anchor="middle">LLMClient (OkHttp · SSE 流式)</text>
+        <text x="322" y="570" fill="#fb923c" font-size="7.5" text-anchor="middle">→ LLM 提供商 /v1/chat/completions</text>
+        <text x="322" y="584" fill="#94a3b8" font-size="7.5" text-anchor="middle">AgentToolExecutor 6 个工具</text>
+        <text x="322" y="596" fill="#94a3b8" font-size="7.5" text-anchor="middle">Shell · DB · FileInfo · FormatInfo</text>
+        <text x="322" y="608" fill="#94a3b8" font-size="7.5" text-anchor="middle">PipelineSearch · CreateSkill</text>
+        <text x="322" y="622" fill="#94a3b8" font-size="7.5" text-anchor="middle">SkillRegistry 技能注册表</text>
+        <text x="322" y="636" fill="#34d399" font-size="7" text-anchor="middle">持久化 agent_conversations / agent_messages</text>
+
+        <!-- Worker dispatch module -->
+        <rect x="465" y="500" width="260" height="150" rx="6" fill="#0f172a"/>
+        <rect x="465" y="500" width="260" height="150" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="595" y="518" fill="white" font-size="11" font-weight="600" text-anchor="middle">流水线执行 · Worker 调度</text>
+        <text x="595" y="532" fill="#94a3b8" font-size="7.5" text-anchor="middle">AdminExecutionController 触发执行</text>
+        <text x="595" y="544" fill="#94a3b8" font-size="7.5" text-anchor="middle">PipelineTaskDispatcher 提交/轮询/取消</text>
+        <text x="595" y="558" fill="#94a3b8" font-size="7.5" text-anchor="middle">WorkerRegistry 每 30s 健康检查</text>
+        <text x="595" y="570" fill="#94a3b8" font-size="7.5" text-anchor="middle">WorkerClient (OkHttp HTTP)</text>
+        <text x="595" y="584" fill="#94a3b8" font-size="7.5" text-anchor="middle">StorageStrategy: Shared / Worker</text>
+        <text x="595" y="598" fill="#94a3b8" font-size="7.5" text-anchor="middle">写 pipeline_executions 执行状态</text>
+        <text x="595" y="612" fill="#94a3b8" font-size="7.5" text-anchor="middle">更新 compute_nodes 心跳/资源</text>
+        <text x="595" y="626" fill="#94a3b8" font-size="7.5" text-anchor="middle">AdminWorkerController 节点管理</text>
+        <text x="595" y="640" fill="#34d399" font-size="7" text-anchor="middle">对应 entity: ComputeNode / PipelineExecution</text>
+
+        <!-- Persistence layer -->
+        <rect x="195" y="668" width="340" height="62" rx="6" fill="#0f172a"/>
+        <rect x="195" y="668" width="340" height="62" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="365" y="686" fill="white" font-size="11" font-weight="600" text-anchor="middle">MyBatis 持久层</text>
+        <text x="365" y="700" fill="#94a3b8" font-size="8" text-anchor="middle">MyBatis 3.0.4 + PageHelper 分页插件</text>
+        <text x="365" y="712" fill="#94a3b8" font-size="8" text-anchor="middle">19 个 Mapper 接口 + resources/mapper/*.xml</text>
+        <text x="365" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">19 个 entity · users/roles/projects/pipelines...</text>
+
+        <!-- Common layer -->
+        <rect x="555" y="668" width="170" height="62" rx="6" fill="#0f172a"/>
+        <rect x="555" y="668" width="170" height="62" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="640" y="686" fill="white" font-size="11" font-weight="600" text-anchor="middle">common 公共层</text>
+        <text x="640" y="700" fill="#94a3b8" font-size="8" text-anchor="middle">dto · ApiResponse · PageResult</text>
+        <text x="640" y="712" fill="#94a3b8" font-size="8" text-anchor="middle">exception · enums · annotation</text>
+        <text x="640" y="724" fill="#94a3b8" font-size="8" text-anchor="middle">util: JWT · AES-GCM (ENC:)</text>
+
+        <!-- Storage row -->
+        <rect x="195" y="750" width="530" height="44" rx="6" fill="#0f172a"/>
+        <rect x="195" y="750" width="530" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="460" y="768" fill="white" font-size="10" font-weight="600" text-anchor="middle">文件存储与分片上传</text>
+        <text x="460" y="783" fill="#94a3b8" font-size="8" text-anchor="middle">ChunkUploadService 分片/合并 · StorageStrategy (Shared/Worker) · 上传卷 /app/uploads · 500MB 限制</text>
+
+        <!-- ======================= DATA ROW ======================= -->
+        <!-- MySQL -->
+        <rect x="175" y="845" width="200" height="55" rx="6" fill="#0f172a"/>
+        <rect x="175" y="845" width="200" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="275" y="865" fill="white" font-size="11" font-weight="600" text-anchor="middle">MySQL 8</text>
+        <text x="275" y="879" fill="#94a3b8" font-size="8" text-anchor="middle">bioplatform 库 · 19 张业务表</text>
+        <text x="275" y="892" fill="#a78bfa" font-size="7" text-anchor="middle">system_configs KV 配置中心</text>
+
+        <!-- Redis -->
+        <rect x="395" y="845" width="155" height="55" rx="6" fill="#0f172a"/>
+        <rect x="395" y="845" width="155" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="472" y="865" fill="white" font-size="11" font-weight="600" text-anchor="middle">Redis 7</text>
+        <text x="472" y="879" fill="#94a3b8" font-size="8" text-anchor="middle">邮箱验证码 · 缓存</text>
+        <text x="472" y="892" fill="#a78bfa" font-size="7" text-anchor="middle">AOF 持久化</text>
+
+        <!-- Upload volume -->
+        <rect x="570" y="845" width="175" height="55" rx="6" fill="#0f172a"/>
+        <rect x="570" y="845" width="175" height="55" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="657" y="865" fill="white" font-size="11" font-weight="600" text-anchor="middle">上传文件卷</text>
+        <text x="657" y="879" fill="#94a3b8" font-size="8" text-anchor="middle">bioplatform-uploads</text>
+        <text x="657" y="892" fill="#a78bfa" font-size="7" text-anchor="middle">分片写入 → 合并</text>
+
+        <!-- ======================= EXTERNAL COLUMN ======================= -->
+        <!-- SMTP -->
+        <rect x="795" y="330" width="190" height="55" rx="6" fill="#0f172a"/>
+        <rect x="795" y="330" width="190" height="55" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="890" y="350" fill="white" font-size="11" font-weight="600" text-anchor="middle">SMTP 邮件服务</text>
+        <text x="890" y="364" fill="#94a3b8" font-size="8" text-anchor="middle">邮箱验证码 (EmailCodeService)</text>
+        <text x="890" y="377" fill="#94a3b8" font-size="7" text-anchor="middle">sendEmailCode / sendResetCode</text>
+
+        <!-- LLM Provider -->
+        <rect x="795" y="490" width="190" height="90" rx="6" fill="#0f172a"/>
+        <rect x="795" y="490" width="190" height="90" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="890" y="510" fill="white" font-size="11" font-weight="600" text-anchor="middle">LLM 提供商</text>
+        <text x="890" y="524" fill="#94a3b8" font-size="8" text-anchor="middle">OpenAI 兼容 /v1/* 接口</text>
+        <text x="890" y="536" fill="#94a3b8" font-size="8" text-anchor="middle">多提供商 · 按 llm_provider 切换</text>
+        <text x="890" y="548" fill="#fb923c" font-size="8" text-anchor="middle">SSE 流式 token 输出</text>
+        <text x="890" y="561" fill="#94a3b8" font-size="7.5" text-anchor="middle">key 存 system_configs (AES-GCM)</text>
+        <text x="890" y="573" fill="#94a3b8" font-size="7.5" text-anchor="middle">llm_api_key_&lt;provider&gt; + 全局回退</text>
+
+        <!-- Worker node -->
+        <rect x="795" y="615" width="190" height="105" rx="6" fill="#0f172a"/>
+        <rect x="795" y="615" width="190" height="105" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="890" y="635" fill="white" font-size="11" font-weight="600" text-anchor="middle">bioplatform-worker</text>
+        <text x="890" y="650" fill="#94a3b8" font-size="8" text-anchor="middle">独立 Spring Boot 计算节点</text>
+        <text x="890" y="664" fill="#94a3b8" font-size="7.5" text-anchor="middle">/worker/tasks/submit · status</text>
+        <text x="890" y="676" fill="#94a3b8" font-size="7.5" text-anchor="middle">/worker/tasks/output · cancel</text>
+        <text x="890" y="690" fill="#94a3b8" font-size="7.5" text-anchor="middle">/worker/health 心跳 (30s 轮询)</text>
+        <text x="890" y="702" fill="#94a3b8" font-size="7.5" text-anchor="middle">/worker/shell/execute</text>
+        <text x="890" y="714" fill="#fbbf24" font-size="7" text-anchor="middle">TaskExecutionService 实际执行</text>
+
+        <!-- ======================= LEGEND (outside all boundaries) ======================= -->
+        <text x="795" y="52" fill="white" font-size="10" font-weight="600">图例 Legend</text>
+
+        <rect x="795" y="62" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="817" y="70" fill="#94a3b8" font-size="8">前端 Frontend</text>
+
+        <rect x="795" y="78" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="817" y="86" fill="#94a3b8" font-size="8">后端 Backend</text>
+
+        <rect x="795" y="94" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="817" y="102" fill="#94a3b8" font-size="8">数据存储 Data</text>
+
+        <rect x="795" y="110" width="16" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+        <text x="817" y="118" fill="#94a3b8" font-size="8">安全/入口 Security</text>
+
+        <rect x="795" y="126" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="817" y="134" fill="#94a3b8" font-size="8">外部服务 External</text>
+
+        <rect x="795" y="142" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="817" y="150" fill="#94a3b8" font-size="8">计算节点 Worker</text>
+
+        <line x1="795" y1="165" x2="811" y2="165" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="817" y="168" fill="#94a3b8" font-size="8">SSE / 流式调用</text>
+
+        <line x1="795" y1="181" x2="811" y2="181" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="817" y="184" fill="#94a3b8" font-size="8">HTTPS / HTTP 请求</text>
+      </svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>后端分层 (bioplatform-springboot)</h3>
+        </div>
+        <ul>
+          <li>• 安全层: JWT Filter + Spring Security + OperLogAspect AOP + 全局异常</li>
+          <li>• Controller: admin 15 个 + front 6 个，共 21 个 REST 控制器</li>
+          <li>• Service: 16 个业务服务（Agent/流水线/项目/文件/系统配置…）</li>
+          <li>• 持久层: MyBatis 3.0.4 + PageHelper，19 Mapper + XML + 19 entity</li>
+          <li>• 配置: system_configs KV 表，API Key AES-GCM 加密 (ENC:)，前端 mask 展示</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>AI 与执行链路</h3>
+        </div>
+        <ul>
+          <li>• AgentOrchestrator 正则意图识别 → 路由到 DataAnalysis/Pipeline/QA 三个智能体</li>
+          <li>• LLMClient 经 OkHttp 调 OpenAI 兼容接口，SSE 流式返回，SseEmitter 推前端</li>
+          <li>• AgentToolExecutor 6 个工具（Shell/DB/FileInfo/FormatInfo/PipelineSearch/CreateSkill）</li>
+          <li>• 流水线: PipelineTaskDispatcher 派发到 Worker，30s 健康检查 + 状态轮询</li>
+          <li>• 存储双策略: SharedStorageStrategy / WorkerStorageStrategy 屏蔽差异</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>部署拓扑</h3>
+        </div>
+        <ul>
+          <li>• nginx-proxy 统一 HTTPS，/ → front/admin 静态，/api /ws → backend:8080</li>
+          <li>• 生产: 阿里云 ECS docker-compose-remote.yml，加入 blog_net 与博客共用基础设施</li>
+          <li>• 本地: docker-compose.yml 自带 MySQL 8 / Redis 7（3308 / 6380 端口）</li>
+          <li>• 发布链路: 本地构建镜像 → docker save/load → force-recreate（禁远程 build）</li>
+          <li>• Worker 可独立扩展为多计算节点，注册于 compute_nodes 表</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">BioPlatform · bioplatform-springboot v1.0 · 生成于 2026-10-04</p>
+  </div>
+</body>
+</html>
