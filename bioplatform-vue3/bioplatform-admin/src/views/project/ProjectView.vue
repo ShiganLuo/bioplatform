@@ -32,7 +32,9 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="项目名称" min-width="150">
           <template #default="{ row }">
-            <el-button type="primary" link @click="router.push(`/projects/${row.id}`)">{{ row.name }}</el-button>
+            <el-tooltip :content="row.name" placement="top" :show-after="300">
+              <el-button type="primary" link @click="router.push(`/projects/${row.id}`)" style="display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.name }}</el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column label="所属父项目" width="120">
@@ -453,5 +455,12 @@ onMounted(() => {
 <style>
 .project-select-dropdown .el-select-dropdown__wrap {
   max-height: 200px;
+}
+.ellipsis-cell {
+  display: block !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

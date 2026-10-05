@@ -41,7 +41,7 @@
 
       <el-table v-loading="loading" :data="pipelineList" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="name" label="流程名称" min-width="150" />
+        <el-table-column prop="name" label="流程名称" min-width="150" show-overflow-tooltip />
         <el-table-column prop="type" label="类型" width="90">
           <template #default="{ row }">
             <el-tag :type="row.type === 'pipeline' ? 'primary' : 'success'" size="small">
