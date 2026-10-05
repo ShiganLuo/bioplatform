@@ -215,6 +215,8 @@ const llmConfig = reactive({
 const llmProviderDefaultModel = ref('')
 // 提供商列表：全部从数据库 llm_provider_* 加载，不硬编码
 const llmProviders = ref<{ key: string; name: string; baseUrl: string; defaultModel: string }[]>([])
+// 每个提供商独立的 API Key（服务端返回的遮蔽值，或本地未保存的新输入）
+const llmProviderKeys = ref<Record<string, string>>({})
 // 动态模型列表（从 API 拉取）
 const availableModels = ref<string[]>([])
 const fetchingModels = ref(false)
@@ -241,6 +243,8 @@ function collectSnapshot(): Record<string, string> {
       baseUrl: llmConfig.baseUrl,
       defaultModel: llmProviderDefaultModel.value
     })
+    // 当前提供商的独立 key（与全局 llm_api_key 同值，按提供商各存一份）
+    snap[`llm_api_key_${llmConfig.provider}`] = llmConfig.apiKey
   }
   return snap
 }
@@ -255,6 +259,9 @@ const loadConfigs = async () => {
       // LLM 配置使用扁平 key
       if (configKey === 'llm_api_key') {
         llmConfig.apiKey = configValue || ''
+      } else if (configKey.startsWith('llm_api_key_')) {
+        // 每提供商独立 key：llm_api_key_deepseek 等（服务端已遮蔽）
+        llmProviderKeys.value[configKey.replace('llm_api_key_', '')] = configValue || ''
       } else if (configKey === 'llm_model') {
         llmConfig.model = configValue || ''
       } else if (configKey === 'llm_base_url') {
@@ -304,6 +311,10 @@ const loadConfigs = async () => {
     const currentProvider = llmProviders.value.find(p => p.key === llmConfig.provider)
     if (currentProvider) {
       llmProviderDefaultModel.value = currentProvider.defaultModel || ''
+      // 当前提供商有独立 key 时优先展示它（切换提供商 = 切换 key）
+      if (llmProviderKeys.value[llmConfig.provider]) {
+        llmConfig.apiKey = llmProviderKeys.value[llmConfig.provider]
+      }
     }
     // 加载完成后保存快照
     originalSnapshot = collectSnapshot()
@@ -325,8 +336,8 @@ const handleSave = async () => {
 
     for (const [key, value] of Object.entries(currentSnapshot)) {
       if (originalSnapshot[key] !== value) {
-        // API Key 含遮蔽值说明未修改，跳过
-        if (key === 'llm_api_key' && value.includes('***')) continue
+        // API Key 含遮蔽值说明未修改，跳过；空值不写入（避免存空 key）
+        if (key.includes('api_key') && (value.includes('***') || value === '')) continue
         changedConfigs.push({ key, value })
       }
     }
@@ -339,10 +350,10 @@ const handleSave = async () => {
 
     for (const config of changedConfigs) {
       try {
-        // API Key 需加密后传输
+        // API Key 需加密后传输（已是 ENC: 的不再二次加密）
         let sendValue = config.value
-        if (config.key === 'llm_api_key') {
-          sendValue = await encrypt(config.value)
+        if (config.key.includes('api_key') && !isEncrypted(sendValue)) {
+          sendValue = await encrypt(sendValue)
         }
         await updateConfig(0, { key: config.key, value: sendValue } as any)
       } catch (e) {
@@ -365,14 +376,22 @@ onMounted(async () => {
 })
 
 function handleProviderChange(providerKey: string) {
+  // 切换前：暂存当前提供商下未保存的新 key（明文），切回时可恢复
+  const prev = llmConfig.provider
+  if (prev && prev !== 'custom' && llmConfig.apiKey && !llmConfig.apiKey.includes('***')) {
+    llmProviderKeys.value[prev] = llmConfig.apiKey
+  }
   const p = llmProviders.value.find(p => p.key === providerKey)
   if (p) {
     llmConfig.baseUrl = p.baseUrl
     llmConfig.model = p.defaultModel || ''
     llmProviderDefaultModel.value = p.defaultModel || ''
+    // 切换提供商 = 切换该提供商自己的 key（无则清空，避免拿别家的 key 请求）
+    llmConfig.apiKey = llmProviderKeys.value[p.key] || ''
   } else {
     // custom 或未知
     llmProviderDefaultModel.value = ''
+    llmConfig.apiKey = ''
   }
   availableModels.value = []
 }
@@ -406,7 +425,9 @@ async function deleteProvider(key: string) {
   llmProviders.value = llmProviders.value.filter(p => p.key !== key)
   try {
     await deleteConfig(`llm_provider_${key}`)
+    await deleteConfig(`llm_api_key_${key}`)
   } catch {}
+  delete llmProviderKeys.value[key]
   if (llmConfig.provider === key) {
     llmConfig.provider = ''
     llmConfig.baseUrl = ''
@@ -419,12 +440,12 @@ async function deleteProvider(key: string) {
 async function handleFetchModels() {
   fetchingModels.value = true
   try {
-    // 如果API Key不是遮蔽值，先加密再发送
+    // 遮蔽值(含***)原样传；新输入的 key 加密后传（后端解密后直接使用，无需先保存）
     let keyToSend = llmConfig.apiKey
     if (keyToSend && !keyToSend.includes('***')) {
       keyToSend = await encrypt(keyToSend)
     }
-    const models = await fetchLlmModels({ baseUrl: llmConfig.baseUrl, apiKey: keyToSend })
+    const models = await fetchLlmModels({ baseUrl: llmConfig.baseUrl, apiKey: keyToSend, provider: llmConfig.provider })
     availableModels.value = (models as any) || []
     if (availableModels.value.length > 0 && !llmConfig.model) {
       llmConfig.model = availableModels.value[0]

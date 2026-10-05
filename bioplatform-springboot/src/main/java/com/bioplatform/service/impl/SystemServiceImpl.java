@@ -60,6 +60,18 @@ public class SystemServiceImpl implements SystemService {
     }
 
     @Override
+    public String getActiveLlmApiKey() {
+        String provider = getConfigValue("llm_provider");
+        if (provider != null && !provider.isBlank() && !"custom".equals(provider)) {
+            String providerKey = getConfigValue("llm_api_key_" + provider);
+            if (providerKey != null && !providerKey.isBlank()) {
+                return providerKey;
+            }
+        }
+        return getConfigValue("llm_api_key");
+    }
+
+    @Override
     public List<SystemConfig> getAllConfigs() {
         SystemConfig configParam = new SystemConfig();
         List<SystemConfig> configs = systemConfigMapper.selectAll(configParam);

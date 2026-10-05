@@ -6,7 +6,7 @@
 
 // 前端加密密钥（与后端 BIOPLATFORM_AES_KEY 一致）
 // 生产环境应从后端动态获取或使用环境变量
-const SECRET_KEY = 'REDACTED_AES_KEY'
+const SECRET_KEY = 'bioplatform-aes-key-2024-default-32b'
 
 async function getKeyBytes(): Promise<Uint8Array> {
   const encoder = new TextEncoder()

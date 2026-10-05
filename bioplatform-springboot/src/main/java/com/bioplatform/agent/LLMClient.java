@@ -83,9 +83,19 @@ public class LLMClient {
      * 获取LLM API配置
      */
     private LLMConfig loadConfig() {
-        SystemConfig apiKeyConfig = systemConfigMapper.selectByKey("llm_api_key");
         SystemConfig modelConfig = systemConfigMapper.selectByKey("llm_model");
         SystemConfig baseUrlConfig = systemConfigMapper.selectByKey("llm_base_url");
+
+        // 优先当前提供商独立 key（llm_api_key_<provider>），回退全局 llm_api_key
+        SystemConfig apiKeyConfig = null;
+        SystemConfig providerConfig = systemConfigMapper.selectByKey("llm_provider");
+        String provider = providerConfig != null ? providerConfig.getConfigValue() : null;
+        if (provider != null && !provider.isBlank() && !"custom".equals(provider)) {
+            apiKeyConfig = systemConfigMapper.selectByKey("llm_api_key_" + provider);
+        }
+        if (apiKeyConfig == null) {
+            apiKeyConfig = systemConfigMapper.selectByKey("llm_api_key");
+        }
 
         String apiKey = apiKeyConfig != null ? AesEncryptUtil.decrypt(apiKeyConfig.getConfigValue()) : "";
         String model = modelConfig != null ? modelConfig.getConfigValue() : "gpt-3.5-turbo";

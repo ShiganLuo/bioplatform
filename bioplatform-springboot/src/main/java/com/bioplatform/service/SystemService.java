@@ -23,6 +23,12 @@ public interface SystemService {
     String getConfigValue(String key);
 
     /**
+     * 获取当前启用提供商对应的 LLM API Key。
+     * 优先取 llm_api_key_&lt;provider&gt;（每提供商独立 key），无则回退全局 llm_api_key。
+     */
+    String getActiveLlmApiKey();
+
+    /**
      * 获取所有配置
      *
      * @return 配置列表

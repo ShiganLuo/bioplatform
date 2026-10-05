@@ -73,13 +73,18 @@ public class AdminSystemController {
 
     /**
      * 调用提供商 /v1/models 接口获取可用模型列表
-     * 请求参数: baseUrl, apiKey（明文，仅此次调用使用，不存储）
+     * 请求参数: baseUrl, apiKey, provider（可选）
+     * apiKey 规则:
+     *  - 遮蔽值(含***)   -> 按 provider 取库中已存 key（回退全局 llm_api_key），无需先保存
+     *  - ENC: 加密值     -> 前端新输入的 key，解密后直接使用，无需先保存
+     *  - 明文            -> 直接使用
      */
     @PostMapping("/llm/fetch-models")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<String>> fetchModels(@RequestBody Map<String, String> params) {
         String baseUrl = params.get("baseUrl");
         String apiKey = params.get("apiKey");
+        String provider = params.get("provider");
 
         if (baseUrl == null || baseUrl.isBlank()) {
             return ApiResponse.error(400, "Base URL 不能为空");
@@ -88,11 +93,25 @@ public class AdminSystemController {
             return ApiResponse.error(400, "API Key 不能为空");
         }
 
-        // 如果传入的是遮蔽值或 ENC: 加密值，从数据库读取真实 key
-        if (apiKey.contains("***") || AesEncryptUtil.isEncrypted(apiKey)) {
-            apiKey = systemService.getConfigValue("llm_api_key");
-            if (apiKey == null || apiKey.isBlank()) {
+        if (apiKey.contains("***")) {
+            // 遮蔽值：取当前提供商已存的 key，回退全局 key
+            String stored = null;
+            if (provider != null && !provider.isBlank() && !"custom".equals(provider)) {
+                stored = systemService.getConfigValue("llm_api_key_" + provider);
+            }
+            if (stored == null || stored.isBlank()) {
+                stored = systemService.getConfigValue("llm_api_key");
+            }
+            if (stored == null || stored.isBlank()) {
                 return ApiResponse.error(400, "数据库中未配置 API Key，请先填写并保存");
+            }
+            apiKey = stored;
+        } else if (AesEncryptUtil.isEncrypted(apiKey)) {
+            // 前端新输入并加密的 key：解密后直接使用（不必先保存）
+            try {
+                apiKey = AesEncryptUtil.decrypt(apiKey);
+            } catch (Exception e) {
+                return ApiResponse.error(400, "API Key 解密失败，请重新输入");
             }
         }
 

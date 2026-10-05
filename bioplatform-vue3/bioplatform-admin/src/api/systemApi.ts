@@ -44,6 +44,6 @@ export function getSystemLogs(params: { page?: number; size?: number; level?: st
   return http.get('/api/admin/logs/list', { params })
 }
 
-export function fetchLlmModels(data: { baseUrl: string; apiKey: string }) {
+export function fetchLlmModels(data: { baseUrl: string; apiKey: string; provider?: string }) {
   return http.post<string[]>('/api/admin/system/llm/fetch-models', data, { silent: true } as any)
 }

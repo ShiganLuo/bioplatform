@@ -405,7 +405,7 @@ public class AgentServiceImpl implements AgentService {
      * 流式调用LLM API，逐token推送到SseEmitter（保留作为无工具的备用方案）
      */
     private String streamLlmApi(String modelName, List<AgentMessage> historyMessages, SseEmitter emitter) throws Exception {
-        String apiKey = systemService.getConfigValue("llm_api_key");
+        String apiKey = systemService.getActiveLlmApiKey();
         String model = systemService.getConfigValue("llm_model");
         String baseUrl = systemService.getConfigValue("llm_base_url");
 
@@ -535,7 +535,7 @@ public class AgentServiceImpl implements AgentService {
     private String callLlmApi(String modelName, List<AgentMessage> historyMessages) {
         try {
             // 从数据库读取 LLM 配置
-            String apiKey = systemService.getConfigValue("llm_api_key");
+            String apiKey = systemService.getActiveLlmApiKey();
             String model = systemService.getConfigValue("llm_model");
             String baseUrl = systemService.getConfigValue("llm_base_url");
 
