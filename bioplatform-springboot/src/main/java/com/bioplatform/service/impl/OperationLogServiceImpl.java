@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -35,16 +36,34 @@ public class OperationLogServiceImpl implements OperationLogService {
     }
 
     @Override
-    public PageResult listLogs(int pageNum, int pageSize, Long userId, String operation) {
+    public void record(String module, String operation, String method,
+                       Long userId, String username, String ip,
+                       String params, String status, String errorMsg) {
+        try {
+            OperationLog entry = new OperationLog();
+            entry.setModule(module);
+            entry.setOperation(operation);
+            entry.setMethod(method);
+            entry.setUserId(userId);
+            entry.setUsername(username);
+            entry.setIp(ip);
+            entry.setParams(params);
+            entry.setStatus(status);
+            entry.setResult(errorMsg != null ? errorMsg : "成功");
+            entry.setCreatedAt(LocalDateTime.now());
+            operationLogMapper.insert(entry);
+        } catch (Exception e) {
+            // 审计写入失败只记应用日志，绝不影响业务主流程
+            log.error("保存审计日志失败: module={}, operation={}, error={}",
+                    module, operation, e.getMessage());
+        }
+    }
+
+    @Override
+    public PageResult listLogs(int pageNum, int pageSize, OperationLog filter) {
         PageHelper.startPage(pageNum, pageSize);
-
-        OperationLog logParam = new OperationLog();
-        logParam.setUserId(userId);
-        logParam.setOperation(operation);
-
-        List<OperationLog> logs = operationLogMapper.selectWithFilter(logParam);
+        List<OperationLog> logs = operationLogMapper.selectWithFilter(filter != null ? filter : new OperationLog());
         PageInfo<OperationLog> pageInfo = new PageInfo<>(logs);
-
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, logs);
     }
 }

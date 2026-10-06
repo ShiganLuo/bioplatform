@@ -311,18 +311,22 @@ DROP TABLE IF EXISTS `operation_logs`;
 CREATE TABLE `operation_logs` (
     `id`         BIGINT       NOT NULL AUTO_INCREMENT,
     `user_id`    BIGINT       DEFAULT NULL,
+    `username`   VARCHAR(64)  DEFAULT NULL COMMENT '操作者用户名快照',
     `operation`  VARCHAR(128) NOT NULL COMMENT 'e.g. user.login, pipeline.create',
-    `method`     VARCHAR(500) DEFAULT NULL COMMENT 'HTTP method + class.method',
-    `params`     TEXT         DEFAULT NULL COMMENT 'Request parameters JSON',
-    `result`     TEXT         DEFAULT NULL COMMENT 'Result or error summary',
+    `module`     VARCHAR(64)  DEFAULT NULL COMMENT '模块，如 用户管理/认证',
+    `method`     VARCHAR(500) DEFAULT NULL COMMENT 'HTTP method + path, e.g. POST /api/admin/users/create',
+    `params`     TEXT         DEFAULT NULL COMMENT 'Request parameters JSON (敏感字段已脱敏)',
+    `result`     TEXT         DEFAULT NULL COMMENT 'Result summary',
+    `status`     VARCHAR(16)  NOT NULL DEFAULT 'SUCCESS' COMMENT 'SUCCESS/FAIL',
     `ip`         VARCHAR(64)  DEFAULT NULL,
     `created_at` DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (`id`),
     INDEX `idx_ol_user` (`user_id`),
+    INDEX `idx_ol_username` (`username`),
     INDEX `idx_ol_operation` (`operation`),
-    INDEX `idx_ol_created` (`created_at`),
-    CONSTRAINT `fk_ol_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit / operation logs';
+    INDEX `idx_ol_status` (`status`),
+    INDEX `idx_ol_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit / operation logs（无 user_id 外键：用户删除后审计仍保留）';
 
 -- ============================================================
 -- 15. feedback_sessions

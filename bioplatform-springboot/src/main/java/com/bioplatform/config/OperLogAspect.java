@@ -2,9 +2,16 @@ package com.bioplatform.config;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.RequestContextUtil;
+import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.entity.OperationLog;
+import com.bioplatform.entity.User;
 import com.bioplatform.service.OperLogService;
+import com.bioplatform.service.UserService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -13,16 +20,21 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * 操作日志切面
- * 拦截@OperLog注解的方法，自动记录操作日志
+ * 拦截@OperLog注解的方法，自动记录操作日志：
+ * 操作者用户名快照、模块、接口路径(POST /api/...)、脱敏后的参数、成功/失败状态与结果摘要。
  *
  * @author luosg
  */
@@ -32,11 +44,20 @@ public class OperLogAspect {
 
     private static final Logger log = LoggerFactory.getLogger(OperLogAspect.class);
 
+    /** 敏感字段名（大小写不敏感），序列化时统一替换为 *** */
+    private static final Pattern SENSITIVE_KEY =
+            Pattern.compile("(?i).*(password|passwd|pwd|token|secret|api[-_]?key|authorization|credential).*");
+
+    private static final int MAX_PARAMS_LEN = 2000;
+    private static final int MAX_RESULT_LEN = 500;
+
     private final OperLogService operLogService;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
-    public OperLogAspect(OperLogService operLogService, ObjectMapper objectMapper) {
+    public OperLogAspect(OperLogService operLogService, UserService userService, ObjectMapper objectMapper) {
         this.operLogService = operLogService;
+        this.userService = userService;
         this.objectMapper = objectMapper;
     }
 
@@ -59,96 +80,162 @@ public class OperLogAspect {
         Method method = signature.getMethod();
         OperLog operLogAnnotation = method.getAnnotation(OperLog.class);
 
-        // 构建操作日志实体
         OperationLog operationLog = new OperationLog();
+        operationLog.setModule(operLogAnnotation.module());
         operationLog.setOperation(operLogAnnotation.operation());
-        operationLog.setMethod(joinPoint.getTarget().getClass().getName() + "." + method.getName());
 
-        // 获取当前登录用户
+        // 请求上下文：接口路径 + 客户端IP
+        String endpoint = RequestContextUtil.getEndpoint();
+        operationLog.setMethod(endpoint != null ? endpoint
+                : joinPoint.getTarget().getClass().getName() + "." + method.getName());
+        operationLog.setIp(RequestContextUtil.getClientIp());
+
+        // 当前登录用户（用户名快照，用户删除后日志仍可读）
         Long currentUserId = LoginUserHolder.getCurrentUserId();
         operationLog.setUserId(currentUserId);
+        operationLog.setUsername(resolveUsername(currentUserId, LoginUserHolder.getCurrentUsername()));
 
-        // 获取请求参数
-        try {
-            Object[] args = joinPoint.getArgs();
-            String params = objectMapper.writeValueAsString(args);
-            // 截断过长的参数
-            if (params.length() > 2000) {
-                params = params.substring(0, 2000) + "...";
-            }
-            operationLog.setParams(params);
-        } catch (Exception e) {
-            log.warn("Failed to serialize method params: {}", e.getMessage());
-            operationLog.setParams("序列化失败");
-        }
-
-        // 获取请求IP
-        try {
-            ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                HttpServletRequest request = attributes.getRequest();
-                operationLog.setIp(getClientIp(request));
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get client IP: {}", e.getMessage());
-        }
+        // 请求参数（跳过不可序列化对象 + 敏感字段脱敏）
+        operationLog.setParams(serializeParams(joinPoint.getArgs()));
 
         Object result = null;
         boolean success = true;
+        Throwable error = null;
         try {
-            // 执行目标方法
             result = joinPoint.proceed();
             return result;
         } catch (Throwable e) {
             success = false;
+            error = e;
             throw e;
         } finally {
-            // 计算执行时间
             long executionTime = System.currentTimeMillis() - startTime;
-
-            // 设置执行结果
-            try {
-                String resultStr;
-                if (result != null) {
-                    resultStr = objectMapper.writeValueAsString(result);
-                    if (resultStr.length() > 2000) {
-                        resultStr = resultStr.substring(0, 2000) + "...";
-                    }
-                } else {
-                    resultStr = success ? "成功" : "失败";
-                }
-                operationLog.setResult(resultStr);
-            } catch (Exception e) {
-                operationLog.setResult(success ? "成功" : "失败");
-            }
-
+            applyResultSummary(operationLog, result, success, error);
             operationLog.setCreatedAt(LocalDateTime.now());
 
-            // 异步保存操作日志（避免影响业务性能）
             try {
                 operLogService.save(operationLog);
             } catch (Exception e) {
                 log.error("Failed to save operation log: {}", e.getMessage(), e);
             }
+            log.debug("操作日志: {} {} user={} status={} cost={}ms",
+                    operationLog.getModule(), operationLog.getOperation(),
+                    operationLog.getUsername(), operationLog.getStatus(), executionTime);
         }
     }
 
     /**
-     * 获取客户端真实IP地址
+     * 结果摘要与状态判定：
+     * - ApiResponse：code==200 → SUCCESS，否则 FAIL，result 存 code+message
+     * - 抛异常：FAIL，result 存异常消息
+     * - 其他返回类型：SUCCESS / "成功"
      */
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
+    private void applyResultSummary(OperationLog entry, Object result, boolean success, Throwable error) {
+        if (error != null) {
+            entry.setStatus("FAIL");
+            entry.setResult(truncate(error.getMessage() != null
+                    ? error.getClass().getSimpleName() + ": " + error.getMessage()
+                    : error.getClass().getSimpleName(), MAX_RESULT_LEN));
+            return;
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
+        if (result instanceof ApiResponse<?> apiResponse) {
+            boolean ok = apiResponse.code() == 200;
+            entry.setStatus(ok ? "SUCCESS" : "FAIL");
+            entry.setResult(truncate("code=" + apiResponse.code() + " " + apiResponse.message(), MAX_RESULT_LEN));
+            return;
         }
-        // 多级代理时取第一个IP
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
+        entry.setStatus(success ? "SUCCESS" : "FAIL");
+        entry.setResult(success ? "成功" : "失败");
     }
+
+    /**
+     * 序列化方法参数：跳过 servlet/文件/校验对象，敏感字段替换为 ***
+     */
+    private String serializeParams(Object[] args) {
+        if (args == null || args.length == 0) {
+            return "";
+        }
+        try {
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (Object arg : args) {
+                if (arg == null || isNonLoggable(arg)) {
+                    continue;
+                }
+                if (!first) {
+                    sb.append(", ");
+                }
+                first = false;
+                JsonNode tree = objectMapper.valueToTree(arg);
+                sb.append(maskNode(tree).toString());
+            }
+            sb.append("]");
+            return truncate(sb.toString(), MAX_PARAMS_LEN);
+        } catch (Exception e) {
+            log.warn("Failed to serialize method params: {}", e.getMessage());
+            return "序列化失败";
+        }
+    }
+
+    /** 这些类型序列化无意义或会失败，直接跳过 */
+    private boolean isNonLoggable(Object arg) {
+        return arg instanceof MultipartFile
+                || arg instanceof ServletRequest
+                || arg instanceof ServletResponse
+                || arg instanceof BindingResult
+                || arg instanceof java.io.InputStream;
+    }
+
+    /** 递归遍历 JSON 树，把敏感字段的值替换为 *** */
+    private JsonNode maskNode(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return node;
+        }
+        if (node.isObject()) {
+            ObjectNode obj = (ObjectNode) node;
+            Iterator<Map.Entry<String, JsonNode>> fields = obj.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                if (SENSITIVE_KEY.matcher(field.getKey()).matches()) {
+                    obj.put(field.getKey(), "***");
+                } else {
+                    obj.set(field.getKey(), maskNode(field.getValue()));
+                }
+            }
+            return obj;
+        }
+        if (node.isArray()) {
+            ArrayNode arr = (ArrayNode) node;
+            for (int i = 0; i < arr.size(); i++) {
+                arr.set(i, maskNode(arr.get(i)));
+            }
+            return arr;
+        }
+        return node;
+    }
+
+    private String resolveUsername(Long userId, String usernameFromContext) {
+        if (usernameFromContext != null && !usernameFromContext.isBlank()) {
+            return usernameFromContext;
+        }
+        if (userId != null) {
+            try {
+                User user = userService.getUserById(userId);
+                if (user != null) {
+                    return user.getUsername();
+                }
+            } catch (Exception e) {
+                log.warn("Failed to resolve username for userId={}: {}", userId, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    private String truncate(String value, int maxLen) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() > maxLen ? value.substring(0, maxLen) + "..." : value;
+    }
+
 }

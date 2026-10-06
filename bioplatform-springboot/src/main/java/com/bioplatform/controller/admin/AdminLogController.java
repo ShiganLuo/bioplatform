@@ -24,15 +24,30 @@ public class AdminLogController {
     }
 
     /**
-     * Paginated operation logs.
+     * Paginated operation logs with filters.
      */
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) String operation) {
-        PageResult result = operationLogService.listLogs(page, size, userId, operation);
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String operation,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        OperationLog filter = new OperationLog();
+        filter.setUserId(userId);
+        filter.setUsername(username);
+        filter.setModule(module);
+        filter.setStatus(status);
+        filter.setOperation(operation);
+        filter.setKeyword(keyword);
+        filter.setStartDate(startDate);
+        filter.setEndDate(endDate);
+        PageResult result = operationLogService.listLogs(page, size, filter);
         return ApiResponse.success(result);
     }
 }

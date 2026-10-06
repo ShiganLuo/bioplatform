@@ -2,6 +2,8 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.common.util.JwtTokenProviderUtil;
+import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.RequestContextUtil;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.front.FrontUserDTO;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginRequest;
@@ -30,15 +32,18 @@ public class AdminAuthController {
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final RoleService roleService;
     private final com.bioplatform.service.EmailCodeService emailCodeService;
+    private final com.bioplatform.service.OperationLogService operationLogService;
 
     public AdminAuthController(UserService userService,
                                JwtTokenProviderUtil jwtTokenProviderUtil,
                                RoleService roleService,
-                               com.bioplatform.service.EmailCodeService emailCodeService) {
+                               com.bioplatform.service.EmailCodeService emailCodeService,
+                               com.bioplatform.service.OperationLogService operationLogService) {
         this.userService = userService;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.roleService = roleService;
         this.emailCodeService = emailCodeService;
+        this.operationLogService = operationLogService;
     }
 
     /**
@@ -106,6 +111,9 @@ public class AdminAuthController {
      */
     @PostMapping("/logout")
     public ApiResponse<Void> logout() {
+        operationLogService.record("认证", "登出", RequestContextUtil.getEndpoint(),
+                LoginUserHolder.getCurrentUserId(), LoginUserHolder.getCurrentUsername(),
+                RequestContextUtil.getClientIp(), null, "SUCCESS", null);
         return ApiResponse.success();
     }
 
@@ -135,6 +143,7 @@ public class AdminAuthController {
      * 通过邮箱验证码重置密码（无需登录）
      */
     @PostMapping("/resetPassword")
+    @OperLog(module = "认证", operation = "邮箱重置密码")
     public ApiResponse<Void> resetPassword(@RequestBody Map<String, String> params) {
         String email = params.get("email");
         String code = params.get("code");

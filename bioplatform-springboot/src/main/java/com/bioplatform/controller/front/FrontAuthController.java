@@ -1,6 +1,7 @@
 package com.bioplatform.controller.front;
 
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.RequestContextUtil;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginRequest;
 import com.bioplatform.dto.front.FrontUserDTO.FrontLoginResponse;
@@ -28,11 +29,14 @@ public class FrontAuthController {
     private final UserService userService;
     private final EmailCodeService emailCodeService;
     private final RoleService roleService;
+    private final com.bioplatform.service.OperationLogService operationLogService;
 
-    public FrontAuthController(UserService userService, EmailCodeService emailCodeService, RoleService roleService) {
+    public FrontAuthController(UserService userService, EmailCodeService emailCodeService, RoleService roleService,
+                               com.bioplatform.service.OperationLogService operationLogService) {
         this.userService = userService;
         this.emailCodeService = emailCodeService;
         this.roleService = roleService;
+        this.operationLogService = operationLogService;
     }
 
     /**
@@ -81,6 +85,9 @@ public class FrontAuthController {
      */
     @PostMapping("/logout")
     public ApiResponse<Void> logout() {
+        operationLogService.record("认证", "登出", RequestContextUtil.getEndpoint(),
+                LoginUserHolder.getCurrentUserId(), LoginUserHolder.getCurrentUsername(),
+                RequestContextUtil.getClientIp(), null, "SUCCESS", null);
         return ApiResponse.success();
     }
 

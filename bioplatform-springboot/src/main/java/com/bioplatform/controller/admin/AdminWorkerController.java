@@ -1,5 +1,6 @@
 package com.bioplatform.controller.admin;
 
+import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.worker.WorkerRegistry;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +35,7 @@ public class AdminWorkerController {
      * 添加计算节点
      */
     @PostMapping
+    @OperLog(module = "计算节点", operation = "添加节点")
     public ApiResponse<WorkerRegistry.WorkerInfo> addWorker(@RequestBody Map<String, String> params) {
         String url = params.get("url");
         String hostname = params.get("hostname");
@@ -50,6 +52,7 @@ public class AdminWorkerController {
      * 删除计算节点
      */
     @DeleteMapping("/{nodeId}")
+    @OperLog(module = "计算节点", operation = "删除节点")
     public ApiResponse<Void> removeWorker(@PathVariable String nodeId) {
         workerRegistry.removeNode(nodeId);
         return ApiResponse.success();
@@ -59,6 +62,7 @@ public class AdminWorkerController {
      * 更新计算节点信息（URL/主机名）
      */
     @PutMapping("/{nodeId}")
+    @OperLog(module = "计算节点", operation = "更新节点")
     public ApiResponse<WorkerRegistry.WorkerInfo> updateWorker(@PathVariable String nodeId,
                                                                 @RequestBody Map<String, String> params) {
         String url = params.get("url");
@@ -74,6 +78,7 @@ public class AdminWorkerController {
      * 启用/禁用节点
      */
     @PutMapping("/{nodeId}/status")
+    @OperLog(module = "计算节点", operation = "启用/禁用节点")
     public ApiResponse<Void> setEnabled(@PathVariable String nodeId, @RequestBody Map<String, Boolean> params) {
         Boolean enabled = params.get("enabled");
         workerRegistry.setNodeEnabled(nodeId, enabled != null && enabled);

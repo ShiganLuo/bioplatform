@@ -19,6 +19,8 @@ import com.bioplatform.mapper.RoleMapper;
 import com.bioplatform.mapper.UserRoleMapper;
 import com.bioplatform.entity.UserRole;
 import com.bioplatform.common.util.JwtTokenProviderUtil;
+import com.bioplatform.common.util.RequestContextUtil;
+import com.bioplatform.service.OperationLogService;
 import com.bioplatform.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,67 +53,90 @@ public class UserServiceImpl implements UserService {
     private final UserRoleMapper userRoleMapper;
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final PasswordEncoder passwordEncoder;
+    private final OperationLogService operationLogService;
 
     public UserServiceImpl(UserMapper userMapper,
                            RoleMapper roleMapper,
                            UserRoleMapper userRoleMapper,
                            JwtTokenProviderUtil jwtTokenProviderUtil,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           OperationLogService operationLogService) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.passwordEncoder = passwordEncoder;
+        this.operationLogService = operationLogService;
     }
 
     @Override
     public FrontLoginResponse login(String usernameOrEmail, String password) {
-        // 根据用户名或邮箱查找用户
-        User user = userMapper.selectByUsernameOrEmail(usernameOrEmail);
-        if (user == null) {
-            throw new IllegalArgumentException("用户不存在");
+        Long userId = null;
+        String username = usernameOrEmail;
+        try {
+            // 根据用户名或邮箱查找用户
+            User user = userMapper.selectByUsernameOrEmail(usernameOrEmail);
+            if (user == null) {
+                throw new IllegalArgumentException("用户不存在");
+            }
+            userId = user.getId();
+            username = user.getUsername();
+
+            // 检查用户状态
+            if (user.getStatus() != null && user.getStatus() == 0) {
+                throw new IllegalArgumentException("账号已被禁用");
+            }
+
+            // 检查登录尝试次数
+            if (user.getLoginAttempts() != null && user.getLoginAttempts() >= 5) {
+                throw new IllegalArgumentException("登录尝试次数过多，请稍后再试");
+            }
+
+            // 验证密码
+            if (!passwordEncoder.matches(password, user.getPassword())) {
+                // 增加登录尝试次数
+                userMapper.incrementLoginAttempts(user.getId());
+                throw new IllegalArgumentException("密码错误");
+            }
+
+            // 重置登录尝试次数并更新最后登录时间
+            userMapper.resetLoginAttempts(user.getId());
+
+            // 生成token
+            String accessToken = jwtTokenProviderUtil.generateAccessToken(user.getId(), user.getUsername());
+            String refreshToken = jwtTokenProviderUtil.generateRefreshToken(user.getId(), user.getUsername());
+
+            // 构建用户信息DTO（含角色）
+            List<Role> userRoles = roleMapper.selectByUserId(user.getId());
+            List<String> roleNames = userRoles.stream()
+                    .map(Role::getRoleName)
+                    .collect(Collectors.toList());
+
+            FrontUserInfoDTO userInfoDTO = new FrontUserInfoDTO(
+                    user.getId(),
+                    user.getUsername(),
+                    user.getNickName(),
+                    user.getAvatarUrl(),
+                    roleNames
+            );
+
+            log.info("用户登录成功: {}", user.getUsername());
+            auditAuth("登录成功", userId, username, "SUCCESS", null);
+            return new FrontLoginResponse(accessToken, refreshToken, userInfoDTO);
+        } catch (RuntimeException e) {
+            // 登录失败也要留痕：谁、什么时候、从哪个IP、为什么失败
+            auditAuth("登录失败", userId, username, "FAIL", e.getMessage());
+            throw e;
         }
+    }
 
-        // 检查用户状态
-        if (user.getStatus() != null && user.getStatus() == 0) {
-            throw new IllegalArgumentException("账号已被禁用");
-        }
-
-        // 检查登录尝试次数
-        if (user.getLoginAttempts() != null && user.getLoginAttempts() >= 5) {
-            throw new IllegalArgumentException("登录尝试次数过多，请稍后再试");
-        }
-
-        // 验证密码
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            // 增加登录尝试次数
-            userMapper.incrementLoginAttempts(user.getId());
-            throw new IllegalArgumentException("密码错误");
-        }
-
-        // 重置登录尝试次数并更新最后登录时间
-        userMapper.resetLoginAttempts(user.getId());
-
-        // 生成token
-        String accessToken = jwtTokenProviderUtil.generateAccessToken(user.getId(), user.getUsername());
-        String refreshToken = jwtTokenProviderUtil.generateRefreshToken(user.getId(), user.getUsername());
-
-        // 构建用户信息DTO（含角色）
-        List<Role> userRoles = roleMapper.selectByUserId(user.getId());
-        List<String> roleNames = userRoles.stream()
-                .map(Role::getRoleName)
-                .collect(Collectors.toList());
-
-        FrontUserInfoDTO userInfoDTO = new FrontUserInfoDTO(
-                user.getId(),
-                user.getUsername(),
-                user.getNickName(),
-                user.getAvatarUrl(),
-                roleNames
-        );
-
-        log.info("用户登录成功: {}", user.getUsername());
-        return new FrontLoginResponse(accessToken, refreshToken, userInfoDTO);
+    /**
+     * 登录/注册审计（module=认证）。写入失败不影响业务。
+     */
+    private void auditAuth(String operation, Long userId, String username, String status, String errorMsg) {
+        operationLogService.record("认证", operation,
+                RequestContextUtil.getEndpoint(), userId, username,
+                RequestContextUtil.getClientIp(), "用户名=" + username, status, errorMsg);
     }
 
     @Override
@@ -143,6 +168,7 @@ public class UserServiceImpl implements UserService {
         assignRoles(user.getId(), null, true);
 
         log.info("用户注册成功: {}", user.getUsername());
+        auditAuth("用户注册", user.getId(), user.getUsername(), "SUCCESS", null);
 
         List<Role> userRoles = roleMapper.selectByUserId(user.getId());
         List<String> roleNames = userRoles.stream()

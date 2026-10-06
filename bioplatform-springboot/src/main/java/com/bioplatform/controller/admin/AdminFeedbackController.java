@@ -45,6 +45,7 @@ public class AdminFeedbackController {
      * 关闭会话
      */
     @PutMapping("/sessions/{id}/close")
+    @com.bioplatform.common.annotation.OperLog(module = "反馈管理", operation = "关闭反馈会话")
     public ApiResponse<Void> closeSession(@PathVariable Long id) {
         feedbackService.closeSession(id);
         return ApiResponse.success();
