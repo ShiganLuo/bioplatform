@@ -40,7 +40,34 @@ export function getDashboard() {
   return http.get<DashboardData>('/api/admin/system/dashboard')
 }
 
-export function getSystemLogs(params: { page?: number; size?: number; level?: string }) {
+export interface OperationLogItem {
+  id: number
+  userId: number | null
+  username: string | null
+  module: string | null
+  operation: string
+  method: string | null
+  params: string | null
+  result: string | null
+  status: string
+  ip: string | null
+  createdAt: string
+}
+
+export interface LogQuery {
+  page?: number
+  size?: number
+  userId?: number
+  username?: string
+  module?: string
+  status?: string
+  operation?: string
+  keyword?: string
+  startDate?: string
+  endDate?: string
+}
+
+export function getSystemLogs(params: LogQuery) {
   return http.get('/api/admin/logs/list', { params })
 }
 
