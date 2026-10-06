@@ -61,6 +61,11 @@ const router = createRouter({
         },
       ],
     },
+    // 未知路径回首页，避免空白页
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/',
+    },
   ],
   scrollBehavior(_to, _from, savedPosition) {
     if (savedPosition) {
