@@ -72,10 +72,12 @@ public class DataFileServiceImpl implements DataFileService {
         dataFile.setFileSize(file.getSize());
         dataFile.setOrganism(organism);
         dataFile.setGenomeVersion(genomeVersion);
-        dataFile.setProjectId(projectId);
         dataFile.setUploadedBy(userId);
 
         dataFileMapper.insert(dataFile);
+        if (projectId != null) {
+            dataFileMapper.insertFileProject(dataFile.getId(), List.of(projectId));
+        }
         log.info("文件上传成功: fileId={}, name={}, storage={}", dataFile.getId(), originalFilename, storage.getType());
         return dataFile;
     }
@@ -103,10 +105,12 @@ public class DataFileServiceImpl implements DataFileService {
         dataFile.setPath(storagePath);
         dataFile.setFileType(fileType);
         dataFile.setFileSize(file.getSize());
-        dataFile.setProjectId(projectId);
         dataFile.setUploadedBy(userId);
 
         dataFileMapper.insert(dataFile);
+        if (projectId != null) {
+            dataFileMapper.insertFileProject(dataFile.getId(), List.of(projectId));
+        }
         log.info("文件上传成功: fileId={}, relativePath={}", dataFile.getId(), relativePath);
         return dataFile;
     }
@@ -154,6 +158,33 @@ public class DataFileServiceImpl implements DataFileService {
         List<DataFile> files = dataFileMapper.selectAll(param);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
+    }
+
+    @Override
+    public DataFile updateFile(Long id, com.bioplatform.dto.datafile.DataFileUpdateRequest request) {
+        DataFile existing = dataFileMapper.selectById(id);
+        if (existing == null) {
+            throw new IllegalArgumentException("文件不存在");
+        }
+        if (request.projectIds() == null || request.projectIds().isEmpty()) {
+            throw new IllegalArgumentException("所属项目至少选择一个");
+        }
+        // 选择性更新元数据（null = 不修改；空串 = 清除 organism/genomeVersion）
+        if (request.name() != null && !request.name().isBlank()) {
+            existing.setName(request.name().trim());
+        }
+        if (request.organism() != null) {
+            existing.setOrganism(request.organism());
+        }
+        if (request.genomeVersion() != null) {
+            existing.setGenomeVersion(request.genomeVersion());
+        }
+        dataFileMapper.updateById(existing);
+        // 归属全量替换（同事务语义：先清后写）
+        dataFileMapper.deleteFileProject(id);
+        dataFileMapper.insertFileProject(id, request.projectIds());
+        log.info("文件编辑: fileId={}, name={}, projectIds={}", id, existing.getName(), request.projectIds());
+        return dataFileMapper.selectById(id);
     }
 
     @Override
@@ -230,6 +261,9 @@ public class DataFileServiceImpl implements DataFileService {
         scanAndRegister(dir, dir, projectId, userId, imported);
         for (DataFile df : imported) {
             dataFileMapper.insert(df);
+            if (projectId != null) {
+                dataFileMapper.insertFileProject(df.getId(), List.of(projectId));
+            }
         }
         log.info("导入本地文件完成: dir={}, count={}", dirPath, imported.size());
         return imported.size();
@@ -256,7 +290,6 @@ public class DataFileServiceImpl implements DataFileService {
                 dataFile.setPath(file.getAbsolutePath());
                 dataFile.setFileType(fileType);
                 dataFile.setFileSize(file.length());
-                dataFile.setProjectId(projectId);
                 dataFile.setUploadedBy(userId);
                 result.add(dataFile);
             }

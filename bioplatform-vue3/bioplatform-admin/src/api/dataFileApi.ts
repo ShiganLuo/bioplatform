@@ -8,12 +8,21 @@ export interface DataFile {
   fileSize: number
   organism: string | null
   genomeVersion: string | null
-  projectId: number
-  projectName: string
+  /** 所属项目ID（逗号分隔字符串，后端联表子查询填充） */
+  projectIds: string | null
+  /** 所属项目名（顿号分隔） */
+  projectNames: string | null
   uploadedBy: number
   uploaderName: string | null
   createdAt: string
   contentHash: string | null
+}
+
+export interface DataFileUpdatePayload {
+  name?: string
+  organism?: string
+  genomeVersion?: string
+  projectIds: number[]
 }
 
 export interface DataFileQuery {
@@ -74,6 +83,10 @@ export function batchUploadFiles(files: File[], relativePaths: string[], project
 
 export function deleteFile(id: number) {
   return http.delete(`/api/admin/datafiles/${id}`)
+}
+
+export function updateFile(id: number, data: DataFileUpdatePayload) {
+  return http.put<DataFile>(`/api/admin/datafiles/${id}`, data)
 }
 
 export function downloadFile(id: number) {

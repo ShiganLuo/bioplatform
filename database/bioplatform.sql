@@ -223,18 +223,30 @@ CREATE TABLE `data_files` (
     `content_hash`   VARCHAR(32)  DEFAULT NULL COMMENT 'MD5 hex，秒传去重用',
     `organism`       VARCHAR(128) DEFAULT NULL,
     `genome_version` VARCHAR(64)  DEFAULT NULL,
-    `project_id`     BIGINT       DEFAULT NULL,
     `uploaded_by`    BIGINT       NOT NULL,
     `created_at`     DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (`id`),
-    INDEX `idx_df_project` (`project_id`),
-    INDEX `idx_df_hash` (`content_hash`),
     INDEX `idx_df_uploader` (`uploaded_by`),
     INDEX `idx_df_type` (`file_type`),
     INDEX `idx_df_organism` (`organism`),
-    CONSTRAINT `fk_df_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`),
+    INDEX `idx_df_hash` (`content_hash`),
     CONSTRAINT `fk_df_user`    FOREIGN KEY (`uploaded_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Uploaded data files';
+
+-- ============================================================
+-- 9b. data_file_projects（数据文件 ↔ 项目 多对多归属）
+--     归属不再存 data_files.project_id（2026-10-08 迁移删除）
+-- ============================================================
+DROP TABLE IF EXISTS `data_file_projects`;
+CREATE TABLE `data_file_projects` (
+    `file_id`    BIGINT      NOT NULL,
+    `project_id` BIGINT      NOT NULL,
+    `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`file_id`, `project_id`),
+    INDEX `idx_dfp_project` (`project_id`),
+    CONSTRAINT `fk_dfp_file`    FOREIGN KEY (`file_id`)    REFERENCES `data_files` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_dfp_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据文件-项目 多对多归属';
 
 -- ============================================================
 -- 10. agent_conversations

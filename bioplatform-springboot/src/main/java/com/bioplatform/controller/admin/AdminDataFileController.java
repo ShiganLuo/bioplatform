@@ -5,6 +5,7 @@ import com.bioplatform.common.util.LoginUserHolder;
 import com.bioplatform.common.util.OwnershipUtils;
 import com.bioplatform.dto.common.ApiResponse;
 import com.bioplatform.dto.common.PageResult;
+import jakarta.validation.Valid;
 import com.bioplatform.dto.datafile.StorageInfo;
 import com.bioplatform.entity.DataFile;
 import com.bioplatform.service.DataFileService;
@@ -178,6 +179,25 @@ public class AdminDataFileController {
         OwnershipUtils.checkOwnership(existing.getUploadedBy(), "文件");
         dataFileService.deleteFile(id);
         return ApiResponse.success();
+    }
+
+    /**
+     * 编辑文件（元数据 + 多对多项目归属）
+     */
+    @PutMapping("/{id}")
+    @OperLog(module = "数据文件管理", operation = "编辑文件")
+    public ApiResponse<DataFile> update(@PathVariable Long id,
+                                        @RequestBody @Valid com.bioplatform.dto.datafile.DataFileUpdateRequest request) {
+        DataFile existing = dataFileService.getFileById(id);
+        if (existing == null) {
+            return ApiResponse.error(404, "文件不存在");
+        }
+        OwnershipUtils.checkOwnership(existing.getUploadedBy(), "文件");
+        try {
+            return ApiResponse.success(dataFileService.updateFile(id, request));
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(400, e.getMessage());
+        }
     }
 
     /**

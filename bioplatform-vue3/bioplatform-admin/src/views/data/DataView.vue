@@ -60,7 +60,7 @@
       >
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="projectName" label="所属项目" width="150" />
+        <el-table-column prop="projectNames" label="所属项目" width="150" show-overflow-tooltip />
         <el-table-column prop="fileSize" label="文件大小" width="120">
           <template #default="{ row }">
             {{ formatFileSize(row.fileSize) }}
@@ -75,13 +75,16 @@
           <template #default="{ row }">{{ row.uploaderName || '-' }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="上传时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="fileEditRef?.open(row as DataFile)">编辑</el-button>
             <el-button type="primary" link @click="handleDownload(row as DataFile)">下载</el-button>
             <el-button type="danger" link @click="handleDelete(row as DataFile)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <FileEditDialog ref="fileEditRef" :projects="projectList" @saved="loadFiles" />
 
       <div class="pagination-wrapper">
         <el-pagination
@@ -364,9 +367,11 @@ import type { DataFile, StorageInfo, RsyncInfo } from '@/api/dataFileApi'
 import { listProjects } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
 import { chunkUpload, shouldUseChunkUpload } from '@/utils/chunkUpload'
+import FileEditDialog from '@/components/FileEditDialog.vue'
 
 const loading = ref(false)
 const uploadLoading = ref(false)
+const fileEditRef = ref<InstanceType<typeof FileEditDialog> | null>(null)
 const fileList = ref<DataFile[]>([])
 const projectList = ref<Project[]>([])
 const uploadDialogVisible = ref(false)

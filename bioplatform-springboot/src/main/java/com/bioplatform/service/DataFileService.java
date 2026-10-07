@@ -63,6 +63,15 @@ public interface DataFileService {
 
     PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName);
 
+    /**
+     * 编辑文件元数据与项目归属（多对多全量替换）
+     *
+     * @param id      文件ID
+     * @param request 编辑内容（projectIds 至少一个）
+     * @return 更新后的文件（含归属回填）
+     */
+    DataFile updateFile(Long id, com.bioplatform.dto.datafile.DataFileUpdateRequest request);
+
     com.bioplatform.entity.Project getProjectById(Long projectId);
 
     /**

@@ -32,6 +32,12 @@ public interface DataFileMapper {
 
     DataFile selectByHashAndProject(@Param("contentHash") String contentHash, @Param("projectId") Long projectId);
 
+    /** 批量写入文件-项目归属 */
+    int insertFileProject(@Param("fileId") Long fileId, @Param("projectIds") List<Long> projectIds);
+
+    /** 清空文件的全部项目归属 */
+    int deleteFileProject(@Param("fileId") Long fileId);
+
     long sumFileSizeByUser(@Param("userId") Long userId);
 
     long sumTotalFileSize();

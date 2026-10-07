@@ -202,10 +202,12 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
         dataFile.setPath(targetFile.toString());
         dataFile.setFileType(fileType);
         dataFile.setFileSize(fileSize);
-        dataFile.setProjectId(projectId);
         dataFile.setUploadedBy(userId);
         dataFile.setContentHash(actualHash);
         dataFileMapper.insert(dataFile);
+        if (projectId != null) {
+            dataFileMapper.insertFileProject(dataFile.getId(), List.of(projectId));
+        }
 
         // 清理分片目录
         try {

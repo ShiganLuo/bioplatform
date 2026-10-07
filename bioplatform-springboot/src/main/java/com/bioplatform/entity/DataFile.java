@@ -28,12 +28,16 @@ public class DataFile {
 
     private String genomeVersion;
 
-    private Long projectId;
-
     private Long uploadedBy;
 
-    /** 所属项目名（联表填充，非表字段） */
-    private String projectName;
+    /** 查询过滤参数（project_id 表列已迁移至 data_file_projects，此字段仅作查询条件，不落库不回填） */
+    private Long projectId;
+
+    /** 所属项目ID（逗号分隔，联表子查询填充，非表字段） */
+    private String projectIds;
+
+    /** 所属项目名（顿号分隔，联表子查询填充，非表字段） */
+    private String projectNames;
 
     /** 上传者用户名（联表填充，非表字段） */
     private String uploaderName;

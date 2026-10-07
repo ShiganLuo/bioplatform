@@ -12,40 +12,55 @@
         <result column="content_hash" property="contentHash"/>
         <result column="organism" property="organism"/>
         <result column="genome_version" property="genomeVersion"/>
-        <result column="project_id" property="projectId"/>
         <result column="uploaded_by" property="uploadedBy"/>
-        <result column="project_name" property="projectName"/>
+        <result column="project_ids" property="projectIds"/>
+        <result column="project_names" property="projectNames"/>
         <result column="uploader_name" property="uploaderName"/>
         <result column="created_at" property="createdAt"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         `id`, `name`, `path`, `file_type`, `file_size`, `content_hash`,
-        `organism`, `genome_version`, `project_id`,
-        `uploaded_by`, `created_at`
+        `organism`, `genome_version`, `uploaded_by`, `created_at`
+    </sql>
+
+    <!--
+      多对多归属：逗号分隔的项目ID / 顿号分隔的项目名。
+      用相关子查询而不是 JOIN data_file_projects：JOIN 会让一行文件膨胀成多行，
+      破坏 PageHelper 的分页计数；子查询保持一行一文件。
+      依赖主表别名 f。
+    -->
+    <sql id="Rel_Project_Subqueries">
+        (SELECT GROUP_CONCAT(j.`project_id` ORDER BY j.`project_id` SEPARATOR ',')
+           FROM `data_file_projects` j WHERE j.`file_id` = f.`id`) AS project_ids,
+        (SELECT GROUP_CONCAT(p.`name` ORDER BY j2.`project_id` SEPARATOR '、')
+           FROM `data_file_projects` j2 JOIN `projects` p ON p.`id` = j2.`project_id`
+          WHERE j2.`file_id` = f.`id`) AS project_names
     </sql>
 
     <!-- ==================== Basic CRUD ==================== -->
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `data_files` (`name`, `path`, `file_type`, `file_size`, `content_hash`,
-                                  `organism`, `genome_version`, `project_id`, `uploaded_by`)
+                                  `organism`, `genome_version`, `uploaded_by`)
         VALUES (#{name}, #{path}, #{fileType}, #{fileSize}, #{contentHash},
-                #{organism}, #{genomeVersion}, #{projectId}, #{uploadedBy})
+                #{organism}, #{genomeVersion}, #{uploadedBy})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM `data_files`
-        WHERE `id` = #{id}
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>
+        FROM `data_files` f
+        WHERE f.`id` = #{id}
     </select>
 
     <select id="selectAll" resultMap="BaseResultMap">
         SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
-               f.`organism`, f.`genome_version`, f.`project_id`, f.`uploaded_by`, f.`created_at`,
-               p.`name` AS project_name, u.`username` AS uploader_name
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>,
+               u.`username` AS uploader_name
         FROM `data_files` f
-        LEFT JOIN `projects` p ON f.`project_id` = p.`id`
         LEFT JOIN `users` u ON f.`uploaded_by` = u.`id`
         <where>
             <if test="name != null and name != ''">
@@ -55,7 +70,8 @@
                 AND f.`file_type` = #{fileType}
             </if>
             <if test="projectId != null">
-                AND f.`project_id` = #{projectId}
+                AND EXISTS (SELECT 1 FROM `data_file_projects` j
+                             WHERE j.`file_id` = f.`id` AND j.`project_id` = #{projectId})
             </if>
             <if test="uploadedBy != null">
                 AND f.`uploaded_by` = #{uploadedBy}
@@ -76,7 +92,6 @@
             <if test="fileSize != null">`file_size` = #{fileSize},</if>
             <if test="organism != null">`organism` = #{organism},</if>
             <if test="genomeVersion != null">`genome_version` = #{genomeVersion},</if>
-            <if test="projectId != null">`project_id` = #{projectId},</if>
         </set>
         WHERE `id` = #{id}
     </update>
@@ -85,22 +100,37 @@
         DELETE FROM `data_files` WHERE `id` = #{id}
     </delete>
 
+    <!-- 归属关系写入/清理（多对多） -->
+    <insert id="insertFileProject">
+        INSERT INTO `data_file_projects` (`file_id`, `project_id`) VALUES
+        <foreach collection="projectIds" item="pid" separator=",">
+            (#{fileId}, #{pid})
+        </foreach>
+    </insert>
+
+    <delete id="deleteFileProject">
+        DELETE FROM `data_file_projects` WHERE `file_id` = #{fileId}
+    </delete>
+
     <!-- ==================== Custom Queries ==================== -->
 
+    <!-- 项目内文件列表：JOIN 关联表（一个项目内每文件仅一行，分页安全） -->
     <select id="selectByProjectId" resultMap="BaseResultMap">
         SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
-               f.`organism`, f.`genome_version`, f.`project_id`, f.`uploaded_by`, f.`created_at`,
-               p.`name` AS project_name, u.`username` AS uploader_name
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>,
+               u.`username` AS uploader_name
         FROM `data_files` f
-        LEFT JOIN `projects` p ON f.`project_id` = p.`id`
+        JOIN `data_file_projects` j ON j.`file_id` = f.`id` AND j.`project_id` = #{projectId}
         LEFT JOIN `users` u ON f.`uploaded_by` = u.`id`
-        WHERE f.`project_id` = #{projectId}
-        <if test="fileType != null and fileType != ''">
-            AND f.`file_type` = #{fileType}
-        </if>
-        <if test="name != null and name != ''">
-            AND f.`name` LIKE CONCAT('%', #{name}, '%')
-        </if>
+        <where>
+            <if test="fileType != null and fileType != ''">
+                AND f.`file_type` = #{fileType}
+            </if>
+            <if test="name != null and name != ''">
+                AND f.`name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+        </where>
         ORDER BY f.`created_at` DESC
     </select>
 
@@ -109,7 +139,8 @@
         FROM `data_files`
         WHERE `name` LIKE CONCAT('%', #{name}, '%')
         <if test="projectId != null">
-            AND `project_id` = #{projectId}
+            AND EXISTS (SELECT 1 FROM `data_file_projects` j
+                         WHERE j.`file_id` = `data_files`.`id` AND j.`project_id` = #{projectId})
         </if>
         <if test="fileType != null and fileType != ''">
             AND `file_type` = #{fileType}
@@ -122,17 +153,24 @@
         FROM `data_files`
         WHERE `file_type` = #{fileType}
         <if test="projectId != null">
-            AND `project_id` = #{projectId}
+            AND EXISTS (SELECT 1 FROM `data_file_projects` j
+                         WHERE j.`file_id` = `data_files`.`id` AND j.`project_id` = #{projectId})
         </if>
         ORDER BY `created_at` DESC
     </select>
 
-    <!-- 秒传检查：同项目下同内容文件 -->
+    <!-- 秒传检查：同项目下同内容文件（归属走关联表） -->
     <select id="selectByHashAndProject" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM `data_files`
-        WHERE `content_hash` = #{contentHash} AND `project_id` = #{projectId}
-        ORDER BY `id` DESC
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>,
+               u.`username` AS uploader_name
+        FROM `data_files` f
+        LEFT JOIN `users` u ON f.`uploaded_by` = u.`id`
+        WHERE f.`content_hash` = #{contentHash}
+          AND EXISTS (SELECT 1 FROM `data_file_projects` j
+                       WHERE j.`file_id` = f.`id` AND j.`project_id` = #{projectId})
+        ORDER BY f.`id` DESC
         LIMIT 1
     </select>
 

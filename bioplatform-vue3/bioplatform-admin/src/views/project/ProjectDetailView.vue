@@ -109,12 +109,15 @@
         </el-table-column>
         <el-table-column prop="organism" label="物种" width="100" />
         <el-table-column prop="createdAt" label="上传时间" width="170" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="fileEditRef?.open(row as DataFile)">编辑</el-button>
             <el-button type="danger" link size="small" @click="handleDeleteFile(row as DataFile)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <FileEditDialog ref="fileEditRef" :projects="allProjects" @saved="loadFiles" />
 
       <div class="pagination-wrapper">
         <el-pagination
@@ -550,8 +553,10 @@ import { listTemplates } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
 import type { DataFile } from '@/api/dataFileApi'
+import FileEditDialog from '@/components/FileEditDialog.vue'
 
 const route = useRoute()
+const fileEditRef = ref<InstanceType<typeof FileEditDialog> | null>(null)
 const router = useRouter()
 const projectId = computed(() => Number(route.params.id))
 
