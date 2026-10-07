@@ -55,7 +55,7 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         Project project = projectMapper.selectById(projectId);
         if (project == null) throw new RuntimeException("项目不存在");
 
-        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null);
+        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null, null);
         Pipeline param = new Pipeline();
         param.setProjectId(projectId);
         List<Pipeline> analyses = pipelineMapper.selectAll(param);
@@ -113,7 +113,7 @@ public class ProjectExportServiceImpl implements ProjectExportService {
         Project project = projectMapper.selectById(projectId);
         if (project == null) throw new RuntimeException("项目不存在");
 
-        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null);
+        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null, null);
         Pipeline param = new Pipeline();
         param.setProjectId(projectId);
         List<Pipeline> analyses = pipelineMapper.selectAll(param);
