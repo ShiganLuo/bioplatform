@@ -23,7 +23,7 @@ public final class AesEncryptUtil {
     private static String getSecretKey() {
         String key = System.getenv("BIOPLATFORM_AES_KEY");
         if (key == null || key.isEmpty()) {
-            key = "REDACTED_AES_KEY"; // 32 bytes for AES-256
+            key = "bioplatform-aes-key-2024-default-32b"; // 32 bytes for AES-256
         }
         return key;
     }
