@@ -1,5 +1,6 @@
 import http from '@/utils/http/axios'
 import type { DataFile } from '@/api/dataFileApi'
+import { calculateFileHash } from '@/utils/fileHash'
 
 /**
  * 分片上传配置
@@ -24,7 +25,7 @@ export interface ChunkUploadProgress {
   /** 百分比 0-100 */
   percent: number
   /** 当前状态 */
-  status: 'uploading' | 'merging' | 'done' | 'error'
+  status: 'hashing' | 'uploading' | 'merging' | 'done' | 'error'
   /** 已完成分片数 */
   completedChunks: number
   /** 总分片数 */
@@ -32,22 +33,9 @@ export interface ChunkUploadProgress {
 }
 
 /**
- * 生成 uploadId（基于文件名+大小+最后修改时间，用于断点续传）
- */
-function generateUploadId(file: File): string {
-  const raw = `${file.name}_${file.size}_${file.lastModified}`
-  // 简单 hash
-  let hash = 0
-  for (let i = 0; i < raw.length; i++) {
-    const char = raw.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash |= 0
-  }
-  return `chunk_${Math.abs(hash).toString(16)}_${file.size}`
-}
-
-/**
  * 分片上传单个文件
+ * - 先流式计算内容 MD5（uploadId 身份 + 秒传 + 完整性校验三用）
+ * - 秒传：同项目已存在同内容文件直接返回
  * - 自动切片
  * - 并行上传（最多 MAX_CONCURRENT 片同时传）
  * - 断点续传（跳过已上传的分片）
@@ -56,8 +44,41 @@ function generateUploadId(file: File): string {
 export async function chunkUpload(options: ChunkUploadOptions): Promise<DataFile> {
   const { file, projectId, onProgress, onSuccess, onError } = options
 
-  const uploadId = generateUploadId(file)
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+
+  // 0. 计算内容 hash（2MB 分片流式，带进度状态）
+  onProgress?.({
+    loaded: 0,
+    total: file.size,
+    percent: 0,
+    status: 'hashing',
+    completedChunks: 0,
+    totalChunks
+  })
+  const fileHash = await calculateFileHash(file)
+  const uploadId = fileHash
+
+  // 0.5 秒传检查：同项目已存在同内容文件 → 直接返回既有记录
+  try {
+    const hit = (await http.get<DataFile | null>(
+      '/api/admin/datafiles/check-instant',
+      { params: { fileHash, projectId }, silent: true } as any
+    )) as DataFile | null
+    if (hit && hit.id) {
+      onProgress?.({
+        loaded: file.size,
+        total: file.size,
+        percent: 100,
+        status: 'done',
+        completedChunks: totalChunks,
+        totalChunks
+      })
+      onSuccess?.(hit)
+      return hit
+    }
+  } catch {
+    // 秒传检查失败不阻断正常上传
+  }
 
   // 1. 查询已上传的分片（断点续传）
   let uploadedSet = new Set<number>()
@@ -105,7 +126,7 @@ export async function chunkUpload(options: ChunkUploadOptions): Promise<DataFile
   // 所有分片已上传，直接合并
   if (pendingChunks.length === 0) {
     reportProgress(totalChunks, 'merging')
-    const result = await mergeChunks(uploadId, file.name, projectId)
+    const result = await mergeChunks(uploadId, file.name, projectId, fileHash)
     reportProgress(totalChunks, 'done')
     onSuccess?.(result)
     return result
@@ -137,7 +158,7 @@ export async function chunkUpload(options: ChunkUploadOptions): Promise<DataFile
 
   // 5. 合并分片
   reportProgress(totalChunks, 'merging')
-  const result = await mergeChunks(uploadId, file.name, projectId)
+  const result = await mergeChunks(uploadId, file.name, projectId, fileHash)
   reportProgress(totalChunks, 'done')
   onSuccess?.(result)
   return result
@@ -194,11 +215,17 @@ function getChunkSize(file: File, chunkIndex: number): number {
 /**
  * 调用后端合并分片
  */
-async function mergeChunks(uploadId: string, fileName: string, projectId: number): Promise<DataFile> {
+async function mergeChunks(
+  uploadId: string,
+  fileName: string,
+  projectId: number,
+  fileHash: string
+): Promise<DataFile> {
   const formData = new FormData()
   formData.append('uploadId', uploadId)
   formData.append('fileName', fileName)
   formData.append('projectId', projectId.toString())
+  formData.append('fileHash', fileHash)
 
   return http.post<DataFile>('/api/admin/datafiles/merge-chunks', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }

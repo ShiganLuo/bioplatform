@@ -30,6 +30,8 @@ public interface DataFileMapper {
 
     List<DataFile> selectByFileType(@Param("fileType") String fileType, @Param("projectId") Long projectId);
 
+    DataFile selectByHashAndProject(@Param("contentHash") String contentHash, @Param("projectId") Long projectId);
+
     long sumFileSizeByUser(@Param("userId") Long userId);
 
     long sumTotalFileSize();

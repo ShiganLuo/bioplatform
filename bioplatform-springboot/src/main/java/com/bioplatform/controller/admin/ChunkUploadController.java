@@ -66,6 +66,17 @@ public class ChunkUploadController {
     }
 
     /**
+     * 秒传检查：同项目下是否已存在同内容文件
+     * 命中返回既有记录（前端据此跳过上传），未命中返回 success(null)
+     */
+    @GetMapping("/check-instant")
+    @OperLog(module = "数据文件管理", operation = "秒传检查")
+    public ApiResponse<DataFile> checkInstant(@RequestParam String fileHash,
+                                              @RequestParam Long projectId) {
+        return ApiResponse.success(chunkUploadService.findByHash(fileHash, projectId));
+    }
+
+    /**
      * 合并所有分片为最终文件
      */
     @PostMapping("/merge-chunks")
@@ -73,13 +84,16 @@ public class ChunkUploadController {
     public ApiResponse<DataFile> mergeChunks(
             @RequestParam String uploadId,
             @RequestParam String fileName,
-            @RequestParam Long projectId) {
+            @RequestParam Long projectId,
+            @RequestParam(required = false) String fileHash) {
         Long userId = LoginUserHolder.getCurrentUserId();
         try {
-            DataFile dataFile = chunkUploadService.mergeChunks(uploadId, fileName, projectId, userId);
+            DataFile dataFile = chunkUploadService.mergeChunks(uploadId, fileName, projectId, userId, fileHash);
             return ApiResponse.success(dataFile);
         } catch (IllegalArgumentException e) {
             return ApiResponse.error(400, e.getMessage());
+        } catch (IllegalStateException e) {
+            return ApiResponse.error(422, e.getMessage());
         } catch (RuntimeException e) {
             return ApiResponse.error(500, e.getMessage());
         }

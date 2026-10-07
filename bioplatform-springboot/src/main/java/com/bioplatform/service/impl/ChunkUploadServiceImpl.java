@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -89,7 +90,7 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
     }
 
     @Override
-    public DataFile mergeChunks(String uploadId, String fileName, Long projectId, Long userId) {
+    public DataFile mergeChunks(String uploadId, String fileName, Long projectId, Long userId, String fileHash) {
         Path chunkDir = getChunkDir(uploadId);
         if (!Files.exists(chunkDir)) {
             throw new IllegalArgumentException("分片目录不存在: " + uploadId);
@@ -144,17 +145,41 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
         }
         Path targetFile = projectDir.resolve(uniqueFilename);
 
-        // 合并分片
+        // 合并分片（边写边喂 MD5 digest，供完整性校验）
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("MD5");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException("MD5 算法不可用", e);
+        }
+        byte[] buf = new byte[1024 * 1024];
         try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(targetFile))) {
             for (int i = 0; i < totalChunks; i++) {
                 Path chunkFile = chunkDir.resolve(String.valueOf(i));
                 if (!Files.exists(chunkFile)) {
                     throw new RuntimeException("分片缺失: " + i);
                 }
-                Files.copy(chunkFile, out);
+                try (InputStream in = Files.newInputStream(chunkFile)) {
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        out.write(buf, 0, n);
+                        digest.update(buf, 0, n);
+                    }
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("合并分片失败", e);
+        }
+
+        // 完整性校验：服务端复算 MD5 与前端声明比对，不一致视为传输损坏
+        String actualHash = HexFormat.of().formatHex(digest.digest());
+        if (fileHash != null && !fileHash.isBlank() && !fileHash.equalsIgnoreCase(actualHash)) {
+            try {
+                Files.deleteIfExists(targetFile);
+            } catch (IOException ex) {
+                log.warn("删除校验失败的文件: {}", targetFile, ex);
+            }
+            throw new IllegalStateException("文件校验失败：合并后MD5与前端不一致，已丢弃该文件");
         }
 
         // 获取文件大小
@@ -179,6 +204,7 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
         dataFile.setFileSize(fileSize);
         dataFile.setProjectId(projectId);
         dataFile.setUploadedBy(userId);
+        dataFile.setContentHash(actualHash);
         dataFileMapper.insert(dataFile);
 
         // 清理分片目录
@@ -190,6 +216,14 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
 
         log.info("分片合并完成: uploadId={}, fileId={}, name={}, size={}", uploadId, dataFile.getId(), actualFileName, fileSize);
         return dataFile;
+    }
+
+    @Override
+    public DataFile findByHash(String fileHash, Long projectId) {
+        if (fileHash == null || fileHash.isBlank() || projectId == null) {
+            return null;
+        }
+        return dataFileMapper.selectByHashAndProject(fileHash, projectId);
     }
 
     private Path getChunkDir(String uploadId) {

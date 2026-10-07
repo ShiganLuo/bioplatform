@@ -21,6 +21,9 @@ public class DataFile {
 
     private Long fileSize;
 
+    /** 内容 MD5（hex），秒传去重用 */
+    private String contentHash;
+
     private String organism;
 
     private String genomeVersion;

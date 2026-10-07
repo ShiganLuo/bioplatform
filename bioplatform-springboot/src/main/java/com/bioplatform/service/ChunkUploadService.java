@@ -35,7 +35,17 @@ public interface ChunkUploadService {
      * @param fileName  原始文件名
      * @param projectId 项目ID
      * @param userId    操作者ID
+     * @param fileHash  前端计算的文件MD5（可空；服务端会流式复算并比对，入库以服务端实算值为准）
      * @return 文件记录
      */
-    DataFile mergeChunks(String uploadId, String fileName, Long projectId, Long userId);
+    DataFile mergeChunks(String uploadId, String fileName, Long projectId, Long userId, String fileHash);
+
+    /**
+     * 秒传检查：同项目下是否已存在同内容文件
+     *
+     * @param fileHash  文件MD5（hex）
+     * @param projectId 项目ID
+     * @return 命中的文件记录，未命中返回 null
+     */
+    DataFile findByHash(String fileHash, Long projectId);
 }

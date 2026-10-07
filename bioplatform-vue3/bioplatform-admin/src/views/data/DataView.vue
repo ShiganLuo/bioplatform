@@ -612,7 +612,10 @@ const handleSingleUpload = async () => {
           uploadProgress.total = 1
           uploadProgress.current = progress.completedChunks
           uploadProgress.percent = progress.percent
-          uploadProgress.currentFile = selectedFile.value!.name
+          uploadProgress.currentFile =
+            progress.status === 'hashing'
+              ? `${selectedFile.value!.name}（计算校验和…）`
+              : selectedFile.value!.name
           uploadProgress.status = progress.status === 'done' ? 'success' : ''
         }
       })

@@ -9,6 +9,7 @@
         <result column="path" property="path"/>
         <result column="file_type" property="fileType"/>
         <result column="file_size" property="fileSize"/>
+        <result column="content_hash" property="contentHash"/>
         <result column="organism" property="organism"/>
         <result column="genome_version" property="genomeVersion"/>
         <result column="project_id" property="projectId"/>
@@ -17,7 +18,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        `id`, `name`, `path`, `file_type`, `file_size`,
+        `id`, `name`, `path`, `file_type`, `file_size`, `content_hash`,
         `organism`, `genome_version`, `project_id`,
         `uploaded_by`, `created_at`
     </sql>
@@ -25,9 +26,9 @@
     <!-- ==================== Basic CRUD ==================== -->
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `data_files` (`name`, `path`, `file_type`, `file_size`,
+        INSERT INTO `data_files` (`name`, `path`, `file_type`, `file_size`, `content_hash`,
                                   `organism`, `genome_version`, `project_id`, `uploaded_by`)
-        VALUES (#{name}, #{path}, #{fileType}, #{fileSize},
+        VALUES (#{name}, #{path}, #{fileType}, #{fileSize}, #{contentHash},
                 #{organism}, #{genomeVersion}, #{projectId}, #{uploadedBy})
     </insert>
 
@@ -111,6 +112,15 @@
             AND `project_id` = #{projectId}
         </if>
         ORDER BY `created_at` DESC
+    </select>
+
+    <!-- 秒传检查：同项目下同内容文件 -->
+    <select id="selectByHashAndProject" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `data_files`
+        WHERE `content_hash` = #{contentHash} AND `project_id` = #{projectId}
+        ORDER BY `id` DESC
+        LIMIT 1
     </select>
 
     <select id="sumFileSizeByUser" resultType="long">
