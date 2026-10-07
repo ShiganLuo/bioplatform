@@ -25,6 +25,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       BIOPLATFORM_AES_KEY: ${BIOPLATFORM_AES_KEY}
+      BIOPLATFORM_STORAGE_SHARED_PATH: /app/uploads   # 共享存储根指向持久卷（分片/普通上传统一落这里）
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=256m -XX:+UseStringDeduplication -XX:ReservedCodeCacheSize=128m -XX:-TieredCompilation -Djava.security.egd=file:/dev/./urandom"
       TZ: Asia/Shanghai
     volumes:

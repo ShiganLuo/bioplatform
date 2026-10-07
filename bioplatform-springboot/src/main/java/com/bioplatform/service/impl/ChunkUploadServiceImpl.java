@@ -31,7 +31,8 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
 
     private final DataFileMapper dataFileMapper;
 
-    @Value("${bioplatform.upload.path:./uploads}")
+    /** 与 SharedStorageStrategy 同源：分片暂存与合并目标必须落在存储策略根下，否则 resolve 拼接后找不到文件 */
+    @Value("${bioplatform.storage.shared-path:/data/shared/biplatform}")
     private String uploadPath;
 
     public ChunkUploadServiceImpl(DataFileMapper dataFileMapper) {
@@ -199,7 +200,8 @@ public class ChunkUploadServiceImpl implements ChunkUploadService {
         // 写入数据库
         DataFile dataFile = new DataFile();
         dataFile.setName(actualFileName);
-        dataFile.setPath(targetFile.toString());
+        // 存储契约：相对路径 {projectId}/{uuid_filename}（resolve 时拼 sharedPath 前缀）
+        dataFile.setPath(projectId + "/" + uniqueFilename);
         dataFile.setFileType(fileType);
         dataFile.setFileSize(fileSize);
         dataFile.setUploadedBy(userId);
