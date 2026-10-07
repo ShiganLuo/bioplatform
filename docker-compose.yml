@@ -73,7 +73,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker   # 激活Docker环境配置
       DB_PASSWORD: bioplatform123       # 数据库密码（与MySQL一致）
-      JWT_SECRET: REDACTED_DOCKER_JWT_SECRET  # JWT密钥
+      JWT_SECRET: local-dev-jwt-secret-32bytes-minimum!!  # JWT密钥（本地开发值须≥32字节；原值26字节触发jjwt WeakKeyException）
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=256m -XX:+UseStringDeduplication -XX:ReservedCodeCacheSize=128m -XX:-TieredCompilation -Djava.security.egd=file:/dev/./urandom"
       TZ: Asia/Shanghai
     volumes:

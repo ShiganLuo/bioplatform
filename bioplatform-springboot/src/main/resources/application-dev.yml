@@ -3,6 +3,10 @@ server:
   port: 8080
 
 spring:
+  mail:
+    host: ${MAIL_HOST:localhost}  # 本地开发占位
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}  # EmailCodeService @Value 必需
   datasource:
     url: jdbc:mysql://localhost:3308/bioplatform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: root
@@ -50,7 +54,7 @@ security:
       - /ws/**
     tokenHeader: Authorization  # JWT存储的请求头
     tokenHead: "Bearer "  # 令牌前缀
-    secret: "REDACTED_DEV_JWT_SECRET"  # JWT密钥（至少32字符）
+    secret: "local-dev-jwt-secret-32bytes-minimum!!"  # JWT密钥（至少32字符）
     accessTokenExpiration: 3600000  # Access Token过期时间：1小时（毫秒）
     refreshTokenExpiration: 1209600000  # Refresh Token过期时间：14天（毫秒）
 

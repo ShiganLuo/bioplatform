@@ -15,10 +15,15 @@ server:
     connection-timeout: 20000  # 连接超时时间（毫秒）
 
 spring:
+  mail:
+    host: ${MAIL_HOST:localhost}   # 本地开发占位：仅用于装配 JavaMailSender，不发真实邮件
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}  # EmailCodeService @Value 必需，本地占位为空
+
   datasource:
     # Docker 网络中 MySQL 服务名为 "mysql"，端口 3306（容器内部端口）
     # 从环境变量 DB_PASSWORD 读取数据库密码
-    url: jdbc:mysql://mysql:3306/bioplatform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8mb4&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048
+    url: jdbc:mysql://mysql:3306/bioplatform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf-8&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048
     username: root
     password: ${DB_PASSWORD:bioplatform123}  # 从环境变量读取密码
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -89,13 +94,13 @@ security:
       - /ws/**
     tokenHeader: Authorization   # JWT存储的请求头
     tokenHead: "Bearer "         # 令牌前缀
-    secret: ${JWT_SECRET:REDACTED_DOCKER_JWT_SECRET}
+    secret: ${JWT_SECRET:local-dev-jwt-secret-32bytes-minimum!!}
     accessTokenExpiration: 3600000     # Access Token过期时间：1小时（毫秒）
     refreshTokenExpiration: 604800000  # Refresh Token过期时间：7天（毫秒）
 
 ## JWT密钥配置（JwtTokenProviderUtil使用）
 jwt:
-  secret: ${JWT_SECRET:REDACTED_DOCKER_JWT_SECRET}
+  secret: ${JWT_SECRET:local-dev-jwt-secret-32bytes-minimum!!}
   access-token-expiry-ms: 3600000      # Access Token过期时间：1小时
   refresh-token-expiry-ms: 604800000   # Refresh Token过期时间：7天
 
