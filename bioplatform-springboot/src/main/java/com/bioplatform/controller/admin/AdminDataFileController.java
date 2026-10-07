@@ -57,6 +57,7 @@ public class AdminDataFileController {
     @GetMapping("/list")
     public ApiResponse<PageResult> list(
             @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) String fileName,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageResult result;
@@ -66,13 +67,13 @@ public class AdminDataFileController {
             if (project != null) {
                 OwnershipUtils.checkProjectOwnership(project.getOwnerId());
             }
-            result = dataFileService.listByProjectId(projectId, page, size);
+            result = dataFileService.listByProjectId(projectId, page, size, fileName);
         } else {
             if (OwnershipUtils.isAdmin()) {
-                result = dataFileService.listAllFiles(page, size);
+                result = dataFileService.listAllFiles(page, size, fileName);
             } else {
                 Long userId = OwnershipUtils.getCurrentUserId();
-                result = dataFileService.listByUserId(userId, page, size);
+                result = dataFileService.listByUserId(userId, page, size, fileName);
             }
         }
         return ApiResponse.success(result);

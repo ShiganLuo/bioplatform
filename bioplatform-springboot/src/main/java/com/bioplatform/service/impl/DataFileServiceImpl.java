@@ -112,9 +112,9 @@ public class DataFileServiceImpl implements DataFileService {
     }
 
     @Override
-    public PageResult listByProjectId(Long projectId, int pageNum, int pageSize) {
+    public PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName) {
         PageHelper.startPage(pageNum, pageSize);
-        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null);
+        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null, fileName);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
     }
@@ -136,18 +136,21 @@ public class DataFileServiceImpl implements DataFileService {
     }
 
     @Override
-    public PageResult listAllFiles(int pageNum, int pageSize) {
+    public PageResult listAllFiles(int pageNum, int pageSize, String fileName) {
         PageHelper.startPage(pageNum, pageSize);
-        List<DataFile> files = dataFileMapper.selectAll(new DataFile());
+        DataFile param = new DataFile();
+        param.setName(fileName);
+        List<DataFile> files = dataFileMapper.selectAll(param);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
     }
 
     @Override
-    public PageResult listByUserId(Long userId, int pageNum, int pageSize) {
+    public PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName) {
         PageHelper.startPage(pageNum, pageSize);
         DataFile param = new DataFile();
         param.setUploadedBy(userId);
+        param.setName(fileName);
         List<DataFile> files = dataFileMapper.selectAll(param);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);

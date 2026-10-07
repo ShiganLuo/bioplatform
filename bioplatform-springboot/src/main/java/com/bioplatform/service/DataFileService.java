@@ -43,7 +43,7 @@ public interface DataFileService {
      * @param pageSize  每页大小
      * @return 分页结果
      */
-    PageResult listByProjectId(Long projectId, int pageNum, int pageSize);
+    PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName);
 
     /**
      * 删除文件
@@ -59,9 +59,9 @@ public interface DataFileService {
      * @param pageSize 每页大小
      * @return 分页结果
      */
-    PageResult listAllFiles(int pageNum, int pageSize);
+    PageResult listAllFiles(int pageNum, int pageSize, String fileName);
 
-    PageResult listByUserId(Long userId, int pageNum, int pageSize);
+    PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName);
 
     com.bioplatform.entity.Project getProjectById(Long projectId);
 

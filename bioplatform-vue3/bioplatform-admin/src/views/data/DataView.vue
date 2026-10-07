@@ -59,7 +59,7 @@
         style="width: 100%"
       >
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="fileName" label="文件名" min-width="200" />
+        <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
         <el-table-column prop="projectName" label="所属项目" width="150" />
         <el-table-column prop="fileSize" label="文件大小" width="120">
           <template #default="{ row }">
@@ -71,8 +71,10 @@
             <el-tag size="small">{{ row.fileType }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="uploader" label="上传者" width="100" />
-        <el-table-column prop="createTime" label="上传时间" width="180" />
+        <el-table-column prop="uploaderName" label="上传者" width="100">
+          <template #default="{ row }">{{ row.uploaderName || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="上传时间" width="180" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleDownload(row as DataFile)">下载</el-button>
@@ -696,7 +698,7 @@ const handleDownload = async (row: DataFile) => {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = row.fileName
+    link.download = row.name
     link.click()
     window.URL.revokeObjectURL(url)
   } catch (error) {
@@ -706,7 +708,7 @@ const handleDownload = async (row: DataFile) => {
 
 const handleDelete = async (row: DataFile) => {
   try {
-    await ElMessageBox.confirm(`确定要删除文件"${row.fileName}"吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要删除文件"${row.name}"吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'

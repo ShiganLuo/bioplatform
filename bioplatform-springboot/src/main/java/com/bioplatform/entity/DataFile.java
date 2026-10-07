@@ -32,5 +32,11 @@ public class DataFile {
 
     private Long uploadedBy;
 
+    /** 所属项目名（联表填充，非表字段） */
+    private String projectName;
+
+    /** 上传者用户名（联表填充，非表字段） */
+    private String uploaderName;
+
     private LocalDateTime createdAt;
 }

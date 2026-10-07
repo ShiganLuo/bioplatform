@@ -24,7 +24,7 @@ public interface DataFileMapper {
 
     int deleteById(@Param("id") Long id);
 
-    List<DataFile> selectByProjectId(@Param("projectId") Long projectId, @Param("fileType") String fileType);
+    List<DataFile> selectByProjectId(@Param("projectId") Long projectId, @Param("fileType") String fileType, @Param("name") String name);
 
     List<DataFile> searchByName(@Param("name") String name, @Param("projectId") Long projectId, @Param("fileType") String fileType);
 

@@ -14,6 +14,8 @@
         <result column="genome_version" property="genomeVersion"/>
         <result column="project_id" property="projectId"/>
         <result column="uploaded_by" property="uploadedBy"/>
+        <result column="project_name" property="projectName"/>
+        <result column="uploader_name" property="uploaderName"/>
         <result column="created_at" property="createdAt"/>
     </resultMap>
 
@@ -39,26 +41,30 @@
     </select>
 
     <select id="selectAll" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM `data_files`
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+               f.`organism`, f.`genome_version`, f.`project_id`, f.`uploaded_by`, f.`created_at`,
+               p.`name` AS project_name, u.`username` AS uploader_name
+        FROM `data_files` f
+        LEFT JOIN `projects` p ON f.`project_id` = p.`id`
+        LEFT JOIN `users` u ON f.`uploaded_by` = u.`id`
         <where>
             <if test="name != null and name != ''">
-                AND `name` LIKE CONCAT('%', #{name}, '%')
+                AND f.`name` LIKE CONCAT('%', #{name}, '%')
             </if>
             <if test="fileType != null and fileType != ''">
-                AND `file_type` = #{fileType}
+                AND f.`file_type` = #{fileType}
             </if>
             <if test="projectId != null">
-                AND `project_id` = #{projectId}
+                AND f.`project_id` = #{projectId}
             </if>
             <if test="uploadedBy != null">
-                AND `uploaded_by` = #{uploadedBy}
+                AND f.`uploaded_by` = #{uploadedBy}
             </if>
             <if test="organism != null and organism != ''">
-                AND `organism` = #{organism}
+                AND f.`organism` = #{organism}
             </if>
         </where>
-        ORDER BY `created_at` DESC
+        ORDER BY f.`created_at` DESC
     </select>
 
     <update id="updateById">
@@ -82,13 +88,20 @@
     <!-- ==================== Custom Queries ==================== -->
 
     <select id="selectByProjectId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM `data_files`
-        WHERE `project_id` = #{projectId}
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+               f.`organism`, f.`genome_version`, f.`project_id`, f.`uploaded_by`, f.`created_at`,
+               p.`name` AS project_name, u.`username` AS uploader_name
+        FROM `data_files` f
+        LEFT JOIN `projects` p ON f.`project_id` = p.`id`
+        LEFT JOIN `users` u ON f.`uploaded_by` = u.`id`
+        WHERE f.`project_id` = #{projectId}
         <if test="fileType != null and fileType != ''">
-            AND `file_type` = #{fileType}
+            AND f.`file_type` = #{fileType}
         </if>
-        ORDER BY `created_at` DESC
+        <if test="name != null and name != ''">
+            AND f.`name` LIKE CONCAT('%', #{name}, '%')
+        </if>
+        ORDER BY f.`created_at` DESC
     </select>
 
     <select id="searchByName" resultMap="BaseResultMap">

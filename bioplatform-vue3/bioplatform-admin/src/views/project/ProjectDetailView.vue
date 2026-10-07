@@ -96,7 +96,7 @@
 
       <el-table v-loading="fileLoading" :data="fileList" style="width: 100%" size="small">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="fileName" label="文件名" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
         <el-table-column prop="fileType" label="类型" width="80">
           <template #default="{ row }">
             <el-tag size="small">{{ row.fileType || '-' }}</el-tag>
@@ -1044,7 +1044,7 @@ const handleUpload = async (file: File) => {
 
 const handleDeleteFile = async (row: DataFile) => {
   try {
-    await ElMessageBox.confirm(`确定要删除文件"${row.fileName}"吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确定要删除文件"${row.name}"吗？`, '提示', { type: 'warning' })
     await deleteFile(row.id)
     ElMessage.success('删除成功')
     loadFiles()

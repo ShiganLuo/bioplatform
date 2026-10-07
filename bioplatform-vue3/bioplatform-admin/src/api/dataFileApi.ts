@@ -2,15 +2,18 @@ import http from '@/utils/http/axios'
 
 export interface DataFile {
   id: number
+  name: string
+  path: string
+  fileType: string
+  fileSize: number
+  organism: string | null
+  genomeVersion: string | null
   projectId: number
   projectName: string
-  fileName: string
-  filePath: string
-  fileSize: number
-  fileType: string
-  mimeType: string
-  uploader: string
-  createTime: string
+  uploadedBy: number
+  uploaderName: string | null
+  createdAt: string
+  contentHash: string | null
 }
 
 export interface DataFileQuery {
