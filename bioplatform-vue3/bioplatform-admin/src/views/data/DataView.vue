@@ -4,7 +4,7 @@
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="项目">
-          <el-select v-model="searchForm.projectId" placeholder="请选择项目" clearable>
+          <el-select v-model="searchForm.projectId" placeholder="请选择项目" clearable style="width: 240px">
             <el-option
               v-for="project in projectList"
               :key="project.id"
@@ -103,7 +103,7 @@
     >
       <el-form :model="uploadForm" label-width="100px">
         <el-form-item label="选择项目">
-          <el-select v-model="uploadForm.projectId" placeholder="请选择项目">
+          <el-select v-model="uploadForm.projectId" placeholder="请选择项目" style="width: 100%">
             <el-option
               v-for="project in projectList"
               :key="project.id"
