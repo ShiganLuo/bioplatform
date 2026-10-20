@@ -116,10 +116,11 @@ public class DataFileServiceImpl implements DataFileService {
     }
 
     @Override
-    public PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName) {
+    public PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName, Integer fileStatus) {
         PageHelper.startPage(pageNum, pageSize);
-        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null, fileName);
+        List<DataFile> files = dataFileMapper.selectByProjectId(projectId, null, fileName, fileStatus);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
+        refreshFileStatusInPlace(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
     }
 
@@ -140,24 +141,68 @@ public class DataFileServiceImpl implements DataFileService {
     }
 
     @Override
-    public PageResult listAllFiles(int pageNum, int pageSize, String fileName) {
+    public PageResult listAllFiles(int pageNum, int pageSize, String fileName, Integer fileStatus) {
         PageHelper.startPage(pageNum, pageSize);
         DataFile param = new DataFile();
         param.setName(fileName);
+        param.setFileStatus(fileStatus);
         List<DataFile> files = dataFileMapper.selectAll(param);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
+        refreshFileStatusInPlace(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
     }
 
     @Override
-    public PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName) {
+    public PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName, Integer fileStatus) {
         PageHelper.startPage(pageNum, pageSize);
         DataFile param = new DataFile();
         param.setUploadedBy(userId);
         param.setName(fileName);
+        param.setFileStatus(fileStatus);
         List<DataFile> files = dataFileMapper.selectAll(param);
         PageInfo<DataFile> pageInfo = new PageInfo<>(files);
+        refreshFileStatusInPlace(files);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, files);
+    }
+
+    /**
+     * 对当前页逐行实时探测磁盘，更新响应里的 fileStatus，
+     * 并把与库中不一致的行回写落库（边查边修，避免状态腐化）。
+     */
+    private void refreshFileStatusInPlace(List<DataFile> files) {
+        if (files == null) return;
+        for (DataFile f : files) {
+            if (f.getPath() == null || f.getPath().isBlank()) continue;
+            int actual = storage.exists(f.getPath()) ? 1 : 0;
+            Integer stored = f.getFileStatus();
+            f.setFileStatus(actual);
+            if (stored == null || stored != actual) {
+                dataFileMapper.updateFileStatus(f.getId(), actual);
+            }
+        }
+    }
+
+    @Override
+    public java.util.Map<String, Object> verifyFileStatus(Long projectId) {
+        List<DataFile> files = projectId != null
+                ? dataFileMapper.selectByProjectId(projectId, null, null, null)
+                : dataFileMapper.selectAll(new DataFile());
+        int total = 0;
+        int missing = 0;
+        for (DataFile f : files) {
+            if (f.getPath() == null || f.getPath().isBlank()) continue;
+            total++;
+            int actual = storage.exists(f.getPath()) ? 1 : 0;
+            if (actual == 0) missing++;
+            if (f.getFileStatus() == null || f.getFileStatus() != actual) {
+                dataFileMapper.updateFileStatus(f.getId(), actual);
+            }
+        }
+        log.info("文件状态校验完成: projectId={}, total={}, missing={}", projectId, total, missing);
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("total", total);
+        result.put("missing", missing);
+        return result;
     }
 
     @Override

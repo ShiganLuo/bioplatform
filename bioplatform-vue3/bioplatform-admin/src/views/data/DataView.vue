@@ -20,6 +20,12 @@
             clearable
           />
         </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="searchForm.fileStatus" placeholder="全部" clearable style="width: 120px">
+            <el-option label="在库" :value="1" />
+            <el-option label="丢失" :value="0" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="resetSearch">重置</el-button>
@@ -44,6 +50,10 @@
             <el-button type="warning" @click="openImportDialog">
               <el-icon><FolderOpened /></el-icon>
               导入本地文件
+            </el-button>
+            <el-button :loading="verifyLoading" @click="handleVerify">
+              <el-icon><CircleCheck /></el-icon>
+              校验文件
             </el-button>
             <el-button @click="openRsyncDialog">
               <el-icon><Connection /></el-icon>
@@ -71,6 +81,18 @@
             <el-tag size="small">{{ row.fileType }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.fileStatus === 0"
+              :content="'磁盘文件不存在：' + row.path"
+              placement="top"
+            >
+              <el-tag size="small" type="danger">丢失</el-tag>
+            </el-tooltip>
+            <el-tag v-else size="small" type="success">在库</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="uploaderName" label="上传者" width="100">
           <template #default="{ row }">{{ row.uploaderName || '-' }}</template>
         </el-table-column>
@@ -78,7 +100,10 @@
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="fileEditRef?.open(row as DataFile)">编辑</el-button>
-            <el-button type="primary" link @click="handleDownload(row as DataFile)">下载</el-button>
+            <el-tooltip v-if="row.fileStatus === 0" content="文件已丢失，无法下载" placement="top">
+              <el-button type="primary" link disabled>下载</el-button>
+            </el-tooltip>
+            <el-button v-else type="primary" link @click="handleDownload(row as DataFile)">下载</el-button>
             <el-button type="danger" link @click="handleDelete(row as DataFile)">删除</el-button>
           </template>
         </el-table-column>
@@ -361,8 +386,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, FolderAdd, Folder, Document, FolderOpened, Connection, CopyDocument } from '@element-plus/icons-vue'
-import { listFiles, uploadFile, batchUploadFiles, deleteFile, downloadFile, storageCheck, getRsyncInfo, importLocalFiles } from '@/api/dataFileApi'
+import { Upload, FolderAdd, Folder, Document, FolderOpened, Connection, CopyDocument, CircleCheck } from '@element-plus/icons-vue'
+import { listFiles, uploadFile, batchUploadFiles, deleteFile, downloadFile, storageCheck, getRsyncInfo, importLocalFiles, verifyFileStatus } from '@/api/dataFileApi'
 import type { DataFile, StorageInfo, RsyncInfo } from '@/api/dataFileApi'
 import { listProjects } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
@@ -382,6 +407,7 @@ const uploadMode = ref<'file' | 'folder'>('file')
 const storageInfo = ref<StorageInfo | null>(null)
 const importDialogVisible = ref(false)
 const importLoading = ref(false)
+const verifyLoading = ref(false)
 const rsyncDialogVisible = ref(false)
 const rsyncInfo = ref<RsyncInfo | null>(null)
 
@@ -395,7 +421,8 @@ const folderFiles = ref<File[]>([])
 
 const searchForm = reactive({
   projectId: null as number | null,
-  fileName: ''
+  fileName: '',
+  fileStatus: null as number | null
 })
 
 const pagination = reactive({
@@ -496,7 +523,8 @@ const loadFiles = async () => {
       page: pagination.page,
       size: pagination.size,
       projectId: searchForm.projectId ?? undefined,
-      fileName: searchForm.fileName
+      fileName: searchForm.fileName,
+      fileStatus: searchForm.fileStatus ?? undefined
     })
     fileList.value = res.records
     pagination.total = res.total
@@ -524,7 +552,26 @@ const handleSearch = () => {
 const resetSearch = () => {
   searchForm.projectId = null
   searchForm.fileName = ''
+  searchForm.fileStatus = null
   handleSearch()
+}
+
+// 全量校验文件状态
+const handleVerify = async () => {
+  verifyLoading.value = true
+  try {
+    const res = await verifyFileStatus(searchForm.projectId ?? undefined) as any
+    if (res.missing > 0) {
+      ElMessage.warning(`校验完成：${res.total} 个文件，${res.missing} 个丢失`)
+    } else {
+      ElMessage.success(`校验完成：${res.total} 个文件全部在库`)
+    }
+    loadFiles()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '校验失败（仅管理员可执行）')
+  } finally {
+    verifyLoading.value = false
+  }
 }
 
 // 打开上传对话框

@@ -59,6 +59,7 @@ public class AdminDataFileController {
     public ApiResponse<PageResult> list(
             @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) String fileName,
+            @RequestParam(required = false) Integer fileStatus,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageResult result;
@@ -68,16 +69,29 @@ public class AdminDataFileController {
             if (project != null) {
                 OwnershipUtils.checkProjectOwnership(project.getOwnerId());
             }
-            result = dataFileService.listByProjectId(projectId, page, size, fileName);
+            result = dataFileService.listByProjectId(projectId, page, size, fileName, fileStatus);
         } else {
             if (OwnershipUtils.isAdmin()) {
-                result = dataFileService.listAllFiles(page, size, fileName);
+                result = dataFileService.listAllFiles(page, size, fileName, fileStatus);
             } else {
                 Long userId = OwnershipUtils.getCurrentUserId();
-                result = dataFileService.listByUserId(userId, page, size, fileName);
+                result = dataFileService.listByUserId(userId, page, size, fileName, fileStatus);
             }
         }
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 全量校验文件状态（逐行探测磁盘并回写 file_status）
+     */
+    @PostMapping("/verify")
+    @OperLog(module = "数据文件管理", operation = "校验文件状态")
+    public ApiResponse<Map<String, Object>> verify(
+            @RequestParam(required = false) Long projectId) {
+        if (!OwnershipUtils.isAdmin()) {
+            return ApiResponse.error(403, "仅管理员可执行全量校验");
+        }
+        return ApiResponse.success(dataFileService.verifyFileStatus(projectId));
     }
 
     /**

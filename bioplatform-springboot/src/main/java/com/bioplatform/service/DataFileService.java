@@ -38,12 +38,14 @@ public interface DataFileService {
     /**
      * 分页查询项目的文件列表
      *
-     * @param projectId 项目ID
-     * @param pageNum   页码
-     * @param pageSize  每页大小
+     * @param projectId  项目ID
+     * @param pageNum    页码
+     * @param pageSize   每页大小
+     * @param fileName   文件名过滤
+     * @param fileStatus 文件状态过滤（null=全部，0=丢失 1=在库）
      * @return 分页结果
      */
-    PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName);
+    PageResult listByProjectId(Long projectId, int pageNum, int pageSize, String fileName, Integer fileStatus);
 
     /**
      * 删除文件
@@ -55,13 +57,23 @@ public interface DataFileService {
     /**
      * 分页查询所有文件
      *
-     * @param pageNum  页码
-     * @param pageSize 每页大小
+     * @param pageNum    页码
+     * @param pageSize   每页大小
+     * @param fileName   文件名过滤
+     * @param fileStatus 文件状态过滤（null=全部，0=丢失 1=在库）
      * @return 分页结果
      */
-    PageResult listAllFiles(int pageNum, int pageSize, String fileName);
+    PageResult listAllFiles(int pageNum, int pageSize, String fileName, Integer fileStatus);
 
-    PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName);
+    PageResult listByUserId(Long userId, int pageNum, int pageSize, String fileName, Integer fileStatus);
+
+    /**
+     * 全量校验文件状态：逐行走存储策略探测磁盘，回写 file_status。
+     *
+     * @param projectId 限定项目（null=全部文件）
+     * @return total=检查总数，missing=磁盘丢失数
+     */
+    java.util.Map<String, Object> verifyFileStatus(Long projectId);
 
     /**
      * 编辑文件元数据与项目归属（多对多全量替换）

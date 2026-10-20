@@ -24,6 +24,9 @@ public class DataFile {
     /** 内容 MD5（hex），秒传去重用 */
     private String contentHash;
 
+    /** 文件状态：0=磁盘丢失 1=在库 */
+    private Integer fileStatus;
+
     private String organism;
 
     private String genomeVersion;

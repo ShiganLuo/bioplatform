@@ -221,6 +221,7 @@ CREATE TABLE `data_files` (
     `file_type`      VARCHAR(32)  DEFAULT NULL COMMENT 'e.g. fastq, bam, vcf, gff',
     `file_size`      BIGINT       DEFAULT 0 COMMENT 'Bytes',
     `content_hash`   VARCHAR(32)  DEFAULT NULL COMMENT 'MD5 hex，秒传去重用',
+    `file_status`    TINYINT      NOT NULL DEFAULT 1 COMMENT '0=磁盘丢失 1=在库',
     `organism`       VARCHAR(128) DEFAULT NULL,
     `genome_version` VARCHAR(64)  DEFAULT NULL,
     `uploaded_by`    BIGINT       NOT NULL,

@@ -108,6 +108,18 @@
           </template>
         </el-table-column>
         <el-table-column prop="organism" label="物种" width="100" />
+        <el-table-column label="状态" width="80">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.fileStatus === 0"
+              :content="'磁盘文件不存在：' + row.path"
+              placement="top"
+            >
+              <el-tag size="small" type="danger">丢失</el-tag>
+            </el-tooltip>
+            <el-tag v-else size="small" type="success">在库</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="上传时间" width="170" />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -170,6 +182,18 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
+        <el-table-column label="文件引用" width="100">
+          <template #default="{ row }">
+            <el-tag
+              size="small"
+              :type="fileRefSummary(row as SampleMeta).total === 0 ? 'info' : fileRefSummary(row as SampleMeta).matched === fileRefSummary(row as SampleMeta).total ? 'success' : 'warning'"
+              style="cursor: pointer"
+              @click="openFileRefs(row as SampleMeta)"
+            >
+              {{ fileRefSummary(row as SampleMeta).total === 0 ? '-' : `${fileRefSummary(row as SampleMeta).matched}/${fileRefSummary(row as SampleMeta).total}` }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -264,6 +288,54 @@
       <template #footer>
         <el-button @click="metaDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="metaSaving" @click="handleSaveMeta">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 文件引用明细对话框 -->
+    <el-dialog v-model="fileRefsVisible" :title="`文件引用明细：${fileRefsMetaName}`" width="800px" top="6vh">
+      <div v-loading="fileRefsLoading">
+        <div v-if="fileRefsSummary" style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px">
+          <el-tag :type="fileRefsSummary.matchedRefs === fileRefsSummary.totalRefs ? 'success' : 'warning'" size="small">
+            已入库 {{ fileRefsSummary.matchedRefs }} / {{ fileRefsSummary.totalRefs }}
+          </el-tag>
+          <el-button
+            v-if="registerableCount > 0"
+            type="warning"
+            size="small"
+            :loading="registerLoading"
+            @click="handleRegisterMissing"
+          >
+            一键登记入库（{{ registerableCount }}）
+          </el-button>
+        </div>
+        <el-table v-if="fileRefs.length" :data="fileRefs" size="small" style="width: 100%">
+          <el-table-column prop="rawPath" label="引用路径" min-width="260" show-overflow-tooltip />
+          <el-table-column label="状态" width="150">
+            <template #default="{ row }">
+              <el-tag v-if="row.matched && row.fileStatus === 1" size="small" type="success">已入库 · 在库</el-tag>
+              <el-tag v-else-if="row.matched" size="small" type="danger">已入库 · 丢失</el-tag>
+              <el-tag v-else-if="row.onDisk" size="small" type="warning">未入库 · 磁盘存在</el-tag>
+              <el-tag v-else size="small" type="info">未入库 · 文件缺失</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="110">
+            <template #default="{ row }">
+              <el-button
+                v-if="!row.matched && row.onDisk"
+                type="primary"
+                link
+                size="small"
+                :loading="registerLoading"
+                @click="handleRegisterMissing"
+              >登记入库</el-button>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else-if="!fileRefsLoading" description="未解析到文件引用（检查 TSV 中的文件列）" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button @click="fileRefsVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -549,6 +621,8 @@ import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFi
 import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
 import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } from '@/api/sampleMetaApi'
 import type { SampleMeta } from '@/api/sampleMetaApi'
+import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
+import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
 import { listTemplates } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -588,6 +662,15 @@ const selectedFiles = ref<any[]>([])
 // 样本信息状态
 const metaLoading = ref(false)
 const metaList = ref<SampleMeta[]>([])
+// 文件引用汇总缓存：metaId -> { matched, total }（打开明细时刷新）
+const metaFileRefSummary = reactive<Record<number, { matched: number; total: number }>>({})
+const fileRefsVisible = ref(false)
+const fileRefsLoading = ref(false)
+const fileRefsMetaName = ref('')
+const fileRefsMetaId = ref<number | null>(null)
+const fileRefs = ref<SampleMetaFileRef[]>([])
+const fileRefsSummary = ref<SampleMetaFilesResult | null>(null)
+const registerLoading = ref(false)
 const metaDialogVisible = ref(false)
 const metaDialogTitle = ref('新建 Meta')
 const metaSaving = ref(false)
@@ -767,6 +850,49 @@ const loadMetaList = async () => {
     metaList.value = await listSampleMeta(projectId.value) as any || []
   } catch (e) { console.error(e) }
   finally { metaLoading.value = false }
+}
+
+const fileRefSummary = (row: SampleMeta) => {
+  return metaFileRefSummary[row.id] || { matched: 0, total: 0 }
+}
+
+// 打开文件引用明细（每次进入都请求，保证与最新 meta 内容一致）
+const openFileRefs = async (row: SampleMeta) => {
+  fileRefsMetaId.value = row.id
+  fileRefsMetaName.value = row.name
+  fileRefsVisible.value = true
+  fileRefsLoading.value = true
+  try {
+    const res = await getMetaFiles(row.id) as any
+    fileRefs.value = res.refs || []
+    fileRefsSummary.value = res
+    metaFileRefSummary[row.id] = { matched: res.matchedRefs || 0, total: res.totalRefs || 0 }
+  } catch (e) {
+    ElMessage.error('解析文件引用失败')
+  } finally {
+    fileRefsLoading.value = false
+  }
+}
+
+const registerableCount = computed(() => {
+  return fileRefs.value.filter(r => !r.matched && r.onDisk).length
+})
+
+// 登记未入库引用（一键/单条都走同一接口，登记全部可登记项）
+const handleRegisterMissing = async () => {
+  if (!fileRefsMetaId.value) return
+  registerLoading.value = true
+  try {
+    const res = await registerMissingMetaFiles(fileRefsMetaId.value) as any
+    ElMessage.success(`已登记 ${res.count} 个文件`)
+    // 重新解析并刷新样本列表
+    const row = metaList.value.find(m => m.id === fileRefsMetaId.value)
+    if (row) await openFileRefs(row)
+  } catch (e) {
+    ElMessage.error('登记失败')
+  } finally {
+    registerLoading.value = false
+  }
 }
 
 const countSamples = (content: string) => {

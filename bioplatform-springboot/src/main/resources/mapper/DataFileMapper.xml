@@ -10,6 +10,7 @@
         <result column="file_type" property="fileType"/>
         <result column="file_size" property="fileSize"/>
         <result column="content_hash" property="contentHash"/>
+        <result column="file_status" property="fileStatus"/>
         <result column="organism" property="organism"/>
         <result column="genome_version" property="genomeVersion"/>
         <result column="uploaded_by" property="uploadedBy"/>
@@ -20,7 +21,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        `id`, `name`, `path`, `file_type`, `file_size`, `content_hash`,
+        `id`, `name`, `path`, `file_type`, `file_size`, `content_hash`, `file_status`,
         `organism`, `genome_version`, `uploaded_by`, `created_at`
     </sql>
 
@@ -41,14 +42,14 @@
     <!-- ==================== Basic CRUD ==================== -->
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `data_files` (`name`, `path`, `file_type`, `file_size`, `content_hash`,
+        INSERT INTO `data_files` (`name`, `path`, `file_type`, `file_size`, `content_hash`, `file_status`,
                                   `organism`, `genome_version`, `uploaded_by`)
-        VALUES (#{name}, #{path}, #{fileType}, #{fileSize}, #{contentHash},
+        VALUES (#{name}, #{path}, #{fileType}, #{fileSize}, #{contentHash}, 1,
                 #{organism}, #{genomeVersion}, #{uploadedBy})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
                f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
                <include refid="Rel_Project_Subqueries"/>
         FROM `data_files` f
@@ -56,7 +57,7 @@
     </select>
 
     <select id="selectAll" resultMap="BaseResultMap">
-        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
                f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
                <include refid="Rel_Project_Subqueries"/>,
                u.`username` AS uploader_name
@@ -78,6 +79,9 @@
             </if>
             <if test="organism != null and organism != ''">
                 AND f.`organism` = #{organism}
+            </if>
+            <if test="fileStatus != null">
+                AND f.`file_status` = #{fileStatus}
             </if>
         </where>
         ORDER BY f.`created_at` DESC
@@ -116,7 +120,7 @@
 
     <!-- 项目内文件列表：JOIN 关联表（一个项目内每文件仅一行，分页安全） -->
     <select id="selectByProjectId" resultMap="BaseResultMap">
-        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
                f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
                <include refid="Rel_Project_Subqueries"/>,
                u.`username` AS uploader_name
@@ -129,6 +133,9 @@
             </if>
             <if test="name != null and name != ''">
                 AND f.`name` LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="fileStatus != null">
+                AND f.`file_status` = #{fileStatus}
             </if>
         </where>
         ORDER BY f.`created_at` DESC
@@ -161,7 +168,7 @@
 
     <!-- 秒传检查：同项目下同内容文件（归属走关联表） -->
     <select id="selectByHashAndProject" resultMap="BaseResultMap">
-        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`,
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
                f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
                <include refid="Rel_Project_Subqueries"/>,
                u.`username` AS uploader_name
@@ -183,6 +190,30 @@
     <select id="sumTotalFileSize" resultType="long">
         SELECT COALESCE(SUM(`file_size`), 0)
         FROM `data_files`
+    </select>
+
+    <update id="updateFileStatus">
+        UPDATE `data_files` SET `file_status` = #{fileStatus} WHERE `id` = #{id}
+    </update>
+
+    <!-- 样本 meta 文件引用关联：path 精确匹配 -->
+    <select id="searchByPathExact" resultMap="BaseResultMap">
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>
+        FROM `data_files` f
+        WHERE f.`path` = #{path}
+        LIMIT 50
+    </select>
+
+    <!-- 样本 meta 文件引用关联：path 后缀匹配（rawPath 以 / 开头时避免双斜杠干扰，统一通配） -->
+    <select id="searchByPathSuffix" resultMap="BaseResultMap">
+        SELECT f.`id`, f.`name`, f.`path`, f.`file_type`, f.`file_size`, f.`content_hash`, f.`file_status`,
+               f.`organism`, f.`genome_version`, f.`uploaded_by`, f.`created_at`,
+               <include refid="Rel_Project_Subqueries"/>
+        FROM `data_files` f
+        WHERE CONCAT(`path`, '') LIKE CONCAT('%', #{path})
+        LIMIT 50
     </select>
 
 </mapper>

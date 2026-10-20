@@ -8,6 +8,8 @@ export interface DataFile {
   fileSize: number
   organism: string | null
   genomeVersion: string | null
+  /** 文件状态：0=磁盘丢失 1=在库 */
+  fileStatus: number
   /** 所属项目ID（逗号分隔字符串，后端联表子查询填充） */
   projectIds: string | null
   /** 所属项目名（顿号分隔） */
@@ -31,6 +33,8 @@ export interface DataFileQuery {
   projectId?: number
   fileName?: string
   fileType?: string
+  /** 文件状态：0=丢失 1=在库 */
+  fileStatus?: number
 }
 
 export interface StorageInfo {
@@ -111,5 +115,12 @@ export function getRsyncInfo() {
 export function importLocalFiles(dirPath: string, projectId: number) {
   return http.post<{ count: number; dirPath: string }>('/api/admin/datafiles/import-local', null, {
     params: { dirPath, projectId }
+  })
+}
+
+/** 全量校验文件状态（仅管理员） */
+export function verifyFileStatus(projectId?: number) {
+  return http.post<{ total: number; missing: number }>('/api/admin/datafiles/verify', null, {
+    params: projectId ? { projectId } : {}
   })
 }
