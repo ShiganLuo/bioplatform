@@ -67,6 +67,13 @@ public class SharedStorageStrategy implements StorageStrategy {
 
     @Override
     public Path resolve(String storagePath) {
+        if (isAbsolute(storagePath)) {
+            Path absolute = Paths.get(storagePath);
+            if (!Files.exists(absolute)) {
+                throw new RuntimeException("文件不存在: " + absolute);
+            }
+            return absolute;
+        }
         Path full = Paths.get(sharedPath, storagePath);
         if (!Files.exists(full)) {
             throw new RuntimeException("文件不存在: " + full);
@@ -77,7 +84,12 @@ public class SharedStorageStrategy implements StorageStrategy {
     @Override
     public void delete(String storagePath) {
         try {
-            Files.deleteIfExists(resolve(storagePath));
+            // 直接按路径删除，不走 resolve（resolve 对不存在的文件会抛异常，
+            // 导致"磁盘已丢失的文件"无法从库中清理）
+            Path target = isAbsolute(storagePath)
+                    ? Paths.get(storagePath)
+                    : Paths.get(sharedPath, storagePath);
+            Files.deleteIfExists(target);
         } catch (IOException e) {
             log.warn("共享存储删除失败: {}", storagePath, e);
         }
@@ -85,12 +97,19 @@ public class SharedStorageStrategy implements StorageStrategy {
 
     @Override
     public boolean exists(String storagePath) {
+        if (isAbsolute(storagePath)) {
+            return Files.exists(Paths.get(storagePath));
+        }
         return Files.exists(Paths.get(sharedPath, storagePath));
     }
 
     @Override
     public long size(String storagePath) {
         try {
+            if (isAbsolute(storagePath)) {
+                Path absolute = Paths.get(storagePath);
+                return Files.exists(absolute) ? Files.size(absolute) : -1;
+            }
             Path p = Paths.get(sharedPath, storagePath);
             return Files.exists(p) ? Files.size(p) : -1;
         } catch (IOException e) {
@@ -108,5 +127,10 @@ public class SharedStorageStrategy implements StorageStrategy {
      */
     private String relativePath(Long projectId, String fileName) {
         return projectId + "/" + fileName;
+    }
+
+    /** import-local 登记的是服务器绝对路径，解析时必须原样使用，不得拼接 sharedPath */
+    private boolean isAbsolute(String storagePath) {
+        return storagePath != null && Paths.get(storagePath).isAbsolute();
     }
 }
