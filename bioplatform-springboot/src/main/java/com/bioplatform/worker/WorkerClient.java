@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -22,9 +23,17 @@ public class WorkerClient {
     private final WorkerRegistry workerRegistry;
     private final ObjectMapper objectMapper;
 
+    /** Worker 端点鉴权 token(为空则不带鉴权头,兼容未启用鉴权的开发环境) */
+    @Value("${bioplatform.worker.token:}")
+    private String workerToken;
+
     public WorkerClient(WorkerRegistry workerRegistry, ObjectMapper objectMapper) {
         this.workerRegistry = workerRegistry;
         this.objectMapper = objectMapper;
+    }
+
+    private Map<String, String> authHeaders() {
+        return workerToken == null || workerToken.isBlank() ? Map.of() : Map.of("X-Worker-Token", workerToken);
     }
 
     /**
@@ -38,17 +47,18 @@ public class WorkerClient {
      * @return 任务 ID
      */
     public String submitTask(String workerUrl, Long pipelineId, Long executionId,
-                              String command, String inputParams) {
+                              String command, String inputParams, int timeoutSeconds) {
         try {
             Map<String, Object> body = Map.of(
                     "executionId", executionId,
-                    "pipelineId", pipelineId,
+                    "pipelineId", pipelineId != null ? pipelineId : 0L,
                     "command", command != null ? command : "",
-                    "inputParams", inputParams != null ? inputParams : "{}"
+                    "inputParams", inputParams != null ? inputParams : "{}",
+                    "timeout", timeoutSeconds
             );
 
             String url = workerUrl + "/worker/tasks/submit";
-            String response = HttpUtil.post(url, objectMapper.writeValueAsString(body));
+            String response = HttpUtil.post(url, objectMapper.writeValueAsString(body), authHeaders());
 
             JsonNode node = objectMapper.readTree(response);
             String taskId = node.has("taskId") ? node.get("taskId").asText() : null;
@@ -62,16 +72,19 @@ public class WorkerClient {
 
     /**
      * 查询 Worker 上的任务状态
+     * 区分确定性丢失(NOT_FOUND,原样返回)与网络级失败(抛异常,由调用方按瞬断重试)
      */
     public String queryTaskStatus(String workerUrl, String taskId) {
         try {
             String url = workerUrl + "/worker/tasks/" + taskId + "/status";
-            String response = HttpUtil.get(url);
+            String response = HttpUtil.get(url, authHeaders());
             JsonNode node = objectMapper.readTree(response);
             return node.has("status") ? node.get("status").asText() : "UNKNOWN";
-        } catch (Exception e) {
-            log.error("查询任务状态失败: workerUrl={}, taskId={}, error={}", workerUrl, taskId, e.getMessage());
-            return "UNKNOWN";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("查询任务状态失败: " + e.getMessage(), e);
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("查询任务状态失败: " + e.getMessage(), e);
         }
     }
 
@@ -81,9 +94,13 @@ public class WorkerClient {
     public String getTaskOutput(String workerUrl, String taskId) {
         try {
             String url = workerUrl + "/worker/tasks/" + taskId + "/output";
-            String response = HttpUtil.get(url);
+            String response = HttpUtil.get(url, authHeaders());
             JsonNode node = objectMapper.readTree(response);
-            return node.has("output") ? node.get("output").asText() : "";
+            // 失败时错误详情在 error 字段,成功时在 output 字段,合并返回
+            String output = node.has("output") ? node.get("output").asText() : "";
+            String error = node.has("error") ? node.get("error").asText() : "";
+            return error.isBlank() ? output
+                    : (output.isBlank() ? error : output + "\n" + error);
         } catch (Exception e) {
             log.error("获取任务输出失败: workerUrl={}, taskId={}, error={}", workerUrl, taskId, e.getMessage());
             return "";
@@ -96,7 +113,7 @@ public class WorkerClient {
     public boolean cancelTask(String workerUrl, String taskId) {
         try {
             String url = workerUrl + "/worker/tasks/" + taskId + "/cancel";
-            HttpUtil.post(url, "{}");
+            HttpUtil.post(url, "{}", authHeaders());
             return true;
         } catch (Exception e) {
             log.error("取消任务失败: workerUrl={}, taskId={}, error={}", workerUrl, taskId, e.getMessage());
@@ -109,7 +126,7 @@ public class WorkerClient {
      */
     public boolean isHealthy(String workerUrl) {
         try {
-            String response = HttpUtil.get(workerUrl + "/worker/health");
+            String response = HttpUtil.get(workerUrl + "/worker/health", authHeaders());
             JsonNode node = objectMapper.readTree(response);
             return "UP".equals(node.has("status") ? node.get("status").asText() : "");
         } catch (Exception e) {
@@ -197,7 +214,7 @@ public class WorkerClient {
             if (workdir != null) body.put("workdir", workdir);
 
             String url = workerUrl + "/worker/shell/execute";
-            String response = HttpUtil.post(url, objectMapper.writeValueAsString(body));
+            String response = HttpUtil.post(url, objectMapper.writeValueAsString(body), authHeaders());
             JsonNode node = objectMapper.readTree(response);
 
             Map<String, Object> result = new java.util.HashMap<>();

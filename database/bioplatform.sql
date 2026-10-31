@@ -139,6 +139,7 @@ CREATE TABLE `workflow_templates` (
     `type`             VARCHAR(16)   NOT NULL COMMENT 'task / pipeline',
     `category`         VARCHAR(64)   DEFAULT NULL COMMENT '分组：转录组、变异检测、表观遗传学等',
     `config_template`  JSON          NOT NULL COMMENT '默认配置 JSON（来自 Omics/config/*.json）',
+    `command_template` TEXT          DEFAULT NULL COMMENT '命令模板,含 {{placeholder}} 占位符,渲染后交 Worker 执行',
     `schema_json`      JSON          NOT NULL COMMENT '表单 schema（来自 Omics/config/*.schema.json）',
     `snakemake_path`   VARCHAR(255)  NOT NULL COMMENT '相对于 Omics 仓库的 .smk 路径',
     `icon`             VARCHAR(64)   DEFAULT NULL,
@@ -195,6 +196,9 @@ CREATE TABLE `pipeline_executions` (
     `error_log`    TEXT         DEFAULT NULL,
     `worker_id`    VARCHAR(64)  DEFAULT NULL COMMENT '执行该任务的Worker ID',
     `worker_url`   VARCHAR(256) DEFAULT NULL COMMENT '执行该任务的Worker URL',
+    `task_id`      VARCHAR(64)  DEFAULT NULL COMMENT 'Worker端任务ID(落库供调度线程对账)',
+    `executor`     VARCHAR(16)  DEFAULT NULL COMMENT '执行器: local / remote',
+    `heartbeat_at` DATETIME(6)  DEFAULT NULL COMMENT '最近一次状态心跳',
     `started_at`   DATETIME(6)  DEFAULT NULL,
     `finished_at`  DATETIME(6)  DEFAULT NULL,
     `created_at`   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -532,5 +536,15 @@ INSERT INTO `agent_tools` (`name`, `description`, `category`, `enabled`) VALUES
 ('bedtools',   'Genomic intervals manipulation',    'bioinformatics', 1),
 ('web_search', 'Search the web for information',    'data',           1),
 ('file_read',  'Read and parse data files',          'data',           1);
+
+-- 示例工作流模板(命令渲染链路演示):执行参数 inputParams.input = 相对上传卷的输入文件路径
+INSERT INTO `workflow_templates`
+    (`name`, `description`, `type`, `category`, `config_template`, `command_template`,
+     `schema_json`, `snakemake_path`, `icon`, `sort_order`, `enabled`)
+VALUES
+    ('FastQC', 'FastQC 质控（示例模板：演示命令渲染 → Worker 执行链路）', 'task', '质控',
+     '{}',
+     'docker run --rm -v {{data_root}}:/data staphb/fastqc:0.12.1 fastqc /data/{{inputParams.input}} -o /data/{{output_dir}}',
+     '{}', '', NULL, 0, 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -7,6 +7,7 @@ export interface WorkflowTemplate {
   type: string
   category: string
   configTemplate: string
+  commandTemplate: string
   schemaJson: string
   snakemakePath: string
   icon: string

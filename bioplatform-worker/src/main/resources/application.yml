@@ -1,9 +1,14 @@
 server:
-  port: 8081
+  port: 18081
 
 spring:
   application:
     name: bioplatform-worker
+
+# Worker 端点鉴权 token(与平台侧 bioplatform.worker.token 同值;为空则不启用鉴权)
+worker:
+  token: ${WORKER_TOKEN:}
+  task-dir: ${TASK_DIR:/data/tasks}
 
 logging:
   level:

@@ -45,4 +45,11 @@ springdoc:
         - com.bioplatform.controller.front
   default-flat-param-object: true
 
+## 平台自定义配置
+bioplatform:
+  worker:
+    token: ${WORKER_TOKEN:}  # 计算节点(bio-worker)端点鉴权,与 Worker 容器的 WORKER_TOKEN 同值
+  storage:
+    dataRoot: ${BIPLATFORM_STORAGE_DATAROOT:}  # 上传卷宿主机路径,命令渲染 {{data_root}} 用
+
 ## 日志配置（控制台 INFO，文件 DEBUG，详见 logback-spring.xml）

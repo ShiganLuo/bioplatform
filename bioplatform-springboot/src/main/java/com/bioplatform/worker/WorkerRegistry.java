@@ -26,6 +26,14 @@ public class WorkerRegistry {
     private final ComputeNodeMapper nodeMapper;
     private final ObjectMapper objectMapper;
 
+    /** Worker 端点鉴权 token(与 WorkerClient 同源配置) */
+    @org.springframework.beans.factory.annotation.Value("${bioplatform.worker.token:}")
+    private String workerToken;
+
+    private Map<String, String> authHeaders() {
+        return workerToken == null || workerToken.isBlank() ? Map.of() : Map.of("X-Worker-Token", workerToken);
+    }
+
     public WorkerRegistry(ComputeNodeMapper nodeMapper, ObjectMapper objectMapper) {
         this.nodeMapper = nodeMapper;
         this.objectMapper = objectMapper;
@@ -173,7 +181,7 @@ public class WorkerRegistry {
      */
     public boolean testConnection(String url) {
         try {
-            String response = HttpUtil.get(url + "/worker/health");
+            String response = HttpUtil.get(url + "/worker/health", authHeaders());
             JsonNode node = objectMapper.readTree(response);
             boolean ok = "UP".equals(node.path("status").asText());
             log.info("测试连接 {}: {}", url, ok ? "成功" : "失败(status=" + node.path("status").asText() + ")");
@@ -191,7 +199,7 @@ public class WorkerRegistry {
     public void checkAllHealth() {
         for (WorkerInfo info : workers.values()) {
             try {
-                String response = HttpUtil.get(info.getUrl() + "/worker/health");
+                String response = HttpUtil.get(info.getUrl() + "/worker/health", authHeaders());
                 JsonNode node = objectMapper.readTree(response);
 
                 boolean healthy = "UP".equals(node.path("status").asText());

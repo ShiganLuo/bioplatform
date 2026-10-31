@@ -14,6 +14,9 @@
         <result column="error_log" property="errorLog"/>
         <result column="worker_id" property="workerId"/>
         <result column="worker_url" property="workerUrl"/>
+        <result column="task_id" property="taskId"/>
+        <result column="executor" property="executor"/>
+        <result column="heartbeat_at" property="heartbeatAt"/>
         <result column="started_at" property="startedAt"/>
         <result column="finished_at" property="finishedAt"/>
         <result column="created_at" property="createdAt"/>
@@ -24,6 +27,7 @@
         `id`, `pipeline_id`, `project_id`, `user_id`, `status`,
         `input_params`, `output_path`, `error_log`,
         `worker_id`, `worker_url`,
+        `task_id`, `executor`, `heartbeat_at`,
         `started_at`, `finished_at`, `created_at`, `updated_at`
     </sql>
 
@@ -31,9 +35,11 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipeline_executions` (`pipeline_id`, `project_id`, `user_id`, `status`,
-                                          `input_params`, `output_path`, `worker_id`, `worker_url`)
+                                          `input_params`, `output_path`, `worker_id`, `worker_url`,
+                                          `task_id`, `executor`, `heartbeat_at`)
         VALUES (#{pipelineId}, #{projectId}, #{userId}, #{status},
-                #{inputParams}, #{outputPath}, #{workerId}, #{workerUrl})
+                #{inputParams}, #{outputPath}, #{workerId}, #{workerUrl},
+                #{taskId}, #{executor}, #{heartbeatAt})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -70,6 +76,11 @@
             <if test="errorLog != null">`error_log` = #{errorLog},</if>
             <if test="startedAt != null">`started_at` = #{startedAt},</if>
             <if test="finishedAt != null">`finished_at` = #{finishedAt},</if>
+            <if test="workerId != null">`worker_id` = #{workerId},</if>
+            <if test="workerUrl != null">`worker_url` = #{workerUrl},</if>
+            <if test="taskId != null">`task_id` = #{taskId},</if>
+            <if test="executor != null">`executor` = #{executor},</if>
+            <if test="heartbeatAt != null">`heartbeat_at` = #{heartbeatAt},</if>
         </set>
         WHERE `id` = #{id}
     </update>

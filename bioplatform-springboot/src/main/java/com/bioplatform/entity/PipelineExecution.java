@@ -36,6 +36,15 @@ public class PipelineExecution {
     /** 执行该任务的 Worker URL */
     private String workerUrl;
 
+    /** Worker 端任务 ID（落库，backend 重启后可继续对账） */
+    private String taskId;
+
+    /** 执行器类型：local / remote */
+    private String executor;
+
+    /** 最近一次状态心跳时间（调度线程每次查询后更新） */
+    private LocalDateTime heartbeatAt;
+
     private LocalDateTime startedAt;
 
     private LocalDateTime finishedAt;

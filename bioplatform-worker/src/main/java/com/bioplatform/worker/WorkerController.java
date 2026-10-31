@@ -48,8 +48,10 @@ public class WorkerController {
         Long pipelineId = params.get("pipelineId") != null ? Long.valueOf(params.get("pipelineId").toString()) : null;
         String command = params.getOrDefault("command", "").toString();
         String inputParams = params.getOrDefault("inputParams", "{}").toString();
+        Integer timeout = params.containsKey("timeout")
+                ? Integer.parseInt(params.get("timeout").toString()) : null;
 
-        Task task = taskService.submitTask(executionId, pipelineId, command, inputParams);
+        Task task = taskService.submitTask(executionId, pipelineId, command, inputParams, timeout);
         return Map.of("taskId", task.getId(), "status", task.getStatus());
     }
 
@@ -95,7 +97,7 @@ public class WorkerController {
      */
     @GetMapping("/tasks")
     public List<Task> listTasks() {
-        return List.of(); // 简化实现
+        return taskService.listTasks();
     }
 
     /**

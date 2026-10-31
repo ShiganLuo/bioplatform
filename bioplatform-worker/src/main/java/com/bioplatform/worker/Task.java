@@ -13,6 +13,8 @@ public class Task {
     private Long pipelineId;
     private String command;
     private String inputParams;
+    /** 超时秒数(<=0 表示不限) */
+    private Integer timeout;
     /** PENDING/RUNNING/COMPLETED/FAILED/CANCELLED */
     private String status;
     private String output;

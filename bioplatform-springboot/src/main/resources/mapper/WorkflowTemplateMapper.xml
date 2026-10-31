@@ -10,6 +10,7 @@
         <result column="type" property="type"/>
         <result column="category" property="category"/>
         <result column="config_template" property="configTemplate"/>
+        <result column="command_template" property="commandTemplate"/>
         <result column="schema_json" property="schemaJson"/>
         <result column="snakemake_path" property="snakemakePath"/>
         <result column="icon" property="icon"/>
@@ -22,17 +23,18 @@
     <sql id="Base_Column_List">
         `id`, `name`, `description`, `type`, `category`,
         `config_template`, `schema_json`, `snakemake_path`,
+        `command_template`,
         `icon`, `sort_order`, `enabled`, `created_at`, `updated_at`
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `workflow_templates`
             (`name`, `description`, `type`, `category`,
-             `config_template`, `schema_json`, `snakemake_path`,
+             `config_template`, `command_template`, `schema_json`, `snakemake_path`,
              `icon`, `sort_order`, `enabled`)
         VALUES
             (#{name}, #{description}, #{type}, #{category},
-             #{configTemplate}, #{schemaJson}, #{snakemakePath},
+             #{configTemplate}, #{commandTemplate}, #{schemaJson}, #{snakemakePath},
              #{icon}, #{sortOrder}, #{enabled})
     </insert>
 
@@ -70,6 +72,7 @@
             <if test="type != null">`type` = #{type},</if>
             <if test="category != null">`category` = #{category},</if>
             <if test="configTemplate != null">`config_template` = #{configTemplate},</if>
+            <if test="commandTemplate != null">`command_template` = #{commandTemplate},</if>
             <if test="schemaJson != null">`schema_json` = #{schemaJson},</if>
             <if test="snakemakePath != null">`snakemake_path` = #{snakemakePath},</if>
             <if test="icon != null">`icon` = #{icon},</if>

@@ -44,6 +44,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
         template.setType(request.type());
         template.setCategory(request.category());
         template.setConfigTemplate(request.configTemplate());
+        template.setCommandTemplate(request.commandTemplate());
         template.setSchemaJson(request.schemaJson());
         template.setSnakemakePath(request.snakemakePath());
         template.setIcon(request.icon());
@@ -67,6 +68,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
         template.setType(request.type());
         template.setCategory(request.category());
         template.setConfigTemplate(request.configTemplate());
+        template.setCommandTemplate(request.commandTemplate());
         template.setSchemaJson(request.schemaJson());
         template.setSnakemakePath(request.snakemakePath());
         template.setIcon(request.icon());

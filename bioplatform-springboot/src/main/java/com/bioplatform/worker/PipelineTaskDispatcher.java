@@ -1,19 +1,31 @@
 package com.bioplatform.worker;
 
+import com.bioplatform.engine.CommandRenderer;
+import com.bioplatform.engine.ExecutionEngine;
+import com.bioplatform.entity.Pipeline;
 import com.bioplatform.entity.PipelineExecution;
+import com.bioplatform.entity.WorkflowTemplate;
 import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.mapper.PipelineMapper;
-import com.bioplatform.entity.Pipeline;
+import com.bioplatform.mapper.WorkflowTemplateMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 任务调度器
- * 选择 Worker、提交任务、异步轮询状态
+ * 任务调度器(2026-10-30 重构版,方案 B)
+ *
+ * 与旧版的本质区别:
+ *  1. 命令来自模板渲染(CommandRenderer),不再把 dockerImage 当命令执行;
+ *  2. taskId 落库,状态跟踪靠"调度线程扫 DB"(替代 @Async 睡眠轮询),
+ *     backend 重启后自动接管,不会产生永久孤儿记录;
+ *  3. 取消/超时真杀执行端进程(ExecutionEngine.cancel);
+ *  4. 无可用 Worker / 渲染失败等一律落 FAILED 并带原因,不再静默 PENDING。
  *
  * @author luosg
  */
@@ -23,77 +35,243 @@ public class PipelineTaskDispatcher {
     private static final Logger log = LoggerFactory.getLogger(PipelineTaskDispatcher.class);
 
     private final WorkerRegistry workerRegistry;
-    private final WorkerClient workerClient;
+    private final ExecutionEngine executionEngine;
     private final PipelineExecutionMapper executionMapper;
     private final PipelineMapper pipelineMapper;
+    private final WorkflowTemplateMapper workflowTemplateMapper;
+    private final CommandRenderer commandRenderer;
 
-    public PipelineTaskDispatcher(WorkerRegistry workerRegistry, WorkerClient workerClient,
-                         PipelineExecutionMapper executionMapper, PipelineMapper pipelineMapper) {
+    /** 上传卷在 backend 容器内的挂载根(输出目录在提交前由此创建) */
+    @org.springframework.beans.factory.annotation.Value("${bioplatform.storage.shared-path:/data/shared/bioplatform}")
+    private String sharedPath;
+
+    public PipelineTaskDispatcher(WorkerRegistry workerRegistry,
+                                  ExecutionEngine executionEngine,
+                                  PipelineExecutionMapper executionMapper,
+                                  PipelineMapper pipelineMapper,
+                                  WorkflowTemplateMapper workflowTemplateMapper,
+                                  CommandRenderer commandRenderer) {
         this.workerRegistry = workerRegistry;
-        this.workerClient = workerClient;
+        this.executionEngine = executionEngine;
         this.executionMapper = executionMapper;
         this.pipelineMapper = pipelineMapper;
+        this.workflowTemplateMapper = workflowTemplateMapper;
+        this.commandRenderer = commandRenderer;
     }
 
     /**
      * 调度执行任务到 Worker
      *
-     * @param execution 执行记录
-     * @return 是否成功提交
+     * @param execution 已入库的 PENDING 执行记录
+     * @return 是否成功提交(失败时记录已被标 FAILED 并写入原因)
      */
     public boolean dispatch(PipelineExecution execution) {
-        // 选择负载最低的 Worker
         WorkerRegistry.WorkerInfo worker = selectWorker();
         if (worker == null) {
-            log.error("没有可用的 Worker，executionId={}", execution.getId());
+            fail(execution, "当前无可用计算节点,任务未提交");
             return false;
         }
 
-        // 获取 Pipeline 信息
         Pipeline pipeline = pipelineMapper.selectById(execution.getPipelineId());
-        String command = pipeline != null ? pipeline.getDockerImage() : null;
+        if (pipeline == null) {
+            fail(execution, "流水线不存在(pipelineId=" + execution.getPipelineId() + ")");
+            return false;
+        }
+        WorkflowTemplate template = pipeline.getTemplateId() != null
+                ? workflowTemplateMapper.selectById(pipeline.getTemplateId()) : null;
+        if (template == null) {
+            fail(execution, "流水线未关联工作流模板,无法生成命令");
+            return false;
+        }
 
+        CommandRenderer.RenderedCommand rendered;
         try {
-            // 提交任务到 Worker
-            String taskId = workerClient.submitTask(
-                    worker.getUrl(),
-                    execution.getPipelineId(),
-                    execution.getId(),
-                    command,
-                    execution.getInputParams()
-            );
+            rendered = commandRenderer.render(template, pipeline, execution);
+        } catch (Exception e) {
+            fail(execution, "命令渲染失败: " + e.getMessage());
+            return false;
+        }
 
-            // 更新执行记录的 Worker 信息
+        int timeoutSeconds = pipeline.getTimeout() != null ? pipeline.getTimeout() : 3600;
+        try {
+            // 输出目录由 backend 在共享卷里预先创建(与 worker 的 docker run 绑定路径同卷)。
+            // 不能让模板自己 mkdir:worker 容器内 mkdir 落在容器文件系统,DooD 场景
+            // docker run -v 绑的是宿主机路径,目录根本不会出现在宿主机卷上(2026-10-31 实测)。
+            java.nio.file.Files.createDirectories(
+                    java.nio.file.Paths.get(sharedPath, rendered.outputDir()));
+
+            String taskId = executionEngine.submit(worker.getUrl(), execution,
+                    rendered.command(), timeoutSeconds);
+
             execution.setWorkerId(worker.getId());
             execution.setWorkerUrl(worker.getUrl());
+            execution.setTaskId(taskId);
+            execution.setExecutor("local");
             execution.setStatus("RUNNING");
+            execution.setOutputPath(rendered.outputDir());
+            execution.setHeartbeatAt(LocalDateTime.now());
             executionMapper.updateById(execution);
 
-            log.info("任务已调度: executionId={}, worker={}, taskId={}", execution.getId(), worker.getId(), taskId);
-
-            // 异步轮询任务状态
-            pollTaskStatus(execution.getId(), worker.getUrl(), taskId);
-
+            log.info("任务已调度: executionId={}, worker={}, taskId={}",
+                    execution.getId(), worker.getId(), taskId);
             return true;
         } catch (Exception e) {
-            log.error("任务调度失败: executionId={}, worker={}, error={}", execution.getId(), worker.getId(), e.getMessage());
-            execution.setStatus("FAILED");
-            execution.setErrorLog("调度失败: " + e.getMessage());
-            executionMapper.updateById(execution);
+            fail(execution, "任务调度失败: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * 选择负载最低的 Worker
+     * 调度线程:每 10 秒扫一遍 RUNNING 执行记录并向执行端对账。
+     * backend 重启后该线程自动接管所有 RUNNING 记录 —— 这就是"不产生孤儿"的机制。
+     */
+    @Scheduled(fixedDelay = 10_000, initialDelay = 15_000)
+    public void pollRunningExecutions() {
+        PipelineExecution query = new PipelineExecution();
+        query.setStatus("RUNNING");
+        List<PipelineExecution> running;
+        try {
+            running = executionMapper.selectAll(query);
+        } catch (Exception e) {
+            log.warn("扫描执行记录失败(下轮重试): {}", e.getMessage());
+            return;
+        }
+
+        for (PipelineExecution exec : running) {
+            if (exec.getTaskId() == null || exec.getWorkerUrl() == null) {
+                fail(exec, "执行记录缺少 taskId/workerUrl(调度中断的旧数据),请重新执行");
+                continue;
+            }
+            try {
+                applyStatus(exec, executionEngine.status(exec.getWorkerUrl(), exec.getTaskId()));
+            } catch (Exception e) {
+                // 网络级瞬断:心跳超 5 分钟仍不可达才判死
+                if (exec.getHeartbeatAt() != null
+                        && exec.getHeartbeatAt().plusMinutes(5).isBefore(LocalDateTime.now())) {
+                    fail(exec, "Worker 不可达超过 5 分钟且状态无法确认,标记失败");
+                } else {
+                    log.warn("轮询失败(下轮重试): executionId={}, error={}", exec.getId(), e.getMessage());
+                }
+            }
+        }
+    }
+
+    private void applyStatus(PipelineExecution exec, String status) {
+        switch (status) {
+            case "COMPLETED" -> {
+                exec.setStatus("SUCCESS");
+                touch(exec);
+                log.info("任务完成: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+            }
+            case "FAILED" -> {
+                String output = executionEngine.output(exec.getWorkerUrl(), exec.getTaskId());
+                exec.setStatus("FAILED");
+                exec.setErrorLog(truncate(output));
+                touch(exec);
+                log.warn("任务失败: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+            }
+            case "CANCELLED" -> {
+                exec.setStatus("CANCELLED");
+                touch(exec);
+                log.info("任务已取消: executionId={}", exec.getId());
+            }
+            case "NOT_FOUND" ->
+                    fail(exec, "任务在 Worker 端丢失(worker 可能重启),请重新执行");
+            default -> {
+                // RUNNING/PENDING/UNKNOWN:仅刷新心跳
+                exec.setHeartbeatAt(LocalDateTime.now());
+                executionMapper.updateById(exec);
+            }
+        }
+    }
+
+    /**
+     * 超时强查:超过 pipeline.timeout 的 RUNNING 任务,真杀执行端进程后标 FAILED。
+     */
+    @Scheduled(fixedDelay = 30_000, initialDelay = 25_000)
+    public void enforceTimeouts() {
+        PipelineExecution query = new PipelineExecution();
+        query.setStatus("RUNNING");
+        List<PipelineExecution> running;
+        try {
+            running = executionMapper.selectAll(query);
+        } catch (Exception e) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (PipelineExecution exec : running) {
+            if (exec.getStartedAt() == null) continue;
+            Pipeline pipeline = pipelineMapper.selectById(exec.getPipelineId());
+            int timeoutSeconds = pipeline != null && pipeline.getTimeout() != null
+                    ? pipeline.getTimeout() : 3600;
+            if (exec.getStartedAt().plusSeconds(timeoutSeconds).isBefore(now)) {
+                if (exec.getTaskId() != null && exec.getWorkerUrl() != null) {
+                    try {
+                        executionEngine.cancel(exec.getWorkerUrl(), exec.getTaskId());
+                    } catch (Exception e) {
+                        log.warn("超时任务取消调用失败: executionId={}, error={}", exec.getId(), e.getMessage());
+                    }
+                }
+                fail(exec, "任务执行超时(超过 " + timeoutSeconds + " 秒),已强制终止");
+            }
+        }
+    }
+
+    /**
+     * 启动对账:backend 重启后立即把无主的 RUNNING 记录拉回对账流程
+     * (第一条调度线程 tick 会真正处理;这里仅打印现状便于日志排查)
+     */
+    @EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void reconcileOnStartup() {
+        PipelineExecution query = new PipelineExecution();
+        query.setStatus("RUNNING");
+        try {
+            List<PipelineExecution> running = executionMapper.selectAll(query);
+            if (!running.isEmpty()) {
+                log.info("启动对账: 发现 {} 条 RUNNING 执行记录,将由调度线程接管对账", running.size());
+            }
+        } catch (Exception e) {
+            log.warn("启动对账查询失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 取消任务(真杀执行端进程)
+     *
+     * @return 是否执行了取消(状态不允许时 false)
+     */
+    public boolean cancelExecution(Long executionId) {
+        PipelineExecution execution = executionMapper.selectById(executionId);
+        if (execution == null) {
+            return false;
+        }
+        String status = execution.getStatus();
+        if (!"PENDING".equals(status) && !"RUNNING".equals(status)) {
+            return false;
+        }
+        if ("RUNNING".equals(status) && execution.getTaskId() != null && execution.getWorkerUrl() != null) {
+            try {
+                executionEngine.cancel(execution.getWorkerUrl(), execution.getTaskId());
+            } catch (Exception e) {
+                log.warn("取消调用失败,仍将标记为已取消: executionId={}, error={}", executionId, e.getMessage());
+            }
+        }
+        execution.setStatus("CANCELLED");
+        execution.setFinishedAt(LocalDateTime.now());
+        execution.setHeartbeatAt(LocalDateTime.now());
+        executionMapper.updateById(execution);
+        log.info("任务已取消: executionId={}", executionId);
+        return true;
+    }
+
+    /**
+     * 选择负载最低的 Worker(空闲内存最多)
      */
     private WorkerRegistry.WorkerInfo selectWorker() {
         List<WorkerRegistry.WorkerInfo> healthyWorkers = workerRegistry.getHealthyWorkers();
         if (healthyWorkers.isEmpty()) {
             return null;
         }
-
-        // 选择空闲内存最多的 Worker
         WorkerRegistry.WorkerInfo best = null;
         for (WorkerRegistry.WorkerInfo w : healthyWorkers) {
             if (best == null || w.getFreeMemoryGB() > best.getFreeMemoryGB()) {
@@ -103,93 +281,23 @@ public class PipelineTaskDispatcher {
         return best;
     }
 
-    /**
-     * 异步轮询任务状态
-     */
-    @Async
-    public void pollTaskStatus(Long executionId, String workerUrl, String taskId) {
-        int maxPolls = 3600; // 最多轮询 1 小时（每 10 秒一次）
-        int pollInterval = 10000; // 10 秒
-
-        for (int i = 0; i < maxPolls; i++) {
-            try {
-                Thread.sleep(pollInterval);
-
-                String status = workerClient.queryTaskStatus(workerUrl, taskId);
-
-                if ("COMPLETED".equals(status)) {
-                    // 任务完成
-                    String output = workerClient.getTaskOutput(workerUrl, taskId);
-                    PipelineExecution execution = executionMapper.selectById(executionId);
-                    if (execution != null) {
-                        execution.setStatus("SUCCESS");
-                        execution.setOutputPath(output);
-                        execution.setFinishedAt(java.time.LocalDateTime.now());
-                        executionMapper.updateById(execution);
-                    }
-                    log.info("任务完成: executionId={}, taskId={}", executionId, taskId);
-                    return;
-                } else if ("FAILED".equals(status)) {
-                    // 任务失败
-                    String output = workerClient.getTaskOutput(workerUrl, taskId);
-                    PipelineExecution execution = executionMapper.selectById(executionId);
-                    if (execution != null) {
-                        execution.setStatus("FAILED");
-                        execution.setErrorLog(output);
-                        execution.setFinishedAt(java.time.LocalDateTime.now());
-                        executionMapper.updateById(execution);
-                    }
-                    log.warn("任务失败: executionId={}, taskId={}", executionId, taskId);
-                    return;
-                } else if ("CANCELLED".equals(status)) {
-                    PipelineExecution execution = executionMapper.selectById(executionId);
-                    if (execution != null) {
-                        execution.setStatus("CANCELLED");
-                        execution.setFinishedAt(java.time.LocalDateTime.now());
-                        executionMapper.updateById(execution);
-                    }
-                    log.info("任务已取消: executionId={}, taskId={}", executionId, taskId);
-                    return;
-                }
-                // RUNNING 或 PENDING，继续轮询
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("轮询被中断: executionId={}", executionId);
-                return;
-            } catch (Exception e) {
-                log.warn("轮询异常: executionId={}, error={}", executionId, e.getMessage());
-                // 继续重试
-            }
-        }
-
-        // 超时
-        PipelineExecution execution = executionMapper.selectById(executionId);
-        if (execution != null && "RUNNING".equals(execution.getStatus())) {
-            execution.setStatus("FAILED");
-            execution.setErrorLog("任务执行超时（超过 1 小时）");
-            execution.setFinishedAt(java.time.LocalDateTime.now());
-            executionMapper.updateById(execution);
-        }
+    private void touch(PipelineExecution exec) {
+        exec.setFinishedAt(LocalDateTime.now());
+        exec.setHeartbeatAt(LocalDateTime.now());
+        executionMapper.updateById(exec);
     }
 
-    /**
-     * 取消任务
-     */
-    public boolean cancelExecution(Long executionId) {
-        PipelineExecution execution = executionMapper.selectById(executionId);
-        if (execution == null || !"RUNNING".equals(execution.getStatus())) {
-            return false;
-        }
+    private void fail(PipelineExecution exec, String reason) {
+        exec.setStatus("FAILED");
+        exec.setErrorLog(reason);
+        exec.setFinishedAt(LocalDateTime.now());
+        exec.setHeartbeatAt(LocalDateTime.now());
+        executionMapper.updateById(exec);
+        log.warn("执行失败: executionId={}, reason={}", exec.getId(), reason);
+    }
 
-        if (execution.getWorkerUrl() != null) {
-            // 查找对应的 taskId（通过轮询日志或扩展字段）
-            // 简化处理：直接更新状态
-            workerClient.cancelTask(execution.getWorkerUrl(), String.valueOf(executionId));
-        }
-
-        execution.setStatus("CANCELLED");
-        execution.setFinishedAt(java.time.LocalDateTime.now());
-        executionMapper.updateById(execution);
-        return true;
+    private String truncate(String s) {
+        if (s == null) return null;
+        return s.length() > 8000 ? s.substring(0, 8000) + "\n...[输出截断]" : s;
     }
 }

@@ -193,7 +193,12 @@ public class PipelineServiceImpl implements PipelineService {
         // 调度到 Worker 执行
         boolean dispatched = taskDispatcher.dispatch(execution);
         if (!dispatched) {
-            log.warn("无法调度到 Worker，executionId={} 保持 PENDING 状态", execution.getId());
+            // dispatch 内部已把记录标 FAILED 并写入原因;把原因抛给前端,不再静默 PENDING
+            PipelineExecution latest = pipelineExecutionMapper.selectById(execution.getId());
+            String reason = latest != null && latest.getErrorLog() != null
+                    ? latest.getErrorLog() : "调度失败";
+            log.warn("流水线调度失败: executionId={}, reason={}", execution.getId(), reason);
+            throw new IllegalArgumentException(reason);
         }
 
         return execution;

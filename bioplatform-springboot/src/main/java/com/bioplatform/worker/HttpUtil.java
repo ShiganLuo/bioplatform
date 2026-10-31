@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * 简单的 HTTP 工具类
@@ -22,12 +23,18 @@ public final class HttpUtil {
             .build();
 
     public static String get(String url) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
+        return get(url, null);
+    }
+
+    public static String get(String url, Map<String, String> headers) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build();
-        HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                .GET();
+        if (headers != null) {
+            headers.forEach(builder::header);
+        }
+        HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 400) {
             throw new IOException("HTTP " + response.statusCode() + ": " + response.body());
         }
@@ -35,13 +42,19 @@ public final class HttpUtil {
     }
 
     public static String post(String url, String jsonBody) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
+        return post(url, jsonBody, null);
+    }
+
+    public static String post(String url, String jsonBody, Map<String, String> headers) throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .build();
-        HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
+        if (headers != null) {
+            headers.forEach(builder::header);
+        }
+        HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 400) {
             throw new IOException("HTTP " + response.statusCode() + ": " + response.body());
         }

@@ -6,6 +6,7 @@ import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.PipelineExecution;
 import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.service.PipelineExecutionService;
+import com.bioplatform.worker.PipelineTaskDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,9 +25,12 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private static final Logger log = LoggerFactory.getLogger(PipelineExecutionServiceImpl.class);
 
     private final PipelineExecutionMapper pipelineExecutionMapper;
+    private final PipelineTaskDispatcher taskDispatcher;
 
-    public PipelineExecutionServiceImpl(PipelineExecutionMapper pipelineExecutionMapper) {
+    public PipelineExecutionServiceImpl(PipelineExecutionMapper pipelineExecutionMapper,
+                                        PipelineTaskDispatcher taskDispatcher) {
         this.pipelineExecutionMapper = pipelineExecutionMapper;
+        this.taskDispatcher = taskDispatcher;
     }
 
     @Override
@@ -59,14 +63,11 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
             throw new IllegalArgumentException("执行记录不存在");
         }
 
-        // 只有PENDING或RUNNING状态的执行才能取消
-        if (!"PENDING".equals(execution.getStatus()) && !"RUNNING".equals(execution.getStatus())) {
+        // 委托 dispatcher:RUNNING 任务会真杀执行端进程(旧版只改 DB 是假取消)
+        boolean cancelled = taskDispatcher.cancelExecution(id);
+        if (!cancelled) {
             throw new IllegalArgumentException("当前状态不允许取消执行");
         }
-
-        execution.setStatus("CANCELLED");
-        execution.setFinishedAt(LocalDateTime.now());
-        pipelineExecutionMapper.updateById(execution);
 
         log.info("取消执行成功: executionId={}", id);
     }

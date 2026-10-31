@@ -19,6 +19,8 @@ public class WorkflowTemplate {
     private String category;
     /** 默认配置 JSON */
     private String configTemplate;
+    /** 命令模板（含 {{placeholder}} 占位符，渲染后交给 Worker 执行） */
+    private String commandTemplate;
     /** 表单 schema JSON */
     private String schemaJson;
     /** 相对于 Omics 仓库的 .smk 路径 */

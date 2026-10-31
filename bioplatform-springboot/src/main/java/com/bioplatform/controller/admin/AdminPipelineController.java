@@ -112,6 +112,11 @@ public class AdminPipelineController {
                 ? Long.valueOf(params.get("projectId").toString()) : null;
         String inputParams = params != null && params.get("inputParams") != null
                 ? params.get("inputParams").toString() : null;
+        if (projectId == null) {
+            // 请求体不带 projectId 时回落到流水线绑定的项目(project_id 列 NOT NULL)
+            var pipeline = pipelineService.getPipelineById(id);
+            projectId = pipeline != null ? pipeline.getProjectId() : null;
+        }
         PipelineExecution execution = pipelineService.executePipeline(id, projectId, inputParams, userId);
         return ApiResponse.success(execution);
     }

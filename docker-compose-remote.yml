@@ -26,6 +26,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       BIOPLATFORM_AES_KEY: ${BIOPLATFORM_AES_KEY}
       BIOPLATFORM_STORAGE_SHARED_PATH: /app/uploads   # 共享存储根指向持久卷（分片/普通上传统一落这里）
+      BIPLATFORM_STORAGE_DATAROOT: ${STORAGE_DATA_ROOT}   # 上传卷宿主机路径,任务命令 docker run -v 挂载用
+      WORKER_TOKEN: ${WORKER_TOKEN}   # 计算节点(bio_worker)端点鉴权
       JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=256m -XX:+UseStringDeduplication -XX:ReservedCodeCacheSize=128m -XX:-TieredCompilation -Djava.security.egd=file:/dev/./urandom"
       TZ: Asia/Shanghai
     volumes:
@@ -58,6 +60,27 @@ services:
     networks:
       - blog_net
 
+  # 计算节点(方案B):执行渲染后的任务命令
+  # 挂 docker.sock(DooD,任务内 docker run 走宿主机守护进程)+ uploads 卷(读输入写结果)
+  # 不发布端口,仅 blog_net 内可达;端点鉴权走 WORKER_TOKEN
+  worker:
+    image: bioplatform-worker
+    container_name: bio_worker
+    restart: always
+    environment:
+      WORKER_TOKEN: ${WORKER_TOKEN}
+      TASK_DIR: /data/tasks
+    volumes:
+      - bioplatform-uploads:/app/uploads
+      - bio-worker-tasks:/data/tasks
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      blog_net:
+        # 别名必须用连字符:java.net.URI 对含下划线的主机名返回 host=null,
+        # java.net.http 报 "unsupported URI"(2026-10-31 实测踩坑)
+        aliases:
+          - bio-worker
+
 networks:
   blog_net:
     external: true
@@ -65,3 +88,5 @@ networks:
 volumes:
   bioplatform-uploads:
     name: bioplatform-uploads
+  bio-worker-tasks:
+    name: bio-worker-tasks

@@ -161,6 +161,17 @@
         <el-form-item label="描述">
           <el-input v-model="formData.description" type="textarea" :rows="2" />
         </el-form-item>
+        <el-form-item label="命令模板">
+          <el-input
+            v-model="formData.commandTemplate"
+            type="textarea"
+            :rows="3"
+            placeholder="渲染后交给 Worker 执行的命令，支持占位符：{{executionId}} {{projectId}} {{image}} {{data_root}} {{output_dir}} {{inputParams.参数名}} {{config.配置键}}"
+            style="font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 13px"
+            spellcheck="false"
+          />
+          <div class="command-hint" v-text="'示例：mkdir -p {{data_root}}/{{output_dir}} && docker run --rm -v {{data_root}}:/data staphb/fastqc:0.12.1 fastqc /data/{{inputParams.input}} -o /data/{{output_dir}}'" />
+        </el-form-item>
 
         <el-divider content-position="left">
           默认配置 JSON
@@ -262,6 +273,7 @@ const formData = reactive({
   type: 'pipeline',
   category: '',
   configTemplate: '',
+  commandTemplate: '',
   schemaJson: '',
   snakemakePath: '',
   icon: '',
@@ -383,7 +395,7 @@ const openCreate = () => {
   isEdit.value = false
   Object.assign(formData, {
     id: 0, name: '', description: '', type: 'pipeline', category: '',
-    configTemplate: '{}', schemaJson: '{}', snakemakePath: '', icon: '', sortOrder: 0
+    configTemplate: '{}', commandTemplate: '', schemaJson: '{}', snakemakePath: '', icon: '', sortOrder: 0
   })
   configJsonError.value = ''
   schemaJsonError.value = ''
@@ -399,6 +411,7 @@ const openEdit = (row: WorkflowTemplate) => {
     type: row.type,
     category: row.category || '',
     configTemplate: formatJsonSafe(row.configTemplate),
+    commandTemplate: row.commandTemplate || '',
     schemaJson: formatJsonSafe(row.schemaJson),
     snakemakePath: row.snakemakePath,
     icon: row.icon || '',
@@ -473,6 +486,13 @@ onMounted(() => loadTemplates())
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+.command-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
+  word-break: break-all;
 }
 .json-preview {
   max-height: 60vh;
