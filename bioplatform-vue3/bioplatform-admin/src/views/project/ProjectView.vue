@@ -117,27 +117,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="基因组版本" prop="genomeVersion">
-          <el-select
-            v-model="formData.genomeVersionArray"
-            filterable
-            allow-create
-            multiple
-            placeholder="选择或输入基因组版本"
-            collapse-tags
-            collapse-tags-tooltip
-            :max-collapse-tags="2"
-            popper-class="project-select-dropdown"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="item in genomeVersionOptions"
-              :key="item"
-              :label="item"
-              :value="item"
-            />
-          </el-select>
-        </el-form-item>
+
         <el-form-item label="私有项目">
           <el-switch v-model="formData.isPrivate" />
         </el-form-item>
@@ -172,7 +152,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
 import { Plus } from '@element-plus/icons-vue'
-import { listProjects, createProject, updateProject, deleteProject, getOrganisms, getGenomeVersions, getParentCandidates } from '@/api/projectApi'
+import { listProjects, createProject, updateProject, deleteProject, getOrganisms, getParentCandidates } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
 
 const loading = ref(false)
@@ -183,7 +163,6 @@ const isEdit = ref(false)
 const projectList = ref<Project[]>([])
 const formRef = ref<any>()
 const organismOptions = ref<string[]>([])
-const genomeVersionOptions = ref<string[]>([])
 const parentCandidates = ref<Project[]>([])
 
 const searchForm = reactive({
@@ -204,8 +183,6 @@ const formData = reactive({
   description: '',
   organism: '',
   organismArray: [] as string[],
-  genomeVersion: '',
-  genomeVersionArray: [] as string[],
   isPrivate: false,
   createdAt: '' as string
 })
@@ -225,11 +202,10 @@ const saveDraft = () => {
     name: formData.name,
     description: formData.description,
     organism: formData.organismArray.join(','),
-    genomeVersion: formData.genomeVersionArray.join(','),
     isPrivate: formData.isPrivate,
     createdAt: formData.createdAt
   }
-  if (draft.name || draft.description || draft.organism || draft.genomeVersion) {
+  if (draft.name || draft.description || draft.organism) {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
   }
 }
@@ -243,8 +219,6 @@ const restoreDraft = (): boolean => {
     formData.description = draft.description || ''
     formData.organism = draft.organism || ''
     formData.organismArray = draft.organism ? draft.organism.split(',').filter(Boolean) : []
-    formData.genomeVersion = draft.genomeVersion || ''
-    formData.genomeVersionArray = draft.genomeVersion ? draft.genomeVersion.split(',').filter(Boolean) : []
     formData.isPrivate = draft.isPrivate || false
     formData.createdAt = draft.createdAt || ''
     return true
@@ -305,9 +279,8 @@ const loadProjects = async () => {
 
 const loadOptions = async () => {
   try {
-    const [organisms, versions, parents] = await Promise.all([getOrganisms(), getGenomeVersions(), getParentCandidates()])
+    const [organisms, parents] = await Promise.all([getOrganisms(), getParentCandidates()])
     organismOptions.value = (organisms as any) || []
-    genomeVersionOptions.value = (versions as any) || []
     parentCandidates.value = (parents as any) || []
   } catch (e) {
     console.error('Failed to load options:', e)
@@ -335,12 +308,10 @@ const handleCreate = () => {
   formData.description = ''
   formData.organism = ''
   formData.organismArray = []
-  formData.genomeVersion = ''
-  formData.genomeVersionArray = []
   formData.isPrivate = false
   formData.createdAt = ''
   restoreDraft()
-  if (formData.name || formData.description || formData.organismArray.length || formData.genomeVersionArray.length) {
+  if (formData.name || formData.description || formData.organismArray.length) {
     ElMessage({ message: '已恢复上次未提交的草稿', type: 'info', duration: 2000 })
   }
   dialogVisible.value = true
@@ -354,8 +325,6 @@ const handleEdit = (row: Project) => {
   formData.description = row.description || ''
   formData.organism = row.organism || ''
   formData.organismArray = row.organism ? row.organism.split(',').filter(Boolean) : []
-  formData.genomeVersion = row.genomeVersion || ''
-  formData.genomeVersionArray = row.genomeVersion ? row.genomeVersion.split(',').filter(Boolean) : []
   formData.isPrivate = row.isPrivate || false
   formData.createdAt = ''
   dialogVisible.value = true
@@ -385,12 +354,12 @@ const handleSubmit = async () => {
     if (!valid) return
     submitLoading.value = true
     try {
-      // 将organismArray和genomeVersionArray转换为逗号分隔的字符串
+      // 基因组版本不再在创建/编辑时录入(与运行绑定,由流程执行参数决定);
+      // 存量项目的 genomeVersion 仅作展示
       const submitData = {
         ...formData,
         parentId: formData.parentId || null,
-        organism: formData.organismArray.join(','),
-        genomeVersion: formData.genomeVersionArray.join(',')
+        organism: formData.organismArray.join(',')
       }
 
       if (isEdit.value) {
