@@ -27,9 +27,9 @@
             <ul>
               <li><strong>项目名称</strong>：简洁明了的项目标识</li>
               <li><strong>物种</strong>：如 Homo sapiens、Mus musculus 等</li>
-              <li><strong>基因组版本</strong>：如 hg38、mm10、GRCh38 等</li>
               <li><strong>描述</strong>：项目的详细说明</li>
             </ul>
+            <p>基因组版本与流程运行绑定，执行分析时由流程参数决定，无需在创建项目时指定。</p>
             <h4>项目权限</h4>
             <p>公开项目对所有用户可见，私有项目仅创建者可见。管理员可以管理所有项目。</p>
           </div>

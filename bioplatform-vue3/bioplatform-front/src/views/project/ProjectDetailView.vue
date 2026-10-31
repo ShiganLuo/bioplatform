@@ -24,12 +24,6 @@
               <el-tag v-for="org in project.organism.split(',').filter(Boolean)" :key="org" type="info" effect="plain" size="small">{{ org.trim() }}</el-tag>
             </div>
           </div>
-          <div class="meta-item" v-if="project.genomeVersion">
-            <span class="meta-label">基因组版本</span>
-            <div class="meta-tags">
-              <el-tag v-for="ver in project.genomeVersion.split(',').filter(Boolean)" :key="ver" type="warning" effect="plain" size="small">{{ ver.trim() }}</el-tag>
-            </div>
-          </div>
           <div class="meta-item">
             <span class="meta-label">负责人</span>
             <span class="meta-value">

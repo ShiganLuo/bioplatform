@@ -28,7 +28,7 @@ const activeNames = ref<string[]>([])
 const faqList = [
   {
     q: '平台支持哪些物种的分析？',
-    a: '平台支持多种模式生物和非模式生物的分析，包括但不限于：人（Homo sapiens）、小鼠（Mus musculus）、大鼠（Rattus norvegicus）、果蝇（Drosophila melanogaster）、拟南芥（Arabidopsis thaliana）等。您可以在创建项目时指定物种和基因组版本，也支持自定义基因组。'
+    a: '平台支持多种模式生物和非模式生物的分析，包括但不限于：人（Homo sapiens）、小鼠（Mus musculus）、大鼠（Rattus norvegicus）、果蝇（Drosophila melanogaster）、拟南芥（Arabidopsis thaliana）等。您可以在创建项目时指定物种；基因组版本与流程运行绑定，在执行分析时由流程参数决定。'
   },
   {
     q: '上传文件大小有限制吗？',

@@ -45,7 +45,6 @@
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column prop="organism" label="物种" width="120" />
-        <el-table-column prop="genomeVersion" label="基因组版本" width="120" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
