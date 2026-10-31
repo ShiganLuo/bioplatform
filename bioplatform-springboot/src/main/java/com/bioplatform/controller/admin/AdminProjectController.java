@@ -234,7 +234,8 @@ public class AdminProjectController {
         List<String> allPaths = new ArrayList<>();
         collectFilePaths(tree, allPaths);
         if (allPaths.isEmpty()) {
-            response.setContentType("application/json");
+            response.setStatus(400);
+            response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write("{\"code\":400,\"message\":\"没有可下载的文件\"}");
             return;
         }
