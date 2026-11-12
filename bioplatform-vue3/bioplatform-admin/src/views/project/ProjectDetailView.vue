@@ -1079,6 +1079,8 @@ const latestExecutions = ref<Record<number, Execution>>({})
 let execPollTimer: ReturnType<typeof setInterval> | null = null
 
 const loadExecutionStatuses = async () => {
+  // keep-alive 下切走页面 projectId 会变 NaN(route.params.id 消失),守卫掉避免每 10s 打一个 500
+  if (!Number.isFinite(projectId.value)) return
   try {
     const res = await listExecutions({ projectId: projectId.value, size: 500 })
     const map: Record<number, Execution> = {}
@@ -1587,6 +1589,18 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (execPollTimer) clearInterval(execPollTimer)
+})
+
+// keep-alive:切走页面挂起轮询(组件不卸载),回来再恢复
+onActivated(() => {
+  if (!execPollTimer) execPollTimer = setInterval(loadExecutionStatuses, 10000)
+  loadExecutionStatuses()
+})
+onDeactivated(() => {
+  if (execPollTimer) {
+    clearInterval(execPollTimer)
+    execPollTimer = null
+  }
 })
 
 // 监听路由参数变化，组件复用时重新加载数据

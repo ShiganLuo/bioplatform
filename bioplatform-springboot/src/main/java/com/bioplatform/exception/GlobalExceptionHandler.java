@@ -79,6 +79,14 @@ public class GlobalExceptionHandler {
     /**
      * Handle all other uncaught exceptions.
      */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        log.warn("参数类型不匹配: {} = {}", ex.getName(), ex.getValue());
+        return ApiResponse.error(400,
+                "请求参数格式错误: " + ex.getName() + "=" + ex.getValue());
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<Void> handleException(Exception ex) {
