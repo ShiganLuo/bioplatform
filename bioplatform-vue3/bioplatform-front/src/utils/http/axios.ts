@@ -296,9 +296,9 @@ axiosInstance.interceptors.response.use(
           ElMessage.error(errorMessage || `请求失败 (${status})`)
       }
     } else if (error.code === 'ECONNABORTED') {
-      ElMessage.error('请求超时，请检查网络连接')
+      ElMessage.error('请求超时——网络可能拥堵（如正在下载大文件占满带宽），请稍候重试')
     } else {
-      ElMessage.error('网络错误，请检查网络连接')
+      ElMessage.error('网络连接失败——可能网络拥堵或服务暂不可用，请稍候重试')
     }
 
     return Promise.reject(error)

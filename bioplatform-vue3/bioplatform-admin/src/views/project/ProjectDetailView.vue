@@ -506,19 +506,33 @@
 
       <!-- Step 0: Select Workflow Template -->
       <div v-if="createStep === 0">
+        <div class="template-toolbar">
+          <el-input v-model="templateSearch" placeholder="搜索名称 / 描述 / 分类" clearable style="width: 240px" />
+          <el-radio-group v-model="templateTypeFilter" size="small">
+            <el-radio-button value="all">全部 ({{ templateCount('all') }})</el-radio-button>
+            <el-radio-button value="pipeline">流程 ({{ templateCount('pipeline') }})</el-radio-button>
+            <el-radio-button value="task">模块 ({{ templateCount('task') }})</el-radio-button>
+          </el-radio-group>
+        </div>
         <div v-loading="templateLoading" class="template-grid">
           <el-empty v-if="!templateList.length" description="暂无模板，请先在系统管理中导入" />
-          <el-radio-group v-model="selectedTemplateName" class="template-radio-group">
+          <el-empty v-else-if="!filteredTemplates.length" description="没有匹配的模板" />
+          <el-radio-group v-else v-model="selectedTemplateName" class="template-radio-group">
             <el-radio-button
-              v-for="tpl in templateList"
+              v-for="tpl in filteredTemplates"
               :key="tpl.id"
               :value="tpl.name"
               class="template-option"
             >
               <div class="template-option-content">
-                <strong>{{ tpl.name }}</strong>
+                <div class="template-title-line">
+                  <strong>{{ tpl.name }}</strong>
+                  <el-tag size="small" :type="tpl.type === 'pipeline' ? 'primary' : 'warning'">
+                    {{ tpl.type === 'pipeline' ? '流程' : '模块' }}
+                  </el-tag>
+                  <el-tag size="small" type="info">{{ tpl.category }}</el-tag>
+                </div>
                 <span class="template-desc">{{ tpl.description }}</span>
-                <el-tag size="small" type="info">{{ tpl.category }}</el-tag>
               </div>
             </el-radio-button>
           </el-radio-group>
@@ -534,6 +548,19 @@
         <el-form label-width="100px">
           <el-form-item label="分析名称">
             <el-input v-model="analysisName" :placeholder="selectedTemplateName + '-分析'" />
+          </el-form-item>
+          <el-form-item v-if="metaList.length" label="已有样本">
+            <div class="existing-samples">
+              <div class="existing-samples-hint">项目内已录入的样本信息，点「填入」直接作为输入数据：</div>
+              <div v-for="sm in metaList" :key="sm.id" class="existing-sample-item">
+                <div class="existing-sample-info">
+                  <strong>{{ sm.name }}</strong>
+                  <el-tag size="small" type="info">{{ sm.metaMode === 'path' ? '路径' : 'TSV' }}</el-tag>
+                  <span class="existing-sample-preview">{{ tsvPreview(sm.metaContent) }}</span>
+                </div>
+                <el-button size="small" @click="fillFromSampleMeta(sm)">填入</el-button>
+              </div>
+            </div>
           </el-form-item>
           <el-form-item label="数据来源">
             <el-radio-group v-model="metaType">
@@ -794,7 +821,7 @@ const loadFiles = async () => {
 const loadTemplates = async () => {
   templateLoading.value = true
   try {
-    const res = await listTemplates({ page: 1, size: 50 })
+    const res = await listTemplates({ page: 1, size: 500 })
     templateList.value = res.records
   } catch (e) { console.error(e) }
   finally { templateLoading.value = false }
@@ -844,6 +871,33 @@ const loadMetaList = async () => {
     metaList.value = await listSampleMeta(projectId.value) as any || []
   } catch (e) { console.error(e) }
   finally { metaLoading.value = false }
+}
+
+// --- 新建分析:模板搜索/类型筛选 ---
+const templateSearch = ref('')
+const templateTypeFilter = ref<'all' | 'pipeline' | 'task'>('all')
+const filteredTemplates = computed(() => {
+  const kw = templateSearch.value.trim().toLowerCase()
+  return templateList.value.filter(t => {
+    if (templateTypeFilter.value !== 'all' && t.type !== templateTypeFilter.value) return false
+    if (!kw) return true
+    return ((t.name || '') + ' ' + (t.description || '') + ' ' + (t.category || '')).toLowerCase().includes(kw)
+  })
+})
+const templateCount = (type: 'all' | 'pipeline' | 'task') =>
+  type === 'all' ? templateList.value.length : templateList.value.filter(t => t.type === type).length
+
+// --- 新建分析:已有样本信息填入输入数据 ---
+const tsvPreview = (content?: string) => {
+  if (!content || !content.trim()) return '（空）'
+  const text = content.trim().split('\n').slice(0, 2).join('  |  ')
+  return text.length > 80 ? text.slice(0, 80) + '…' : text
+}
+
+const fillFromSampleMeta = (sm: SampleMeta) => {
+  metaType.value = sm.metaMode === 'path' ? 'path' : 'text'
+  metaContent.value = sm.metaContent || ''
+  ElMessage.success(`已填入「${sm.name}」`)
 }
 
 const fileRefSummary = (row: SampleMeta) => {
@@ -1360,6 +1414,65 @@ watch(metaTsvContent, (val) => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.template-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.template-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.existing-samples {
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.existing-samples-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+}
+
+.existing-sample-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--el-fill-color-light);
+}
+
+.existing-sample-item:last-child {
+  border-bottom: none;
+}
+
+.existing-sample-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.existing-sample-preview {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .template-option {

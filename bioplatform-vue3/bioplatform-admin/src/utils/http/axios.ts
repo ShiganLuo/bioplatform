@@ -225,11 +225,11 @@ axiosInstance.interceptors.response.use(
       }
     } else if (error.message?.includes('timeout')) {
       if (!error.config?.silent) {
-        ElMessage.error('请求超时，请稍后重试')
+        ElMessage.error('请求超时——网络可能拥堵（如正在下载大文件占满带宽），请稍候重试')
       }
     } else {
       if (!error.config?.silent) {
-        ElMessage.error('网络连接失败，请检查网络')
+        ElMessage.error('网络连接失败——可能网络拥堵或服务暂不可用，请稍候重试')
       }
     }
 
