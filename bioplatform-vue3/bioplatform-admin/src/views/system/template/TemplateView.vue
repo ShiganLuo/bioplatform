@@ -4,16 +4,16 @@
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="名称">
-          <el-input v-model="searchForm.name" placeholder="搜索模板" clearable />
+          <el-input v-model="searchForm.name" placeholder="搜索模板" clearable style="width: 200px" />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="searchForm.type" placeholder="全部" clearable>
+          <el-select v-model="searchForm.type" placeholder="全部" clearable style="width: 160px">
             <el-option label="task" value="task" />
             <el-option label="pipeline" value="pipeline" />
           </el-select>
         </el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="searchForm.category" placeholder="全部" clearable>
+          <el-select v-model="searchForm.category" placeholder="全部" clearable style="width: 180px">
             <el-option label="转录组" value="转录组" />
             <el-option label="变异检测" value="变异检测" />
             <el-option label="表观遗传学" value="表观遗传学" />
