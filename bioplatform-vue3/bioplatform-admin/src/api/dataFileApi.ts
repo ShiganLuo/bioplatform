@@ -94,7 +94,8 @@ export function updateFile(id: number, data: DataFileUpdatePayload) {
 }
 
 export function downloadFile(id: number) {
-  return http.get(`/api/admin/datafiles/${id}/download`, { responseType: 'blob' })
+  // timeout: 0 = 不限时——大文件经隧道传输常超 30s 全局超时
+  return http.get(`/api/admin/datafiles/${id}/download`, { responseType: 'blob', timeout: 0 })
 }
 
 export function getFileInfo(id: number) {

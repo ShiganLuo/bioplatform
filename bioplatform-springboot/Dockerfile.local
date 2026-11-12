@@ -13,8 +13,7 @@ COPY target/*.jar app.jar
 
 EXPOSE 8080
 
-RUN addgroup -S bioplatform && adduser -S -G bioplatform bioplatform
-RUN chown -R bioplatform:bioplatform /app
-USER bioplatform
+# 注意:必须以 root 运行——上传卷 /app/uploads 与历史数据均为 root 属主,
+# 非 root 用户写卷会 Permission denied(2026-11-12 实踩);与主 Dockerfile 保持一致
 
 ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -Djava.security.egd=file:/dev/./urandom -jar app.jar"]

@@ -149,12 +149,13 @@ axiosInstance.interceptors.request.use(
 
 axiosInstance.interceptors.response.use(
   async (response: AxiosResponse<IResponse<any>>) => {
-    // 二进制数据直接返回
+    // 二进制数据直接返回 Blob 本体（返回整个 response 会被消费端当 Blob 用而损坏，
+    // new Blob([response]) 只会得到 '[object Object]' 的 15 字节坏文件）
     if (
       response.config.responseType === 'blob' ||
       response.config.responseType === 'arraybuffer'
     ) {
-      return response
+      return response.data as any
     }
 
     const { code, message } = response.data
