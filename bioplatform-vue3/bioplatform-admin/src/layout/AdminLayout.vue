@@ -59,7 +59,7 @@
           </el-menu-item>
           <el-menu-item index="/system/templates">
             <el-icon><Menu /></el-icon>
-            <template #title>流程模板</template>
+            <template #title>分析模板</template>
           </el-menu-item>
           <el-menu-item index="/feedback">
             <el-icon><Comment /></el-icon>

@@ -32,7 +32,7 @@
     <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>工作流模板</span>
+          <span>分析模板</span>
           <div>
             <el-button type="warning" @click="importDialogVisible = true">
               <el-icon><Download /></el-icon>

@@ -79,7 +79,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system/templates',
         name: 'SystemTemplates',
         component: () => import('@/views/system/template/TemplateView.vue'),
-        meta: { title: '流程模板', icon: 'Menu', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '分析模板', icon: 'Menu', parent: 'system', roles: ['ROLE_ADMIN'] }
       },
       {
         path: 'monitor/logs',

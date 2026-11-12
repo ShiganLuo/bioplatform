@@ -227,7 +227,7 @@ public class AdminUserController { ... }
 ```vue
 <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="system">
   <template #title><el-icon><Setting /></el-icon><span>系统管理</span></template>
-  <!-- 用户管理、系统配置、流程模板、反馈管理、计算节点 -->
+  <!-- 用户管理、系统配置、分析模板、反馈管理、计算节点 -->
 </el-sub-menu>
 
 <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="monitor">
@@ -337,7 +337,7 @@ Long currentUserId = LoginUserHolder.getCurrentUserId();
 | AI 助手 | ✅ 对话（会话隔离） | ✅ 对话 |
 | 用户管理 | ❌ | ✅ |
 | 系统配置 | ❌ | ✅ |
-| 流程模板 | ❌ | ✅ |
+| 分析模板 | ❌ | ✅ |
 | 用户反馈 | ❌ | ✅ |
 | 计算节点 | ❌ | ✅ |
 | 操作日志 | ❌ | ✅ |
