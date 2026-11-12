@@ -74,8 +74,14 @@ services:
       - bioplatform-uploads:/app/uploads
       - bio-worker-tasks:/data/tasks
       - /var/run/docker.sock:/var/run/docker.sock
-      # Omics 模板执行经 chroot /host 直达宿主机运行环境(run.py/run_module.py + apptainer)
+      # Omics 模板执行经 chroot /host 直达宿主机运行环境(run.py/run_module.py + smk env + apptainer)
       - /:/host
+    # apptainer 建 user namespace 需要 CAP_SYS_ADMIN(Ubuntu apparmor 限制 + docker 默认能力集无此 cap),
+    # 直接 privileged(本 worker 已挂 docker.sock,信任边界不变;宿主机 userns/sif 均正常)
+    privileged: true
+    # 与宿主机共享 PID 命名空间:执行命令经 nsenter -t 1 进宿主机 mount/uts/ipc/pid 空间运行
+    # (apptainer 的 newuidmap 流程只在宿主机命名空间下可用)
+    pid: host
     networks:
       blog_net:
         # 别名必须用连字符:java.net.URI 对含下划线的主机名返回 host=null,
