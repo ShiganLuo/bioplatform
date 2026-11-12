@@ -218,10 +218,15 @@
     </el-dialog>
 
     <!-- Import Dialog -->
-    <el-dialog v-model="importDialogVisible" title="从 Omics 仓库导入" width="500px">
+    <el-dialog v-model="importDialogVisible" title="从 Omics 仓库导入" width="520px">
       <el-form label-width="100px">
-        <el-form-item label="Omics 目录">
-          <el-input v-model="importDir" placeholder="Omics 仓库绝对路径，如 /home/luosg/Omics" />
+        <el-form-item label="路径">
+          <el-input v-model="importDir" placeholder="如 /data/16T/luosg/workflow/Omics" />
+          <div style="font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.6; margin-top: 4px">
+            支持三种路径：Omics 仓库根目录（导入 config 工作流 + modules 全部模块）、
+            模块目录（如 .../Omics/modules/msi，可含变体子目录）、
+            单个模块 json 文件（如 .../modules/msi/msi.json）。填宿主机路径即可，容器内自动映射。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
