@@ -93,9 +93,13 @@ export function updateFile(id: number, data: DataFileUpdatePayload) {
   return http.put<DataFile>(`/api/admin/datafiles/${id}`, data)
 }
 
-export function downloadFile(id: number) {
-  // timeout: 0 = 不限时——大文件经隧道传输常超 30s 全局超时
-  return http.get(`/api/admin/datafiles/${id}/download`, { responseType: 'blob', timeout: 0 })
+export async function downloadFile(id: number) {
+  // 浏览器原生下载：先换一次性票据，再由浏览器下载器接管（有进度条与保存步骤）
+  const { url } = await http.post<{ ticket: string; url: string }>('/api/admin/download-ticket', {
+    type: 'file',
+    fileId: id
+  })
+  window.location.assign(url)
 }
 
 export function getFileInfo(id: number) {

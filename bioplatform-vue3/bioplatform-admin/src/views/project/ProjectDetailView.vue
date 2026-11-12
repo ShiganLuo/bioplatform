@@ -1101,20 +1101,11 @@ const handleConfirmImportTsv = async () => {
   }
 }
 
-const triggerBlobDownload = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 const handleExportPpt = async () => {
   pptLoading.value = true
   try {
-    const blob = await exportPpt(projectId.value) as any
-    triggerBlobDownload(blob, project.name + '_report.pptx')
+    // 浏览器原生下载接管（有进度条与保存步骤），文件名由服务端 Content-Disposition 决定
+    await exportPpt(projectId.value)
   } catch (e: any) {
     ElMessage.error(e?.message || '导出PPT失败')
   } finally { pptLoading.value = false }
@@ -1123,8 +1114,7 @@ const handleExportPpt = async () => {
 const handleExportExcel = async () => {
   excelLoading.value = true
   try {
-    const blob = await exportExcel(projectId.value) as any
-    triggerBlobDownload(blob, project.name + '_report.xlsx')
+    await exportExcel(projectId.value)
   } catch (e: any) {
     ElMessage.error(e?.message || '导出Excel失败')
   } finally { excelLoading.value = false }
@@ -1133,8 +1123,7 @@ const handleExportExcel = async () => {
 const handleDownloadAll = async () => {
   downloadAllLoading.value = true
   try {
-    const blob = await downloadAll(projectId.value) as any
-    triggerBlobDownload(blob, project.name + '_all.zip')
+    await downloadAll(projectId.value)
   } catch (e: any) {
     ElMessage.error(e?.message || '下载失败（可能超过200MB限制）')
   } finally { downloadAllLoading.value = false }
@@ -1148,8 +1137,7 @@ const handleBatchDownload = async () => {
   }
   batchDownloadLoading.value = true
   try {
-    const blob = await batchDownload(projectId.value, paths) as any
-    triggerBlobDownload(blob, project.name + '_selected.zip')
+    await batchDownload(projectId.value, paths)
   } catch (e: any) {
     ElMessage.error(e?.message || '下载失败')
   } finally { batchDownloadLoading.value = false }

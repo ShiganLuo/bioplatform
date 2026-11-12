@@ -745,14 +745,8 @@ const handleFolderUpload = async () => {
 
 const handleDownload = async (row: DataFile) => {
   try {
-    const res = await downloadFile(row.id)
-    const blob = new Blob([res as any])
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = row.name
-    link.click()
-    window.URL.revokeObjectURL(url)
+    // 浏览器原生下载接管（有进度条与保存步骤），文件名由服务端 Content-Disposition 决定
+    await downloadFile(row.id)
   } catch (error) {
     ElMessage.error('下载失败')
   }

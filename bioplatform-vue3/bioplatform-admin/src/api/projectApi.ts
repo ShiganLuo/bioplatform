@@ -116,14 +116,25 @@ export interface FileTreeNode {
   children?: FileTreeNode[]
 }
 
+/** 换取一次性下载票据并触发浏览器原生下载（有进度条与保存步骤） */
+async function nativeDownload(body: {
+  type: 'file' | 'excel' | 'ppt' | 'batch' | 'all'
+  fileId?: number
+  projectId?: number
+  filePaths?: string[]
+}) {
+  const { url } = await http.post<{ ticket: string; url: string }>('/api/admin/download-ticket', body)
+  window.location.assign(url)
+}
+
 /** 下载项目 Excel 报表 */
 export function exportExcel(projectId: number) {
-  return http.get(`/api/admin/projects/${projectId}/export/excel`, { responseType: 'blob', timeout: 0 })
+  return nativeDownload({ type: 'excel', projectId })
 }
 
 /** 下载项目 PPT 报告 */
 export function exportPpt(projectId: number) {
-  return http.get(`/api/admin/projects/${projectId}/export/ppt`, { responseType: 'blob', timeout: 0 })
+  return nativeDownload({ type: 'ppt', projectId })
 }
 
 /** 获取项目文件树 */
@@ -133,10 +144,10 @@ export function getFileTree(projectId: number) {
 
 /** 批量打包下载文件（按路径） */
 export function batchDownload(projectId: number, filePaths: string[]) {
-  return http.post(`/api/admin/projects/${projectId}/files/batch-download`, filePaths, { responseType: 'blob', timeout: 0 })
+  return nativeDownload({ type: 'batch', projectId, filePaths })
 }
 
 /** 全部下载（zip） */
 export function downloadAll(projectId: number) {
-  return http.get(`/api/admin/projects/${projectId}/export/download-all`, { responseType: 'blob', timeout: 0 })
+  return nativeDownload({ type: 'all', projectId })
 }

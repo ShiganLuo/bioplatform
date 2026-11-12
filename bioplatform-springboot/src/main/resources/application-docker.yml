@@ -76,6 +76,7 @@ security:
       - /api/front/auth/login
       - /api/front/auth/register
       - /api/front/auth/sendEmailCode
+      - /api/admin/download   # 一次性下载票据凭据(单次消费),原生下载用
       - /api/front/projects/**
       - /api/front/pipelines/**
       - /api/front/site-config
