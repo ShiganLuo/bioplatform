@@ -8,14 +8,23 @@ import com.bioplatform.entity.WorkflowTemplate;
 import com.bioplatform.mapper.PipelineExecutionMapper;
 import com.bioplatform.mapper.PipelineMapper;
 import com.bioplatform.mapper.WorkflowTemplateMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 任务调度器(2026-10-30 重构版,方案 B)
@@ -84,6 +93,23 @@ public class PipelineTaskDispatcher {
             return false;
         }
 
+        // Omics 模板(command_template 为空但有 snakemake_path)按仓库约定生成执行命令:
+        //   pipeline → run.py -w <name> -m <meta> -o <out> --sdm apptainer <点号参数>
+        //   task     → run_module.py --snakefile <smk> --config <merged.json> -o <out> --sdm apptainer [--samples ...]
+        // 命令仅内存生效不回写模板;meta/合并配置由 backend 落到输出目录(共享卷)。
+        if (template.getCommandTemplate() == null || template.getCommandTemplate().isBlank()) {
+            if (template.getSnakemakePath() == null || template.getSnakemakePath().isBlank()) {
+                fail(execution, "模板未配置 command_template 且无 snakemake_path,无法执行");
+                return false;
+            }
+            try {
+                template.setCommandTemplate(buildOmicsCommand(template, pipeline, execution));
+            } catch (Exception e) {
+                fail(execution, "生成 Omics 执行命令失败: " + e.getMessage());
+                return false;
+            }
+        }
+
         CommandRenderer.RenderedCommand rendered;
         try {
             rendered = commandRenderer.render(template, pipeline, execution);
@@ -119,6 +145,158 @@ public class PipelineTaskDispatcher {
             fail(execution, "任务调度失败: " + e.getMessage());
             return false;
         }
+    }
+
+    // ==================== Omics 模板默认执行命令生成 ====================
+
+    /** snakemake 运行环境(conda env smk;--sdm apptainer 容器模式不需要 conda 本体) */
+    private static final String OMICS_ENV_PATH = "/home/luosg/miniforge3/envs/smk/bin";
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** Omics 仓库根(宿主机路径,经 worker 的 chroot /host 访问) */
+    @org.springframework.beans.factory.annotation.Value("${bioplatform.omics.root:/data/16T/luosg/workflow/Omics}")
+    private String omicsRoot;
+
+    /**
+     * 为 Omics 模板生成执行命令(worker 在容器内 bash -c,经 chroot /host 直达宿主机运行环境)。
+     * {{data_root}}/{{output_dir}} 占位符留给 CommandRenderer 统一替换。
+     */
+    private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
+        String outputDir = execution.getProjectId() + "/results/exec_" + execution.getId();
+        Path absOut = Paths.get(sharedPath, outputDir);
+        Files.createDirectories(absOut);
+
+        String out = "{{data_root}}/{{output_dir}}";
+        Map<String, Object> overrides = flattenedOverrides(pipeline);
+        StringBuilder inner = new StringBuilder();
+        inner.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; cd \"")
+                .append(escDq(omicsRoot)).append("\" && ");
+
+        if ("pipeline".equals(template.getType())) {
+            String metaArg;
+            if ("path".equals(pipeline.getMetaType())
+                    && pipeline.getMetaContent() != null && !pipeline.getMetaContent().isBlank()) {
+                metaArg = "\"" + escDq(pipeline.getMetaContent().trim()) + "\"";
+            } else {
+                Files.writeString(absOut.resolve("meta.tsv"),
+                        pipeline.getMetaContent() != null ? pipeline.getMetaContent() : "");
+                metaArg = "\"" + out + "/meta.tsv\"";
+            }
+            inner.append("python3 run.py -w \"").append(escDq(template.getName()))
+                    .append("\" -m ").append(metaArg)
+                    .append(" -o \"").append(out).append("\" -t 16 --sdm apptainer");
+            // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
+            for (Map.Entry<String, Object> e : overrides.entrySet()) {
+                inner.append(' ').append(e.getKey())
+                        .append("=\"").append(escDq(String.valueOf(e.getValue()))).append('"');
+            }
+        } else {
+            // 模块:模板默认配置 + 参数覆盖 + meta 样本分组 合并落盘,run_module.py --config 引用
+            ObjectNode cfg = (ObjectNode) mergedConfig(template, overrides);
+            SampleGroups groups = sampleGroupsFromMeta(pipeline.getMetaContent());
+            if (!groups.paired.isEmpty()) cfg.set("paired_samples", MAPPER.valueToTree(groups.paired));
+            if (!groups.single.isEmpty()) cfg.set("single_samples", MAPPER.valueToTree(groups.single));
+            Files.writeString(absOut.resolve("config.json"), MAPPER.writeValueAsString(cfg));
+            inner.append("python3 run_module.py --snakefile \"").append(escDq(template.getSnakemakePath()))
+                    .append("\" --config \"").append(out + "/config.json\"")
+                    .append(" -o \"").append(out).append("\" -t 8 --sdm apptainer");
+            List<String> samples = groups.all();
+            if (!samples.isEmpty()) {
+                inner.append(" --samples");
+                for (String s : samples) {
+                    inner.append(" \"").append(escDq(s)).append('"');
+                }
+            }
+        }
+
+        // 外层 chroot /host:worker 容器挂 /:/host(同 ShellExecuteTool 约定),内层单引号转义
+        return "chroot /host /bin/bash -c '" + inner.toString().replace("'", "'\"'\"'") + "'";
+    }
+
+    /** extraParams(dot-notation 或嵌套 JSON)拍平成 dot 键值 */
+    private Map<String, Object> flattenedOverrides(Pipeline pipeline) throws Exception {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (pipeline.getExtraParams() == null || pipeline.getExtraParams().isBlank()) {
+            return out;
+        }
+        flattenNode("", MAPPER.readTree(pipeline.getExtraParams()), out);
+        return out;
+    }
+
+    private void flattenNode(String path, JsonNode node, Map<String, Object> out) {
+        if (node.isObject()) {
+            node.fields().forEachRemaining(e ->
+                    flattenNode(path.isEmpty() ? e.getKey() : path + "." + e.getKey(), e.getValue(), out));
+        } else if (!path.isEmpty()) {
+            out.put(path, node.isValueNode() ? node.asText() : node.toString());
+        }
+    }
+
+    /** 模板默认配置 + 点号覆盖 → 嵌套 config JSON(dot 键自动展开,覆盖优先) */
+    private JsonNode mergedConfig(WorkflowTemplate template, Map<String, Object> overrides) throws Exception {
+        JsonNode base = MAPPER.readTree(template.getConfigTemplate() == null || template.getConfigTemplate().isBlank()
+                ? "{}" : template.getConfigTemplate());
+        ObjectNode root = base.isObject() ? (ObjectNode) base : MAPPER.createObjectNode();
+        for (Map.Entry<String, Object> e : overrides.entrySet()) {
+            ObjectNode node = root;
+            String[] segs = e.getKey().split("\\.");
+            for (int i = 0; i < segs.length - 1; i++) {
+                JsonNode child = node.get(segs[i]);
+                if (!(child instanceof ObjectNode)) {
+                    child = node.putObject(segs[i]);
+                }
+                node = (ObjectNode) child;
+            }
+            node.set(segs[segs.length - 1], MAPPER.valueToTree(String.valueOf(e.getValue())));
+        }
+        return root;
+    }
+
+    /** meta TSV 样本分组:第一列 sample_id,含 fastq_2 列非空的样本为双端,否则单端 */
+    private static final class SampleGroups {
+        final List<String> paired = new ArrayList<>();
+        final List<String> single = new ArrayList<>();
+
+        List<String> all() {
+            List<String> a = new ArrayList<>(paired);
+            a.addAll(single);
+            return a;
+        }
+    }
+
+    private SampleGroups sampleGroupsFromMeta(String metaContent) {
+        SampleGroups g = new SampleGroups();
+        if (metaContent == null || metaContent.isBlank()) {
+            return g;
+        }
+        String[] lines = metaContent.split("\\R");
+        int idxSample = 0, idxF2 = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String[] cells = lines[i].split("\t", -1);
+            if (i == 0 && lines[0].toLowerCase().contains("sample")) {
+                for (int c = 0; c < cells.length; c++) {
+                    String h = cells[c].trim().toLowerCase();
+                    if (h.contains("sample")) idxSample = c;
+                    if (h.contains("fastq_2") || h.contains("fq_2") || h.equals("r2") || h.endsWith("_r2")) idxF2 = c;
+                }
+                continue;
+            }
+            String sample = cells.length > idxSample ? cells[idxSample].trim() : "";
+            if (sample.isEmpty()) continue;
+            String f2 = idxF2 >= 0 && cells.length > idxF2 ? cells[idxF2].trim() : "";
+            if (idxF2 >= 0 && !f2.isEmpty()) {
+                g.paired.add(sample);
+            } else {
+                g.single.add(sample);
+            }
+        }
+        return g;
+    }
+
+    /** 双引号内转义(外层整体再以单引号包裹给 bash -c) */
+    private String escDq(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`");
     }
 
     /**

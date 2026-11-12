@@ -391,11 +391,26 @@
         </el-table-column>
         <el-table-column prop="category" label="分类" width="120" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column label="执行状态" width="150">
+          <template #default="{ row }">
+            <template v-if="latestExecutions[(row as Pipeline).id]">
+              <el-tag :type="statusTagType(latestExecutions[(row as Pipeline).id].status)" size="small">
+                {{ statusLabel(latestExecutions[(row as Pipeline).id].status) }}
+              </el-tag>
+              <span v-if="latestExecutions[(row as Pipeline).id].status === 'RUNNING'" class="exec-progress">
+                {{ latestExecutions[(row as Pipeline).id].progress }}%
+              </span>
+            </template>
+            <el-tag v-else type="info" size="small">未执行</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row as Pipeline)">编辑</el-button>
             <el-button type="success" link @click="handleExecute(row as Pipeline)">执行</el-button>
+            <el-button v-if="isRunning(row as Pipeline)" type="danger" link @click="handleCancel(row as Pipeline)">取消</el-button>
+            <el-button type="info" link @click="router.push('/executions')">记录</el-button>
             <el-button type="danger" link @click="handleDelete(row as Pipeline)">删除</el-button>
           </template>
         </el-table-column>
@@ -594,14 +609,43 @@
             <el-input v-model="analysisDescription" type="textarea" :rows="2" placeholder="可选" />
           </el-form-item>
           <el-form-item label="参数覆盖">
-            <el-input
-              v-model="extraParamsText"
-              type="textarea"
-              :rows="10"
-              placeholder='可选，JSON 格式，如：&#10;{&#10;  "Params.cutadapt.quality": 30,&#10;  "genome.default": "GRCh38"&#10;}'
-              style="font-family: monospace"
-            />
-            <div v-if="extraParamsError" class="json-error">{{ extraParamsError }}</div>
+            <div class="param-override-panel">
+              <div class="param-hint">
+                以下参数来自模板「{{ selectedTemplateName }}」的默认配置，填写覆盖值即替换默认值，留空使用默认值。
+                覆盖以 dot 路径生效（如 Params.cutadapt.quality），执行时替换命令模板里的 config.xxx 占位符。
+              </div>
+              <el-table v-if="paramRows.length" :data="paramRows" size="small" max-height="320" border>
+                <el-table-column prop="path" label="参数" min-width="210" show-overflow-tooltip />
+                <el-table-column label="默认值" min-width="120">
+                  <template #default="{ row }">
+                    <span class="param-default">{{ displayValue((row as ParamRow).value) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="description" label="说明" min-width="180" show-overflow-tooltip />
+                <el-table-column label="覆盖值" min-width="170">
+                  <template #default="{ row }">
+                    <el-input
+                      v-model="(row as ParamRow).override"
+                      size="small"
+                      clearable
+                      :placeholder="displayValue((row as ParamRow).value)"
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else description="该模板无可解析的配置参数，可用下方自定义参数覆盖" :image-size="60" />
+              <div v-for="(c, i) in customParams" :key="i" class="custom-param-row">
+                <el-input v-model="c.path" size="small" placeholder="参数路径，如 Params.cutadapt.quality" style="width: 280px" />
+                <el-input v-model="c.override" size="small" placeholder="覆盖值" style="width: 180px" />
+                <el-button size="small" text type="danger" @click="customParams.splice(i, 1)">移除</el-button>
+              </div>
+              <div style="margin-top: 8px">
+                <el-button size="small" @click="addCustomParam">+ 自定义参数</el-button>
+              </div>
+              <div v-if="Object.keys(builtExtraParams).length" class="param-preview">
+                覆盖预览：<code>{{ JSON.stringify(builtExtraParams) }}</code>
+              </div>
+            </div>
           </el-form-item>
         </el-form>
         <div style="text-align: right; margin-top: 16px">
@@ -609,6 +653,41 @@
           <el-button type="primary" :loading="submitLoading" @click="handleCreateAnalysis">创建</el-button>
         </div>
       </div>
+    </el-dialog>
+
+    <!-- Execute Analysis Dialog -->
+    <el-dialog v-model="executeDialogVisible" title="执行分析" width="560px">
+      <div v-if="executingPipeline">
+        <p class="exec-hint">
+          分析：{{ executingPipeline.name }}。结果目录由系统自动创建（项目 results/exec_*），执行状态见「执行状态」列或执行监控页。
+        </p>
+        <el-form label-width="130px">
+          <el-form-item v-for="p in inputParamRows" :key="p.key" :label="p.key">
+            <el-select
+              v-if="metaFileSuggestions.length"
+              v-model="p.value"
+              filterable
+              allow-create
+              default-first-option
+              clearable
+              style="width: 100%"
+              placeholder="选择样本文件路径，或直接输入"
+            >
+              <el-option v-for="f in metaFileSuggestions" :key="f" :label="f" :value="f" />
+            </el-select>
+            <el-input v-else v-model="p.value" :placeholder="'执行参数 ' + p.key" />
+          </el-form-item>
+          <el-form-item v-if="!inputParamRows.length" label="执行参数">
+            <span style="color: var(--el-text-color-secondary)">
+              该模板无需执行时参数（输入数据与参数覆盖已在分析配置中），直接执行即可
+            </span>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="executeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="executeLoading" @click="confirmExecute">执行</el-button>
+      </template>
     </el-dialog>
 
     <!-- 添加子项目弹窗 -->
@@ -632,7 +711,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
@@ -644,8 +723,11 @@ import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } 
 import type { SampleMeta } from '@/api/sampleMetaApi'
 import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
-import { listTemplates } from '@/api/templateApi'
+import { listTemplates, getTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
+import { executePipeline } from '@/api/pipelineApi'
+import { listExecutions, cancelExecution } from '@/api/executionApi'
+import type { Execution } from '@/api/executionApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
 import type { DataFile } from '@/api/dataFileApi'
 import FileEditDialog from '@/components/FileEditDialog.vue'
@@ -898,6 +980,195 @@ const fillFromSampleMeta = (sm: SampleMeta) => {
   metaType.value = sm.metaMode === 'path' ? 'path' : 'text'
   metaContent.value = sm.metaContent || ''
   ElMessage.success(`已填入「${sm.name}」`)
+}
+
+// --- 参数覆盖:按模板 config/schema 渲染可调参数 ---
+interface ParamRow { path: string; value: any; description: string; override: string }
+const paramRows = ref<ParamRow[]>([])
+const customParams = ref<{ path: string; override: string }[]>([])
+
+const displayValue = (v: any) => {
+  if (v === null || v === undefined) return 'null'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+const deepFindDesc = (obj: any, key: string): string => {
+  if (!obj || typeof obj !== 'object') return ''
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === key && v && typeof v === 'object' && typeof (v as any).description === 'string') {
+      return (v as any).description
+    }
+    if (v && typeof v === 'object') {
+      const r = deepFindDesc(v, key)
+      if (r) return r
+    }
+  }
+  return ''
+}
+
+const schemaDesc = (schema: any, path: string): string => {
+  if (!schema || typeof schema !== 'object') return ''
+  let node: any = schema
+  for (const seg of path.split('.')) {
+    if (node && typeof node === 'object' && seg in node) node = node[seg]
+    else { node = null; break }
+  }
+  if (node && typeof node === 'object' && typeof node.description === 'string') return node.description
+  return deepFindDesc(schema, path.split('.').pop() || '')
+}
+
+const flattenConfig = (obj: any, prefix: string, out: ParamRow[], schema: any) => {
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    const keys = Object.keys(obj)
+    if (keys.length === 0) {
+      if (prefix) out.push({ path: prefix, value: {}, description: schemaDesc(schema, prefix), override: '' })
+      return
+    }
+    for (const k of keys) {
+      flattenConfig((obj as any)[k], prefix ? prefix + '.' + k : k, out, schema)
+    }
+  } else if (prefix) {
+    out.push({ path: prefix, value: obj, description: schemaDesc(schema, prefix), override: '' })
+  }
+}
+
+const buildParamRows = () => {
+  const tpl = templateList.value.find(t => t.name === selectedTemplateName.value)
+  let config: any = {}
+  let schema: any = {}
+  try { config = JSON.parse(tpl?.configTemplate || '{}') } catch { /* 忽略坏 JSON */ }
+  try { schema = JSON.parse(tpl?.schemaJson || '{}') } catch { /* 忽略坏 JSON */ }
+  const rows: ParamRow[] = []
+  flattenConfig(config, '', rows, schema)
+  paramRows.value = rows
+}
+watch(selectedTemplateName, buildParamRows)
+
+const coerceValue = (raw: string, def: any) => {
+  const t = raw.trim()
+  if (t === '') return undefined
+  if (typeof def === 'number') {
+    const n = Number(t)
+    return Number.isNaN(n) ? t : n
+  }
+  if (typeof def === 'boolean') return t === 'true' || t === '1'
+  if (t === 'null') return null
+  const n = Number(t)
+  if (t !== '' && !Number.isNaN(n)) return n
+  return t
+}
+
+const builtExtraParams = computed(() => {
+  const out: Record<string, any> = {}
+  for (const r of paramRows.value) {
+    if (r.override.trim() === '') continue
+    out[r.path] = coerceValue(r.override, r.value)
+  }
+  for (const c of customParams.value) {
+    if (!c.path.trim() || c.override.trim() === '') continue
+    out[c.path.trim()] = coerceValue(c.override, undefined)
+  }
+  return out
+})
+
+const addCustomParam = () => customParams.value.push({ path: '', override: '' })
+
+// --- 执行:状态列/执行对话框/取消 ---
+const latestExecutions = ref<Record<number, Execution>>({})
+let execPollTimer: ReturnType<typeof setInterval> | null = null
+
+const loadExecutionStatuses = async () => {
+  try {
+    const res = await listExecutions({ projectId: projectId.value, size: 500 })
+    const map: Record<number, Execution> = {}
+    for (const ex of res.records || []) {
+      const cur = map[ex.pipelineId]
+      if (!cur || ex.id > cur.id) map[ex.pipelineId] = ex
+    }
+    latestExecutions.value = map
+  } catch { /* 状态列加载失败不影响主流程 */ }
+}
+
+const statusLabel = (s: string) =>
+  ({ PENDING: '排队中', RUNNING: '运行中', SUCCESS: '成功', FAILED: '失败', CANCELLED: '已取消' } as Record<string, string>)[s] || s
+const statusTagType = (s: string) =>
+  ({ PENDING: 'info', RUNNING: 'warning', SUCCESS: 'success', FAILED: 'danger', CANCELLED: 'info' } as Record<string, string>)[s] || 'info'
+const isRunning = (row: Pipeline) => {
+  const ex = latestExecutions.value[row.id]
+  return !!ex && (ex.status === 'RUNNING' || ex.status === 'PENDING')
+}
+
+const executeDialogVisible = ref(false)
+const executeLoading = ref(false)
+const executingPipeline = ref<Pipeline | null>(null)
+const inputParamRows = ref<{ key: string; value: string }[]>([])
+const metaFileSuggestions = ref<string[]>([])
+
+const handleExecute = async (row: Pipeline) => {
+  executingPipeline.value = row
+  // 从模板命令模板解析 {{inputParams.*}} 必填项
+  let cmd = ''
+  let snakemakePath = ''
+  try {
+    const tpl = await getTemplate(row.templateId)
+    cmd = tpl.commandTemplate || ''
+    snakemakePath = tpl.snakemakePath || ''
+  } catch { /* 模板拉不到则按无执行参数处理 */ }
+  if (!cmd && !snakemakePath) {
+    ElMessage.warning('该模板未配置 command_template 且无 snakemake_path，无法执行。请先在系统管理→分析模板中配置')
+    return
+  }
+  const keys = [...cmd.matchAll(/\{\{\s*inputParams\.([^}]+?)\s*\}\}/g)].map(m => m[1])
+  inputParamRows.value = [...new Set(keys)].map(k => ({ key: k, value: '' }))
+  // meta TSV 中的文件路径作为候选值
+  const files = new Set<string>()
+  for (const line of (row.metaContent || '').split('\n').slice(1)) {
+    for (const cell of line.split('\t')) {
+      const v = cell.trim()
+      if (v && (v.includes('/') || /\.(fastq|fq|gz|bam|vcf|cram|tsv|txt)(\.|$)/i.test(v))) files.add(v)
+    }
+  }
+  metaFileSuggestions.value = [...files]
+  executeDialogVisible.value = true
+}
+
+const confirmExecute = async () => {
+  if (!executingPipeline.value) return
+  const missing = inputParamRows.value.filter(p => !p.value.trim())
+  if (missing.length) {
+    ElMessage.warning('请填写执行参数: ' + missing.map(m => m.key).join(', '))
+    return
+  }
+  executeLoading.value = true
+  try {
+    const paramsMap: Record<string, string> = {}
+    for (const p of inputParamRows.value) paramsMap[p.key] = p.value.trim()
+    const execution = await executePipeline(executingPipeline.value.id, {
+      projectId: executingPipeline.value.projectId,
+      inputParams: JSON.stringify(paramsMap)
+    }) as any
+    ElMessage.success('执行已提交 (#' + (execution?.id ?? '') + ')')
+    executeDialogVisible.value = false
+    loadExecutionStatuses()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '执行启动失败')
+  } finally {
+    executeLoading.value = false
+  }
+}
+
+const handleCancel = async (row: Pipeline) => {
+  const ex = latestExecutions.value[row.id]
+  if (!ex) return
+  try {
+    await ElMessageBox.confirm(`确定取消执行 #${ex.id} 吗？`, '提示', { type: 'warning' })
+    await cancelExecution(ex.id)
+    ElMessage.success('已请求取消')
+    loadExecutionStatuses()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('取消失败')
+  }
 }
 
 const fileRefSummary = (row: SampleMeta) => {
@@ -1266,15 +1537,7 @@ const showCreateDialog = () => {
 }
 
 const handleCreateAnalysis = async () => {
-  if (extraParamsText.value.trim()) {
-    try {
-      JSON.parse(extraParamsText.value)
-      extraParamsError.value = ''
-    } catch (e: any) {
-      extraParamsError.value = 'JSON 格式错误: ' + e.message
-      return
-    }
-  }
+  const overrides = builtExtraParams.value
   submitLoading.value = true
   try {
     await createAnalysis(projectId.value, {
@@ -1282,7 +1545,7 @@ const handleCreateAnalysis = async () => {
       name: analysisName.value || undefined,
       metaContent: metaContent.value,
       metaType: metaType.value,
-      extraParams: extraParamsText.value.trim() || undefined,
+      extraParams: Object.keys(overrides).length ? JSON.stringify(overrides) : undefined,
       description: analysisDescription.value || undefined
     })
     ElMessage.success('分析创建成功')
@@ -1297,10 +1560,6 @@ const handleCreateAnalysis = async () => {
 
 const handleEdit = (row: Pipeline) => {
   router.push(`/pipelines`)
-}
-
-const handleExecute = (row: Pipeline) => {
-  ElMessage.info('执行功能待实现')
 }
 
 const handleDelete = async (row: Pipeline) => {
@@ -1322,6 +1581,12 @@ onMounted(() => {
   loadFileTree()
   loadMetaList()
   loadChildProjects()
+  loadExecutionStatuses()
+  execPollTimer = setInterval(loadExecutionStatuses, 10000)
+})
+
+onUnmounted(() => {
+  if (execPollTimer) clearInterval(execPollTimer)
 })
 
 // 监听路由参数变化，组件复用时重新加载数据
@@ -1473,6 +1738,50 @@ watch(metaTsvContent, (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.param-override-panel {
+  width: 100%;
+}
+
+.param-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.param-default {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.custom-param-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.param-preview {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  word-break: break-all;
+}
+
+.exec-hint {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.exec-progress {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .template-option {

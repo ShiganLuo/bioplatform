@@ -74,6 +74,8 @@ services:
       - bioplatform-uploads:/app/uploads
       - bio-worker-tasks:/data/tasks
       - /var/run/docker.sock:/var/run/docker.sock
+      # Omics 模板执行经 chroot /host 直达宿主机运行环境(run.py/run_module.py + apptainer)
+      - /:/host
     networks:
       blog_net:
         # 别名必须用连字符:java.net.URI 对含下划线的主机名返回 host=null,

@@ -69,6 +69,8 @@ public class CommandRenderer {
         // 用户执行参数与模板默认配置均可按 dot-notation 取值
         flattenJsonInto(execution.getInputParams(), "inputParams.", values);
         flattenJsonInto(pipeline.getConfigJson(), "config.", values);
+        // 参数覆盖(extraParams,dot-notation)最后铺入,同名键覆盖模板默认配置
+        flattenJsonInto(pipeline.getExtraParams(), "config.", values);
 
         StringBuilder unresolved = new StringBuilder();
         StringBuffer rendered = new StringBuffer();
