@@ -1,5 +1,6 @@
 package com.bioplatform.service.impl;
 
+import com.bioplatform.common.util.HostPathUtil;
 import com.bioplatform.dto.datafile.SampleMetaFileRef;
 import com.bioplatform.dto.datafile.SampleMetaFilesResult;
 import com.bioplatform.entity.DataFile;
@@ -194,7 +195,8 @@ public class SampleMetaFileServiceImpl implements SampleMetaFileService {
             Path p = Paths.get(raw);
             if (p.isAbsolute()) {
                 try {
-                    onDisk = Files.exists(p);
+                    // 容器内宿主机路径自动映射 /host
+                    onDisk = Files.exists(HostPathUtil.resolveExisting(raw));
                 } catch (Exception e) {
                     onDisk = false;
                 }

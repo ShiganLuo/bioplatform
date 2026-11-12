@@ -2,6 +2,7 @@ package com.bioplatform.service.impl;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.bioplatform.common.util.HostPathUtil;
 import com.bioplatform.dto.admin.AdminWorkflowTemplateDTO.CreateRequest;
 import com.bioplatform.dto.admin.AdminWorkflowTemplateDTO.UpdateRequest;
 import com.bioplatform.dto.common.PageResult;
@@ -325,18 +326,12 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     }
 
     /**
-     * 路径解析：容器内跑时宿主机路径自动映射 /host 前缀（compose 挂载 /:/host:ro）
+     * 路径解析：容器内跑时宿主机路径自动映射 /host 前缀（统一走 HostPathUtil）
      */
     private Path resolvePath(String raw) {
-        Path p = Paths.get(raw);
-        if (Files.exists(p)) {
-            return p;
-        }
-        String stripped = raw.startsWith("/") ? raw.substring(1) : raw;
-        Path alt = Paths.get("/host", stripped);
-        if (Files.exists(alt)) {
-            log.info("路径 {} 在容器内映射为 {}", raw, alt);
-            return alt;
+        Path p = HostPathUtil.resolveExisting(raw);
+        if (!p.toString().equals(raw)) {
+            log.info("路径 {} 在容器内映射为 {}", raw, p);
         }
         return p;
     }

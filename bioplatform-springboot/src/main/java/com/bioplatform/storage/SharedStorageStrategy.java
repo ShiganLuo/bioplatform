@@ -1,5 +1,6 @@
 package com.bioplatform.storage;
 
+import com.bioplatform.common.util.HostPathUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,9 +69,10 @@ public class SharedStorageStrategy implements StorageStrategy {
     @Override
     public Path resolve(String storagePath) {
         if (isAbsolute(storagePath)) {
-            Path absolute = Paths.get(storagePath);
+            // 容器内宿主机路径自动映射 /host（HostPathUtil），DB 存用户原样路径
+            Path absolute = HostPathUtil.resolveExisting(storagePath);
             if (!Files.exists(absolute)) {
-                throw new RuntimeException("文件不存在: " + absolute);
+                throw new RuntimeException("文件不存在: " + storagePath);
             }
             return absolute;
         }
@@ -87,7 +89,7 @@ public class SharedStorageStrategy implements StorageStrategy {
             // 直接按路径删除，不走 resolve（resolve 对不存在的文件会抛异常，
             // 导致"磁盘已丢失的文件"无法从库中清理）
             Path target = isAbsolute(storagePath)
-                    ? Paths.get(storagePath)
+                    ? HostPathUtil.resolveExisting(storagePath)
                     : Paths.get(sharedPath, storagePath);
             Files.deleteIfExists(target);
         } catch (IOException e) {
@@ -98,7 +100,7 @@ public class SharedStorageStrategy implements StorageStrategy {
     @Override
     public boolean exists(String storagePath) {
         if (isAbsolute(storagePath)) {
-            return Files.exists(Paths.get(storagePath));
+            return Files.exists(HostPathUtil.resolveExisting(storagePath));
         }
         return Files.exists(Paths.get(sharedPath, storagePath));
     }
@@ -107,7 +109,7 @@ public class SharedStorageStrategy implements StorageStrategy {
     public long size(String storagePath) {
         try {
             if (isAbsolute(storagePath)) {
-                Path absolute = Paths.get(storagePath);
+                Path absolute = HostPathUtil.resolveExisting(storagePath);
                 return Files.exists(absolute) ? Files.size(absolute) : -1;
             }
             Path p = Paths.get(sharedPath, storagePath);

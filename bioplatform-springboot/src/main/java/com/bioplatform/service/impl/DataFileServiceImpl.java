@@ -2,6 +2,7 @@ package com.bioplatform.service.impl;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.bioplatform.common.util.HostPathUtil;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.datafile.StorageInfo;
 import com.bioplatform.entity.DataFile;
@@ -297,13 +298,15 @@ public class DataFileServiceImpl implements DataFileService {
 
     @Override
     public int importLocalFiles(String dirPath, Long projectId, Long userId) {
-        File dir = new File(dirPath);
+        // 容器内宿主机路径自动映射 /host；DB 仍存用户原样的宿主机路径
+        File dir = HostPathUtil.resolveExisting(dirPath).toFile();
         if (!dir.exists() || !dir.isDirectory()) {
-            throw new IllegalArgumentException("目录不存在: " + dirPath);
+            throw new IllegalArgumentException("目录不存在: " + dirPath
+                    + "（已尝试容器内映射路径 /host" + dirPath + "，如在服务器上请直接填宿主机路径）");
         }
 
         List<DataFile> imported = new ArrayList<>();
-        scanAndRegister(dir, dir, projectId, userId, imported);
+        scanAndRegister(dir, dir, dirPath, projectId, userId, imported);
         for (DataFile df : imported) {
             dataFileMapper.insert(df);
             if (projectId != null) {
@@ -314,12 +317,12 @@ public class DataFileServiceImpl implements DataFileService {
         return imported.size();
     }
 
-    private void scanAndRegister(File root, File current, Long projectId, Long userId, List<DataFile> result) {
+    private void scanAndRegister(File root, File current, String storePrefix, Long projectId, Long userId, List<DataFile> result) {
         File[] files = current.listFiles();
         if (files == null) return;
         for (File file : files) {
             if (file.isDirectory()) {
-                scanAndRegister(root, file, projectId, userId, result);
+                scanAndRegister(root, file, storePrefix, projectId, userId, result);
             } else if (file.isFile()) {
                 String relativePath = root.toPath().relativize(file.toPath()).toString();
                 relativePath = relativePath.replace('\\', '/');
@@ -332,7 +335,7 @@ public class DataFileServiceImpl implements DataFileService {
 
                 DataFile dataFile = new DataFile();
                 dataFile.setName(relativePath);
-                dataFile.setPath(file.getAbsolutePath());
+                dataFile.setPath(new File(storePrefix, relativePath).getPath());
                 dataFile.setFileType(fileType);
                 dataFile.setFileSize(file.length());
                 dataFile.setUploadedBy(userId);
