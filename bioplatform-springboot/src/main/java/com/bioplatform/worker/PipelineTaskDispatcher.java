@@ -120,7 +120,7 @@ public class PipelineTaskDispatcher {
             return false;
         }
 
-        int timeoutSeconds = pipeline.getTimeout() != null ? pipeline.getTimeout() : 3600;
+        int timeoutSeconds = resolveTimeoutSeconds(pipeline);
         try {
             // 手写 command_template 的模板(如 docker run -v {{data_root}})依赖 backend 在共享卷
             // 预先创建输出目录:不能让模板自己 mkdir,worker 容器内 mkdir 落在容器文件系统,DooD 场景
@@ -263,6 +263,25 @@ public class PipelineTaskDispatcher {
 
     private static String logPath(String absOutStr) {
         return absOutStr + "/task_output.log";
+    }
+
+    /**
+     * 任务超时(秒):pipeline.timeout 显式设置优先,其次系统配置 execution.timeoutMinutes
+     * (执行配置,仅超管可改),默认 24h——RNAseq 等大流程按旧缺省 1h 会被中途强杀。
+     */
+    private int resolveTimeoutSeconds(Pipeline pipeline) {
+        if (pipeline != null && pipeline.getTimeout() != null) {
+            return pipeline.getTimeout();
+        }
+        try {
+            String v = systemService.getConfigValue("execution.timeoutMinutes");
+            if (v != null && !v.isBlank()) {
+                return Math.max(1, Integer.parseInt(v.trim())) * 60;
+            }
+        } catch (Exception ignored) {
+            // 配置不可用时走缺省
+        }
+        return 86400;
     }
 
     /** extraParams(dot-notation 或嵌套 JSON)拍平成 dot 键值 */
@@ -461,8 +480,7 @@ public class PipelineTaskDispatcher {
         for (PipelineExecution exec : running) {
             if (exec.getStartedAt() == null) continue;
             Pipeline pipeline = pipelineMapper.selectById(exec.getPipelineId());
-            int timeoutSeconds = pipeline != null && pipeline.getTimeout() != null
-                    ? pipeline.getTimeout() : 3600;
+            int timeoutSeconds = resolveTimeoutSeconds(pipeline);
             if (exec.getStartedAt().plusSeconds(timeoutSeconds).isBefore(now)) {
                 if (exec.getTaskId() != null && exec.getWorkerUrl() != null) {
                     try {

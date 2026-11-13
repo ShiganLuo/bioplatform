@@ -74,7 +74,7 @@
               <el-input-number v-model="executionConfig.maxConcurrency" :min="1" :max="100" />
             </el-form-item>
             <el-form-item label="超时时间">
-              <el-input-number v-model="executionConfig.timeoutMinutes" :min="10" :max="1440" />
+              <el-input-number v-model="executionConfig.timeoutMinutes" :min="10" :max="10080" />
               <span style="margin-left: 8px; color: #909399;">分钟</span>
             </el-form-item>
             <el-form-item label="自动清理">
@@ -201,7 +201,7 @@ const notificationConfig = reactive({
 
 const executionConfig = reactive({
   maxConcurrency: 10,
-  timeoutMinutes: 120,
+  timeoutMinutes: 1440,
   autoCleanup: true,
   retentionDays: 30,
   outputRoot: ''

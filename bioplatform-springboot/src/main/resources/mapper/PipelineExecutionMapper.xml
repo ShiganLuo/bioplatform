@@ -104,10 +104,15 @@
     <select id="selectByUserId" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM `pipeline_executions`
-        WHERE `user_id` = #{userId}
-        <if test="status != null and status != ''">
-            AND `status` = #{status}
-        </if>
+        <!-- userId 为空 = 管理员看全部(此前 user_id = NULL 匹配空集,执行监控/仪表盘永远空列表) -->
+        <where>
+            <if test="userId != null">
+                `user_id` = #{userId}
+            </if>
+            <if test="status != null and status != ''">
+                AND `status` = #{status}
+            </if>
+        </where>
         ORDER BY `created_at` DESC
     </select>
 
