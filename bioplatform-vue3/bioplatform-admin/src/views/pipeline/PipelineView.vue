@@ -248,9 +248,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Monitor, Connection } from '@element-plus/icons-vue'
-import { listPipelines, createPipeline, updatePipeline, deletePipeline, executePipeline } from '@/api/pipelineApi'
+import { listPipelines, createPipeline, updatePipeline, deletePipeline, executePipeline, getPipeline } from '@/api/pipelineApi'
 import type { Pipeline } from '@/api/pipelineApi'
 import { listTemplates, getTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
@@ -258,6 +259,7 @@ import { listProjects } from '@/api/projectApi'
 import type { Project } from '@/api/projectApi'
 
 const loading = ref(false)
+const route = useRoute()
 const submitLoading = ref(false)
 const executeLoading = ref(false)
 const templateLoading = ref(false)
@@ -532,6 +534,13 @@ const handleDelete = async (row: Pipeline) => {
 onMounted(() => {
   loadPipelines()
   loadProjectList()
+  // 深链:/pipelines?edit=<id> 直接打开该流程的编辑界面(项目详情"前往流程管理"跳转用)
+  const editId = Number(route.query.edit)
+  if (editId) {
+    getPipeline(editId).then((p: any) => {
+      if (p && p.id) handleEdit(p)
+    }).catch(() => {})
+  }
 })
 </script>
 

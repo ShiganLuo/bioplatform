@@ -225,7 +225,7 @@
               <thead>
                 <tr>
                   <th style="width: 40px">#</th>
-                  <th v-for="(col, ci) in metaColumns" :key="ci">
+                  <th v-for="(col, ci) in metaColumns" :key="ci" :style="{ width: (metaColWidths[ci] || 180) + 'px' }">
                     <div style="display: flex; align-items: center; gap: 4px">
                       <input
                         v-model="metaColumns[ci]"
@@ -235,6 +235,7 @@
                         <el-icon><Close /></el-icon>
                       </el-button>
                     </div>
+                    <span class="col-resizer" @mousedown.prevent="startColResize(ci, $event)"></span>
                   </th>
                   <th style="width: 40px">
                     <el-button link size="small" @click="addColumn">
@@ -729,7 +730,7 @@
       </el-form>
       <div style="font-size: 12px; color: #909399;">
         参数覆盖等更多设置在「流程管理」维护
-        <el-button type="primary" link size="small" @click="editVisible = false; router.push('/pipelines')">前往流程管理</el-button>
+        <el-button type="primary" link size="small" @click="editVisible = false; router.push({ path: '/pipelines', query: { edit: editForm.id } })">前往流程管理</el-button>
       </div>
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>
@@ -828,6 +829,7 @@ const metaEditTab = ref('table')
 const metaForm = reactive({ id: 0, projectId: projectId.value, name: '', metaMode: 'fastq', metaContent: '', description: '' })
 const metaColumns = ref<string[]>([])
 const metaRows = ref<string[][]>([])
+const metaColWidths = ref<number[]>([])
 const metaTsvContent = ref('')
 const importTsvDialogVisible = ref(false)
 const importTsvContent = ref('')
@@ -1382,11 +1384,28 @@ const removeRow = (index: number) => {
 const addColumn = () => {
   metaColumns.value.push('new_col')
   metaRows.value.forEach(row => row.push(''))
+  metaColWidths.value.push(180)
 }
 
 const removeColumn = (index: number) => {
   metaColumns.value.splice(index, 1)
   metaRows.value.forEach(row => row.splice(index, 1))
+  metaColWidths.value.splice(index, 1)
+}
+
+// 列宽拖拽(自绘表格:th 右缘手柄,拖动改列宽)
+const startColResize = (ci: number, e: MouseEvent) => {
+  const startX = e.clientX
+  const startW = metaColWidths.value[ci] || 180
+  const onMove = (ev: MouseEvent) => {
+    metaColWidths.value[ci] = Math.max(80, startW + ev.clientX - startX)
+  }
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
 }
 
 const handleSaveMeta = async () => {
@@ -2005,7 +2024,8 @@ watch(metaTsvContent, (val) => {
 
 .meta-table {
   border-collapse: collapse;
-  width: 100%;
+  table-layout: fixed;
+  width: max-content;
   font-size: 13px;
 }
 
@@ -2016,12 +2036,31 @@ watch(metaTsvContent, (val) => {
   white-space: nowrap;
 }
 
+.meta-table td {
+  overflow: hidden;
+}
+
 .meta-table th {
   background: #f5f7fa;
   font-weight: 600;
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.col-resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 2;
+}
+
+.col-resizer:hover {
+  background: var(--el-color-primary-light-5);
 }
 
 .meta-cell {
