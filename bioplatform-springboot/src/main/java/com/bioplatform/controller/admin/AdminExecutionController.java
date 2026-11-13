@@ -54,13 +54,13 @@ public class AdminExecutionController {
      * Get execution by id.
      */
     @GetMapping("/{id}")
-    public ApiResponse<PipelineExecution> getById(@PathVariable Long id) {
-        PipelineExecution execution = pipelineExecutionService.getExecutionById(id);
-        if (execution == null) {
+    public ApiResponse<com.bioplatform.dto.common.ExecutionVO> getById(@PathVariable Long id) {
+        com.bioplatform.dto.common.ExecutionVO vo = pipelineExecutionService.getExecutionVO(id);
+        if (vo == null) {
             return ApiResponse.error(404, "执行记录不存在");
         }
-        OwnershipUtils.checkOwnership(execution.getUserId(), "执行记录");
-        return ApiResponse.success(execution);
+        OwnershipUtils.checkOwnership(vo.userId(), "执行记录");
+        return ApiResponse.success(vo);
     }
 
     /**

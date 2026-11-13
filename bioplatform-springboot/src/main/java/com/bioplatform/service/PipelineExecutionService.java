@@ -19,6 +19,11 @@ public interface PipelineExecutionService {
     PipelineExecution getExecutionById(Long id);
 
     /**
+     * 执行记录 VO(字段对齐前端:名称/进度/执行结果等)
+     */
+    com.bioplatform.dto.common.ExecutionVO getExecutionVO(Long id);
+
+    /**
      * 分页查询项目的执行记录
      *
      * @param projectId 项目ID

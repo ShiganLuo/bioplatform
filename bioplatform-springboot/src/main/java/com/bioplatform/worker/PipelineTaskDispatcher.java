@@ -377,10 +377,38 @@ public class PipelineTaskDispatcher {
         }
     }
 
+    /** 供 service 拉取 worker 端任务输出(执行监控"执行结果"的兜底来源) */
+    public String fetchTaskOutput(PipelineExecution exec) {
+        try {
+            return executionEngine.output(exec.getWorkerUrl(), exec.getTaskId());
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** 终态时把 worker 抓取的执行输出落盘到输出目录 task_output.log(执行监控的日志来源) */
+    private void persistTaskOutput(PipelineExecution exec) {
+        writeTaskOutputFile(exec, executionEngine.output(exec.getWorkerUrl(), exec.getTaskId()));
+    }
+
+    private void writeTaskOutputFile(PipelineExecution exec, String output) {
+        try {
+            if (exec.getOutputPath() == null || exec.getOutputPath().isBlank()) {
+                return;
+            }
+            java.nio.file.Path f = java.nio.file.Paths.get(sharedPath, exec.getOutputPath(), "task_output.log");
+            java.nio.file.Files.createDirectories(f.getParent());
+            java.nio.file.Files.writeString(f, output == null ? "" : output);
+        } catch (Exception e) {
+            log.warn("执行输出落盘失败(不影响结果): executionId={}, error={}", exec.getId(), e.getMessage());
+        }
+    }
+
     private void applyStatus(PipelineExecution exec, String status) {
         switch (status) {
             case "COMPLETED" -> {
                 exec.setStatus("SUCCESS");
+                persistTaskOutput(exec);
                 touch(exec);
                 log.info("任务完成: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
             }
@@ -388,11 +416,13 @@ public class PipelineTaskDispatcher {
                 String output = executionEngine.output(exec.getWorkerUrl(), exec.getTaskId());
                 exec.setStatus("FAILED");
                 exec.setErrorLog(truncate(output));
+                writeTaskOutputFile(exec, output);
                 touch(exec);
                 log.warn("任务失败: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
             }
             case "CANCELLED" -> {
                 exec.setStatus("CANCELLED");
+                persistTaskOutput(exec);
                 touch(exec);
                 log.info("任务已取消: executionId={}", exec.getId());
             }
