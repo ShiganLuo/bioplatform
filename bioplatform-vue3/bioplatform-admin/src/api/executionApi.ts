@@ -8,6 +8,7 @@ export interface Execution {
   projectName: string
   status: string
   progress: number
+  progressText?: string
   startTime: string
   endTime: string
   executor: string

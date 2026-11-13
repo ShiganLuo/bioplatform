@@ -17,6 +17,7 @@ public record ExecutionVO(
         String result,
         String errorMessage,
         Integer progress,
+        String progressText,
         String executor,
         String outputPath,
         String taskId,

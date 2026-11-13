@@ -177,6 +177,16 @@ public class PipelineServiceImpl implements PipelineService {
             throw new IllegalArgumentException("流水线不存在");
         }
 
+        // 同分析共用输出目录(结果复用/断点续跑),禁止并发执行互相踩产物
+        for (String active : new String[]{"RUNNING", "PENDING"}) {
+            for (PipelineExecution prev : pipelineExecutionMapper.selectByUserId(null, active)) {
+                if (prev.getPipelineId() != null && prev.getPipelineId().equals(pipelineId)) {
+                    throw new IllegalArgumentException(
+                            "该分析已有进行中的执行(#" + prev.getId() + "),请等它结束或取消后再执行(输出目录复用,不支持并发)");
+                }
+            }
+        }
+
         // 创建执行记录
         PipelineExecution execution = new PipelineExecution();
         execution.setPipelineId(pipelineId);

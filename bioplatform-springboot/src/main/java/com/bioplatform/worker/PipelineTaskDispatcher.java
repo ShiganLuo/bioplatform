@@ -139,7 +139,11 @@ public class PipelineTaskDispatcher {
             execution.setTaskId(taskId);
             execution.setExecutor("local");
             execution.setStatus("RUNNING");
-            execution.setOutputPath(rendered.outputDir());
+            // Omics 桥接的产物在 <projectId>/results/<pipelineId>(按分析复用目录),
+            // rendered.outputDir() 是旧 exec_<id> 布局,不能拿来当 output_path(进度/日志解析全靠它)
+            execution.setOutputPath(omicsBridge
+                    ? execution.getProjectId() + "/results/" + execution.getPipelineId()
+                    : rendered.outputDir());
             execution.setHeartbeatAt(LocalDateTime.now());
             executionMapper.updateById(execution);
 
@@ -188,13 +192,14 @@ public class PipelineTaskDispatcher {
 
     /**
      * 为 Omics 模板生成执行命令(worker 经 nsenter 在宿主机命名空间执行)。
-     * 产物落 <输出根目录>/<projectId>/results/exec_<id>/;meta/合并配置由 backend 先写入
-     * 上传卷暂存目录(<pid>/stage_exec_<id>),命令侧 mkdir+cp 进输出目录——输出根目录可能
-     * 在 backend 的 /host:ro 挂载之外,backend 直接写不进去。
+     * 产物落 <输出根目录>/<projectId>/results/<pipelineId>/ —— 按分析复用目录:
+     * 重跑时 snakemake 增量续跑(已完成步骤自动跳过),不支持同分析并发执行。
+     * meta/合并配置由 backend 先写入上传卷暂存目录(<pid>/stage_exec_<id>),命令侧 mkdir+cp
+     * 进输出目录——输出根目录可能在 backend 的 /host:ro 挂载之外,backend 直接写不进去。
      * 结束后 chown --reference=输出根目录:产物属主跟随根目录属主,指向自己的数据目录即摆脱 root。
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
-        String outputDirRel = execution.getProjectId() + "/results/exec_" + execution.getId();
+        String outputDirRel = execution.getProjectId() + "/results/" + execution.getPipelineId();
         String outRoot = resolveOutputRoot();
         String absOutStr = outRoot + "/" + outputDirRel;
         String stageRel = execution.getProjectId() + "/stage_exec_" + execution.getId();
@@ -269,16 +274,16 @@ public class PipelineTaskDispatcher {
 
         // 外层经 nsenter 进宿主机命名空间运行(用户态 apptainer 的 newuidmap 流程只在宿主机命名空间可用;
         // worker 容器 privileged + pid:host 才能 nsenter -t 1)。同 ShellExecuteTool 的宿主机语义。
-        // 全程输出实时 tee 到 <输出目录>/task_output.log(执行监控的日志/进度来源,
-        // 之前只在终态落盘,运行期间监控一直"没信息")。
+        // 全程输出实时 tee 到 <输出目录>/task_output.<执行id>.log(执行监控的日志/进度来源;
+        // 目录按分析复用,日志按执行独立,互不覆盖)
         String body = "mkdir -p \"" + absOutStr.replace("\"", "\\\"") + "\" && { "
-                + inner + " ; } >> \"" + logPath(absOutStr) + "\" 2>&1";
+                + inner + " ; } >> \"" + logPath(absOutStr, execution.getId()) + "\" 2>&1";
         return "nsenter -t 1 -m -u -i -p --preserve-credentials /bin/bash -c '"
                 + body.replace("'", "'\"'\"'") + "'";
     }
 
-    private static String logPath(String absOutStr) {
-        return absOutStr + "/task_output.log";
+    private static String logPath(String absOutStr, Long executionId) {
+        return absOutStr + "/task_output." + executionId + ".log";
     }
 
     /**

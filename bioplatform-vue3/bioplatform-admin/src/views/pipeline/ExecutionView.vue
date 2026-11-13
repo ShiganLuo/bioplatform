@@ -53,12 +53,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="progress" label="进度" width="120">
+        <el-table-column prop="progress" label="进度" width="170">
           <template #default="{ row }">
             <el-progress
               :percentage="row.progress || 0"
               :status="row.status === 'FAILED' ? 'exception' : row.status === 'SUCCESS' ? 'success' : undefined"
             />
+            <div v-if="row.progressText" class="progress-text">{{ row.progressText }}</div>
           </template>
         </el-table-column>
         <el-table-column prop="executor" label="执行人" width="100" />
@@ -110,6 +111,7 @@
         <el-descriptions-item label="执行人">{{ detailData.executor }}</el-descriptions-item>
         <el-descriptions-item label="进度">
           <el-progress :percentage="detailData.progress || 0" />
+          <span v-if="detailData.progressText" class="progress-text">{{ detailData.progressText }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="开始时间">{{ detailData.startTime }}</el-descriptions-item>
         <el-descriptions-item label="结束时间">{{ detailData.endTime || '-' }}</el-descriptions-item>
@@ -259,6 +261,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.3;
+  word-break: break-all;
 }
 
 .card-header {

@@ -401,6 +401,9 @@
               <span v-if="latestExecutions[(row as Pipeline).id].status === 'RUNNING'" class="exec-progress">
                 {{ latestExecutions[(row as Pipeline).id].progress }}%
               </span>
+              <div v-if="latestExecutions[(row as Pipeline).id].progressText" style="font-size: 11px; color: #909399; line-height: 1.3;">
+                {{ latestExecutions[(row as Pipeline).id].progressText }}
+              </div>
             </template>
             <el-tag v-else type="info" size="small">未执行</el-tag>
           </template>
