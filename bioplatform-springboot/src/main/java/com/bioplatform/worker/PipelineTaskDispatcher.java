@@ -253,8 +253,16 @@ public class PipelineTaskDispatcher {
 
         // 外层经 nsenter 进宿主机命名空间运行(用户态 apptainer 的 newuidmap 流程只在宿主机命名空间可用;
         // worker 容器 privileged + pid:host 才能 nsenter -t 1)。同 ShellExecuteTool 的宿主机语义。
+        // 全程输出实时 tee 到 <输出目录>/task_output.log(执行监控的日志/进度来源,
+        // 之前只在终态落盘,运行期间监控一直"没信息")。
+        String body = "mkdir -p \"" + absOutStr.replace("\"", "\\\"") + "\" && { "
+                + inner + " ; } >> \"" + logPath(absOutStr) + "\" 2>&1";
         return "nsenter -t 1 -m -u -i -p --preserve-credentials /bin/bash -c '"
-                + inner.toString().replace("'", "'\"'\"'") + "'";
+                + body.replace("'", "'\"'\"'") + "'";
+    }
+
+    private static String logPath(String absOutStr) {
+        return absOutStr + "/task_output.log";
     }
 
     /** extraParams(dot-notation 或嵌套 JSON)拍平成 dot 键值 */
