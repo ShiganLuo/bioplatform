@@ -577,6 +577,14 @@
               </div>
             </div>
           </el-form-item>
+          <div v-if="metaTpl && metaTpl.available" class="meta-tpl-panel">
+            <div class="meta-tpl-head">
+              <span>该流程的 meta 列固定为：</span>
+              <el-tag v-for="c in metaTpl.columns" :key="c" size="small" style="margin-right: 4px;">{{ c }}</el-tag>
+              <el-button size="small" type="primary" link @click="fillCreateFromMetaTpl">按模板填入</el-button>
+            </div>
+            <pre class="meta-tpl-example">{{ metaTpl.filled }}</pre>
+          </div>
           <el-form-item label="数据来源">
             <el-radio-group v-model="metaType">
               <el-radio value="text">TSV 文本</el-radio>
@@ -598,7 +606,7 @@
         </el-form>
         <div style="text-align: right; margin-top: 16px">
           <el-button @click="createStep = 0">上一步</el-button>
-          <el-button type="primary" :disabled="!metaContent.trim()" @click="createStep = 2">下一步</el-button>
+          <el-button type="primary" :disabled="!metaContent.trim()" @click="gotoStep2">下一步</el-button>
         </div>
       </div>
 
@@ -703,6 +711,14 @@
           <el-button size="small" @click="fillEditFromSampleMeta(sm)">填入</el-button>
         </div>
       </div>
+      <div v-if="metaTpl && metaTpl.available" class="meta-tpl-panel" style="margin-bottom: 12px;">
+        <div class="meta-tpl-head">
+          <span>该流程的 meta 列固定为：</span>
+          <el-tag v-for="c in metaTpl.columns" :key="c" size="small" style="margin-right: 4px;">{{ c }}</el-tag>
+          <el-button size="small" type="primary" link @click="fillEditFromMetaTpl">按模板填入</el-button>
+        </div>
+        <pre class="meta-tpl-example">{{ metaTpl.filled }}</pre>
+      </div>
       <el-form label-width="100px">
         <el-form-item label="分析名称">
           <el-input v-model="editForm.name" />
@@ -754,8 +770,8 @@ import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } 
 import type { SampleMeta } from '@/api/sampleMetaApi'
 import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
-import { listTemplates, getTemplate } from '@/api/templateApi'
-import type { WorkflowTemplate } from '@/api/templateApi'
+import { listTemplates, getTemplate, getMetaTemplate } from '@/api/templateApi'
+import type { WorkflowTemplate, MetaTemplate } from '@/api/templateApi'
 import { executePipeline, updatePipeline } from '@/api/pipelineApi'
 import { listExecutions, cancelExecution } from '@/api/executionApi'
 import type { Execution } from '@/api/executionApi'
@@ -1598,6 +1614,7 @@ const handleEdit = (row: Pipeline) => {
   editForm.metaType = row.metaType || 'text'
   editForm.metaContent = row.metaContent || ''
   editVisible.value = true
+  loadMetaTemplate(row.templateId)
 }
 
 // 分析编辑:展示已有样本信息可一键填入 meta;参数覆盖等在流程管理维护
@@ -1617,7 +1634,70 @@ const fillEditFromSampleMeta = (sm: SampleMeta) => {
   ElMessage.success(`已填入「${sm.name}」`)
 }
 
+// --- 工作流 meta 规范(Omics/assests/test/meta_<流程>.tsv,各流程列固定) ---
+const metaTpl = ref<MetaTemplate | null>(null)
+const loadMetaTemplate = async (templateId: number) => {
+  metaTpl.value = null
+  if (!templateId) return
+  try {
+    metaTpl.value = await getMetaTemplate(templateId)
+  } catch {
+    metaTpl.value = null
+  }
+}
+watch(selectedTemplateName, (n) => {
+  const tpl = templateList.value.find(t => t.name === n)
+  if (tpl) loadMetaTemplate(tpl.id)
+})
+
+const metaTplError = (meta: string): string | null => {
+  const tpl = metaTpl.value
+  if (!tpl || !tpl.available) return null
+  const lines = (meta || '').trim().split('\n').filter(Boolean)
+  if (!lines.length) return 'Meta TSV 为空'
+  const header = lines[0].split('\t').map(s => s.trim())
+  const missing = tpl.columns.filter(c => !header.includes(c))
+  const extra = header.filter(c => !tpl.columns.includes(c))
+  if (missing.length) return `Meta TSV 缺少必需列: ${missing.join('、')}（该流程的列是固定的）`
+  if (extra.length) return `Meta TSV 含该流程之外的列: ${extra.join('、')}`
+  const orgIdx = header.indexOf('organism')
+  if (orgIdx >= 0) {
+    for (let i = 1; i < lines.length; i++) {
+      const cells = lines[i].split('\t')
+      if (!(cells[orgIdx] || '').trim()) {
+        return `第 ${i + 1} 行 organism 为空（应为 GRCh38 / GRCm39 / Mmul_10）`
+      }
+    }
+  }
+  return null
+}
+
+const fillCreateFromMetaTpl = () => {
+  metaContent.value = (metaTpl.value?.filled || '') + '\n'
+}
+const fillEditFromMetaTpl = () => {
+  editForm.metaContent = (metaTpl.value?.filled || '') + '\n'
+}
+
+const gotoStep2 = () => {
+  if (metaType.value === 'text') {
+    const err = metaTplError(metaContent.value)
+    if (err) {
+      ElMessage.error(err)
+      return
+    }
+  }
+  createStep.value = 2
+}
+
 const handleSaveEdit = async () => {
+  if (editForm.metaType === 'text') {
+    const err = metaTplError(editForm.metaContent)
+    if (err) {
+      ElMessage.error(err)
+      return
+    }
+  }
   editLoading.value = true
   try {
     // 更新接口是全量覆盖,必须把行内其余字段(含 extraParams)原样带上,否则被写空
@@ -1853,10 +1933,37 @@ watch(metaTsvContent, (val) => {
 }
 
 .param-preview {
-  margin-top: 10px;
+  font-family: monospace;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   word-break: break-all;
+}
+
+.meta-tpl-panel {
+  border: 1px solid var(--el-color-primary-light-6);
+  background: var(--el-color-primary-light-9);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.meta-tpl-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+
+.meta-tpl-example {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-family: monospace;
+  max-height: 110px;
+  overflow: auto;
+  white-space: pre;
+  color: var(--el-text-color-secondary);
 }
 
 .exec-hint {

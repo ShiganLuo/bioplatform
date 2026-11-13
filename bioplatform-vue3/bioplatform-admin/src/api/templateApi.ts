@@ -54,3 +54,15 @@ export function deleteTemplate(id: number) {
 export function importTemplates(omicsDir: string) {
   return http.post<number>('/api/admin/templates/import', { omicsDir })
 }
+
+export interface MetaTemplate {
+  available: boolean
+  columns: string[]
+  examples: string[]
+  filled: string
+}
+
+/** 工作流 meta 规范(Omics/assests/test/meta_<工作流>.tsv):列固定 + 示例行 */
+export function getMetaTemplate(id: number) {
+  return http.get<MetaTemplate>(`/api/admin/templates/${id}/meta-template`)
+}

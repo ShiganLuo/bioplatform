@@ -73,6 +73,11 @@ public class AdminWorkflowTemplateController {
         return ApiResponse.success(count);
     }
 
+    @GetMapping("/{id}/meta-template")
+    public ApiResponse<WorkflowTemplateService.MetaTemplate> metaTemplate(@PathVariable Long id) {
+        return ApiResponse.success(templateService.getMetaTemplate(id));
+    }
+
     /**
      * 调试用：扫描目录返回将要导入的文件列表
      */

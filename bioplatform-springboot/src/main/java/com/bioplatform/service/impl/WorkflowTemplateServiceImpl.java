@@ -96,6 +96,35 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
         return templateMapper.selectById(id);
     }
 
+    /** 工作流 meta 规范目录(Omics 仓库内;列与示例行因流程而异,如 RNAseq 带 organism/contaminated_organism,CLIP 不带) */
+    @org.springframework.beans.factory.annotation.Value("${bioplatform.omics.root:/data/16T/luosg/workflow/Omics}")
+    private String omicsRootProp;
+
+    @Override
+    public MetaTemplate getMetaTemplate(Long id) {
+        WorkflowTemplate tpl = templateMapper.selectById(id);
+        if (tpl == null) {
+            throw new IllegalArgumentException("模板不存在");
+        }
+        if (!"pipeline".equals(tpl.getType())) {
+            return new MetaTemplate(false, List.of(), List.of(), "");
+        }
+        try {
+            Path f = com.bioplatform.common.util.HostPathUtil.resolveExisting(
+                    omicsRootProp + "/assests/test/meta_" + tpl.getName() + ".tsv");
+            List<String> lines = java.nio.file.Files.readAllLines(f, java.nio.charset.StandardCharsets.UTF_8)
+                    .stream().filter(l -> !l.isBlank()).limit(3).toList();
+            if (lines.isEmpty()) {
+                return new MetaTemplate(false, List.of(), List.of(), "");
+            }
+            List<String> columns = List.of(lines.get(0).split("\t", -1));
+            List<String> examples = List.copyOf(lines.subList(1, lines.size()));
+            return new MetaTemplate(true, columns, examples, String.join("\n", lines));
+        } catch (Exception e) {
+            return new MetaTemplate(false, List.of(), List.of(), "");
+        }
+    }
+
     @Override
     public PageResult listTemplates(String type, String category, int page, int size) {
         PageHelper.startPage(page, size);
