@@ -447,6 +447,34 @@ public class PipelineTaskDispatcher {
         }
     }
 
+    /**
+     * 产物活跃度探测:输出目录 10 分钟内有写入 = 执行进程仍存在。
+     * 这是"确认执行进程是否存在"的兜底证据(worker 无任务记录时用)。
+     */
+    private boolean isOutputActive(PipelineExecution exec) {
+        if (exec.getOutputPath() == null || exec.getOutputPath().isBlank()) {
+            return false;
+        }
+        java.time.Instant cutoff = java.time.LocalDateTime.now().minusMinutes(10)
+                .atZone(java.time.ZoneId.systemDefault()).toInstant();
+        for (String root : new String[]{resolveOutputRoot(), dataRoot, sharedPath}) {
+            if (root == null || root.isBlank()) {
+                continue;
+            }
+            try {
+                java.nio.file.Path dir = com.bioplatform.common.util.HostPathUtil.resolveExisting(
+                        root + "/" + exec.getOutputPath());
+                if (java.nio.file.Files.isDirectory(dir)
+                        && java.nio.file.Files.getLastModifiedTime(dir).toInstant().isAfter(cutoff)) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // 该根下没有,试下一个
+            }
+        }
+        return false;
+    }
+
     private void applyStatus(PipelineExecution exec, String status) {
         switch (status) {
             case "COMPLETED" -> {
@@ -455,22 +483,38 @@ public class PipelineTaskDispatcher {
                 touch(exec);
                 log.info("任务完成: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
             }
-            case "FAILED" -> {
-                String output = executionEngine.output(exec.getWorkerUrl(), exec.getTaskId());
-                exec.setStatus("FAILED");
-                exec.setErrorLog(truncate(output));
-                writeTaskOutputFile(exec, output);
-                touch(exec);
-                log.warn("任务失败: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+            case "FAILED", "CANCELLED" -> {
+                // 执行进程还在写产物时,worker 的终态可能只是上一世代任务记录的陈旧结论
+                // (旧超时强杀留下的孤儿仍在跑)。产物安静后才定案,期间保持 RUNNING。
+                if (isOutputActive(exec)) {
+                    exec.setHeartbeatAt(LocalDateTime.now());
+                    executionMapper.updateById(exec);
+                    log.info("Worker 报终态 {} 但产物仍在写入,保持运行待定案: executionId={}", status, exec.getId());
+                } else if ("FAILED".equals(status)) {
+                    String output = executionEngine.output(exec.getWorkerUrl(), exec.getTaskId());
+                    exec.setStatus("FAILED");
+                    exec.setErrorLog(truncate(output));
+                    writeTaskOutputFile(exec, output);
+                    touch(exec);
+                    log.warn("任务失败: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+                } else {
+                    exec.setStatus("CANCELLED");
+                    persistTaskOutput(exec);
+                    touch(exec);
+                    log.info("任务已取消: executionId={}", exec.getId());
+                }
             }
-            case "CANCELLED" -> {
-                exec.setStatus("CANCELLED");
-                persistTaskOutput(exec);
-                touch(exec);
-                log.info("任务已取消: executionId={}", exec.getId());
+            case "NOT_FOUND" -> {
+                // 探测机制:worker 丢了任务记录 ≠ 执行进程死了(旧超时强杀曾留下仍在跑的孤儿)。
+                // 产物目录仍有近期写入 = 进程还活着,保持 RUNNING;确认无活动才判失败。
+                if (isOutputActive(exec)) {
+                    exec.setHeartbeatAt(LocalDateTime.now());
+                    executionMapper.updateById(exec);
+                    log.info("Worker 端无任务记录但产物仍在写入,按探测机制保持运行: executionId={}", exec.getId());
+                } else {
+                    fail(exec, "执行进程不存在且产物无近期活动(worker 可能重启),请重新执行");
+                }
             }
-            case "NOT_FOUND" ->
-                    fail(exec, "任务在 Worker 端丢失(worker 可能重启),请重新执行");
             default -> {
                 // RUNNING/PENDING/UNKNOWN:仅刷新心跳
                 exec.setHeartbeatAt(LocalDateTime.now());

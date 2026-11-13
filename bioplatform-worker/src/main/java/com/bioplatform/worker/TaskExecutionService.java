@@ -159,7 +159,9 @@ public class TaskExecutionService {
      * 流程框架也可在终止/完成时经回调接口(/api/public/executions/callback)回报终态。
      */
     private void executeCommand(Task task, String command) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+        // setsid:进程自成会话组长,取消时可 kill -- -pid 杀整个进程树
+        // (此前只杀外层包装,孤儿流水线会继续跑——执行 12 的 RNAseq 就这么活下来的)
+        ProcessBuilder pb = new ProcessBuilder("setsid", "bash", "-c", command);
         pb.redirectErrorStream(true);
         // 任务状态文件目录对进程可见即可,不做特殊环境注入
         Process process = pb.start();
@@ -217,13 +219,19 @@ public class TaskExecutionService {
         }
         Process process = processes.get(taskId);
         if (process != null && process.isAlive()) {
+            // 杀整个进程组(setsid 后进程为会话组长),避免只杀 wrapper 留下孤儿流水线
+            try {
+                new ProcessBuilder("kill", "--", "-" + process.pid()).start().waitFor(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.warn("进程组 kill 失败(回退单杀): taskId={}, error={}", taskId, e.getMessage());
+            }
             process.destroyForcibly();
             try {
                 process.waitFor(5, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            log.info("已强杀进程: taskId={}", taskId);
+            log.info("已强杀进程组: taskId={}", taskId);
         }
         task.setStatus("CANCELLED");
         task.setFinishedAt(LocalDateTime.now());
