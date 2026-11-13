@@ -157,6 +157,44 @@ public class SystemServiceImpl implements SystemService {
         List<Map<String, Object>> statusStats = pipelineExecutionMapper.countByStatus();
         stats.put("executionStatusStats", statusStats);
 
+        // 最近执行记录(仪表盘;此前该字段缺失,前端永远空列表)
+        java.util.Map<Long, String> pipelineNames = new HashMap<>();
+        java.util.Map<Long, String> projectNames = new HashMap<>();
+        List<Map<String, Object>> recent = new java.util.ArrayList<>();
+        for (com.bioplatform.entity.PipelineExecution e : pipelineExecutionMapper.selectByUserId(null, null)) {
+            if (recent.size() >= 10) {
+                break;
+            }
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", e.getId());
+            m.put("pipelineId", e.getPipelineId());
+            m.put("projectId", e.getProjectId());
+            m.put("status", e.getStatus());
+            m.put("executor", e.getExecutor());
+            m.put("startTime", fmtTime(e.getStartedAt()));
+            m.put("endTime", fmtTime(e.getFinishedAt()));
+            if (e.getPipelineId() != null) {
+                m.put("pipelineName", pipelineNames.computeIfAbsent(e.getPipelineId(),
+                        id -> {
+                            com.bioplatform.entity.Pipeline p = pipelineMapper.selectById(id);
+                            return p == null ? null : p.getName();
+                        }));
+            }
+            if (e.getProjectId() != null) {
+                m.put("projectName", projectNames.computeIfAbsent(e.getProjectId(),
+                        id -> {
+                            com.bioplatform.entity.Project p = projectMapper.selectById(id);
+                            return p == null ? null : p.getName();
+                        }));
+            }
+            recent.add(m);
+        }
+        stats.put("recentExecutions", recent);
+
         return stats;
+    }
+
+    private static String fmtTime(java.time.LocalDateTime t) {
+        return t == null ? null : t.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 }

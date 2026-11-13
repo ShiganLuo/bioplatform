@@ -170,6 +170,16 @@ public class PipelineTaskDispatcher {
     @org.springframework.beans.factory.annotation.Autowired
     private com.bioplatform.service.SystemService systemService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.bioplatform.common.util.ExecCallbackTokenUtil callbackTokenUtil;
+
+    /** 执行回调地址(流程框架回报终态用):系统配置 execution.callbackUrl,宿主机侧默认本机后端 */
+    private String resolveCallbackUrl() {
+        String v = systemService.getConfigValue("execution.callbackUrl");
+        return (v == null || v.isBlank())
+                ? "http://127.0.0.1:8083/api/public/executions/callback" : v.trim();
+    }
+
     /** 执行输出根目录:system_configs 的 execution.outputRoot(仅超管可改),空 = 默认上传卷 */
     private String resolveOutputRoot() {
         String v = systemService.getConfigValue("execution.outputRoot");
@@ -236,6 +246,12 @@ public class PipelineTaskDispatcher {
 
         StringBuilder inner = new StringBuilder();
         inner.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; ");
+        // 回调接口环境变量:流程框架终止/完成时回报终态(/api/public/executions/callback)
+        inner.append("export BIPLATFORM_EXEC_ID=").append(execution.getId()).append("; ");
+        inner.append("export BIPLATFORM_CALLBACK_TOKEN=\"")
+                .append(escDq(callbackTokenUtil.token(execution.getId()))).append("\"; ");
+        inner.append("export BIPLATFORM_CALLBACK_URL=\"")
+                .append(escDq(resolveCallbackUrl())).append("\"; ");
         inner.append("mkdir -p \"").append(escDq(absOutStr)).append("\" || exit 1; ");
         if (!copyFiles.isEmpty()) {
             inner.append("cp");
@@ -464,35 +480,11 @@ public class PipelineTaskDispatcher {
     }
 
     /**
-     * 超时强查:超过 pipeline.timeout 的 RUNNING 任务,真杀执行端进程后标 FAILED。
+     * 探测机制(2026-11-13 取代超时强杀):
+     * 不再按墙钟超时杀任务——pollRunningExecutions 每 10 秒向执行端探测任务/进程是否存在,
+     * 仅在确定性丢失(status=NOT_FOUND 或 worker 失联 5 分钟)时判失败;
+     * 长流程跑多久都允许,流程框架可在终止/完成时经回调接口回报终态。
      */
-    @Scheduled(fixedDelay = 30_000, initialDelay = 25_000)
-    public void enforceTimeouts() {
-        PipelineExecution query = new PipelineExecution();
-        query.setStatus("RUNNING");
-        List<PipelineExecution> running;
-        try {
-            running = executionMapper.selectAll(query);
-        } catch (Exception e) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (PipelineExecution exec : running) {
-            if (exec.getStartedAt() == null) continue;
-            Pipeline pipeline = pipelineMapper.selectById(exec.getPipelineId());
-            int timeoutSeconds = resolveTimeoutSeconds(pipeline);
-            if (exec.getStartedAt().plusSeconds(timeoutSeconds).isBefore(now)) {
-                if (exec.getTaskId() != null && exec.getWorkerUrl() != null) {
-                    try {
-                        executionEngine.cancel(exec.getWorkerUrl(), exec.getTaskId());
-                    } catch (Exception e) {
-                        log.warn("超时任务取消调用失败: executionId={}, error={}", exec.getId(), e.getMessage());
-                    }
-                }
-                fail(exec, "任务执行超时(超过 " + timeoutSeconds + " 秒),已强制终止");
-            }
-        }
-    }
 
     /**
      * 启动对账:backend 重启后立即把无主的 RUNNING 记录拉回对账流程

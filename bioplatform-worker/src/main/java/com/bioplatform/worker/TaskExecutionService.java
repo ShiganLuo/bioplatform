@@ -154,7 +154,9 @@ public class TaskExecutionService {
     }
 
     /**
-     * 执行实际命令(带超时强杀与输出截断)
+     * 执行实际命令(探测机制:不设墙钟超时,进程退出即结束)。
+     * 进程丢失由 backend 10 秒对账探测判定(status=NOT_FOUND 或 worker 失联 5 分钟),
+     * 流程框架也可在终止/完成时经回调接口(/api/public/executions/callback)回报终态。
      */
     private void executeCommand(Task task, String command) throws Exception {
         ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
@@ -175,19 +177,8 @@ public class TaskExecutionService {
             }
         }
 
-        int timeout = task.getTimeout() != null ? task.getTimeout() : 3600;
-        boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
+        process.waitFor(); // 等进程自然结束;不再按超时强杀(RNAseq 等大流程被 1h 缺省误杀过)
         task.setFinishedAt(LocalDateTime.now());
-
-        if (!finished) {
-            process.destroyForcibly();
-            process.waitFor(5, TimeUnit.SECONDS);
-            task.setStatus("FAILED");
-            task.setError("任务执行超时(超过 " + timeout + " 秒),已强制终止\n" + output);
-            persist(task);
-            log.warn("任务超时强杀: taskId={}, timeout={}", task.getId(), timeout);
-            return;
-        }
 
         int exitCode = process.exitValue();
         if (exitCode == 0) {

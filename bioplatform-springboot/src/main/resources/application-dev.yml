@@ -43,6 +43,7 @@ security:
       - /api/admin/auth/login
       - /api/admin/auth/refreshToken
       - /api/admin/download   # 一次性下载票据凭据(单次消费),原生下载用
+      - /api/public/executions/callback   # 流程框架执行终态回调(HMAC 令牌校验)
       - /api/admin/users/register
       # API文档
       - /swagger-ui.html
