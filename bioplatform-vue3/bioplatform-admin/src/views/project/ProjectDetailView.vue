@@ -690,6 +690,45 @@
       </template>
     </el-dialog>
 
+    <!-- Edit Analysis Dialog -->
+    <el-dialog v-model="editVisible" title="编辑分析" width="640px">
+      <el-form label-width="100px">
+        <el-form-item label="分析名称">
+          <el-input v-model="editForm.name" />
+        </el-form-item>
+        <el-form-item label="数据来源">
+          <el-radio-group v-model="editForm.metaType">
+            <el-radio-button value="text">TSV 文本</el-radio-button>
+            <el-radio-button value="path">服务器路径</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="editForm.metaType === 'text' ? 'Meta TSV' : '路径'">
+          <el-input
+            v-if="editForm.metaType === 'text'"
+            v-model="editForm.metaContent"
+            type="textarea"
+            :rows="8"
+            placeholder="sample_id&#9;organism&#9;group&#9;data_id&#9;design&#9;fastq_1&#9;fastq_2"
+          />
+          <el-input v-else v-model="editForm.metaContent" placeholder="/data/16T/Data/.../meta.tsv" />
+          <div style="font-size: 12px; color: #909399; line-height: 1.6;">
+            执行时使用的是这份 meta（与"样本信息"区的项目台账各自独立）。organism 列必填
+            （GRCh38 / GRCm39 / Mmul_10）；双端样本一行一列对（fastq_1 + fastq_2）。
+          </div>
+        </el-form-item>
+        <el-form-item label="参数覆盖">
+          <el-input v-model="editForm.extraParams" type="textarea" :rows="3" placeholder='{"Params.star.alignEndsType": "Local"}' />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editForm.description" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="handleSaveEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 添加子项目弹窗 -->
     <el-dialog v-model="addChildVisible" title="添加子项目" width="500px">
       <el-form label-width="80px">
@@ -725,7 +764,7 @@ import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
 import { listTemplates, getTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate } from '@/api/templateApi'
-import { executePipeline } from '@/api/pipelineApi'
+import { executePipeline, updatePipeline } from '@/api/pipelineApi'
 import { listExecutions, cancelExecution } from '@/api/executionApi'
 import type { Execution } from '@/api/executionApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -1561,7 +1600,58 @@ const handleCreateAnalysis = async () => {
 }
 
 const handleEdit = (row: Pipeline) => {
-  router.push(`/pipelines`)
+  editBase.value = { ...row }
+  editForm.id = row.id
+  editForm.name = row.name
+  editForm.metaType = row.metaType || 'text'
+  editForm.metaContent = row.metaContent || ''
+  editForm.extraParams = row.extraParams || ''
+  editForm.description = row.description || ''
+  editVisible.value = true
+}
+
+// 分析编辑(修改 meta 等,创建后可改;样本信息是项目台账,与这里的输入数据各自独立)
+const editVisible = ref(false)
+const editLoading = ref(false)
+const editBase = ref<Pipeline | null>(null)
+const editForm = reactive({
+  id: 0,
+  name: '',
+  metaType: 'text',
+  metaContent: '',
+  extraParams: '',
+  description: ''
+})
+
+const handleSaveEdit = async () => {
+  if (editForm.extraParams.trim()) {
+    try {
+      JSON.parse(editForm.extraParams)
+    } catch {
+      ElMessage.error('参数覆盖不是合法 JSON')
+      return
+    }
+  }
+  editLoading.value = true
+  try {
+    // 更新接口是全量覆盖,必须把行内其余字段原样带上,否则被写空
+    await updatePipeline(editForm.id, {
+      ...(editBase.value as any),
+      name: editForm.name,
+      metaType: editForm.metaType,
+      metaContent: editForm.metaContent,
+      extraParams: editForm.extraParams,
+      description: editForm.description
+    } as any)
+    ElMessage.success('已保存')
+    editVisible.value = false
+    loadAnalyses()
+    loadExecutionStatuses()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    editLoading.value = false
+  }
 }
 
 const handleDelete = async (row: Pipeline) => {
