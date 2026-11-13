@@ -83,6 +83,13 @@
             <el-form-item label="保留天数">
               <el-input-number v-model="executionConfig.retentionDays" :min="1" :max="365" :disabled="!executionConfig.autoCleanup" />
             </el-form-item>
+            <el-form-item label="输出根目录">
+              <el-input v-model="executionConfig.outputRoot" placeholder="留空 = 默认上传卷，如 /data/16T/luosg/results" />
+              <div style="font-size: 12px; color: #909399; line-height: 1.6; width: 100%;">
+                执行产物的根目录（宿主机绝对路径，目录需已存在）。产物文件属主跟随该目录属主——
+                指向自己的数据目录即可摆脱 root 属主。留空则落在平台默认上传卷。
+              </div>
+            </el-form-item>
           </el-form>
         </el-tab-pane>
 
@@ -196,7 +203,8 @@ const executionConfig = reactive({
   maxConcurrency: 10,
   timeoutMinutes: 120,
   autoCleanup: true,
-  retentionDays: 30
+  retentionDays: 30,
+  outputRoot: ''
 })
 
 const contactConfig = reactive({

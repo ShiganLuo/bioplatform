@@ -96,7 +96,8 @@ public class PipelineTaskDispatcher {
         // Omics 模板(command_template 为空但有 snakemake_path)按仓库约定生成执行命令:
         //   pipeline → run.py -w <name> -m <meta> -o <out> --sdm apptainer <点号参数>
         //   task     → run_module.py --snakefile <smk> --config <merged.json> -o <out> --sdm apptainer [--samples ...]
-        // 命令仅内存生效不回写模板;meta/合并配置由 backend 落到输出目录(共享卷)。
+        // 生成的命令仅内存生效;meta/合并配置由 backend 落到上传卷暂存目录。
+        boolean omicsBridge = false;
         if (template.getCommandTemplate() == null || template.getCommandTemplate().isBlank()) {
             if (template.getSnakemakePath() == null || template.getSnakemakePath().isBlank()) {
                 fail(execution, "模板未配置 command_template 且无 snakemake_path,无法执行");
@@ -104,6 +105,7 @@ public class PipelineTaskDispatcher {
             }
             try {
                 template.setCommandTemplate(buildOmicsCommand(template, pipeline, execution));
+                omicsBridge = true;
             } catch (Exception e) {
                 fail(execution, "生成 Omics 执行命令失败: " + e.getMessage());
                 return false;
@@ -120,11 +122,14 @@ public class PipelineTaskDispatcher {
 
         int timeoutSeconds = pipeline.getTimeout() != null ? pipeline.getTimeout() : 3600;
         try {
-            // 输出目录由 backend 在共享卷里预先创建(与 worker 的 docker run 绑定路径同卷)。
-            // 不能让模板自己 mkdir:worker 容器内 mkdir 落在容器文件系统,DooD 场景
+            // 手写 command_template 的模板(如 docker run -v {{data_root}})依赖 backend 在共享卷
+            // 预先创建输出目录:不能让模板自己 mkdir,worker 容器内 mkdir 落在容器文件系统,DooD 场景
             // docker run -v 绑的是宿主机路径,目录根本不会出现在宿主机卷上(2026-10-31 实测)。
-            java.nio.file.Files.createDirectories(
-                    java.nio.file.Paths.get(sharedPath, rendered.outputDir()));
+            // Omics 桥接命令经 nsenter 在宿主机执行且自带 mkdir,输出根目录还可能在卷外,跳过预建。
+            if (!omicsBridge) {
+                java.nio.file.Files.createDirectories(
+                        java.nio.file.Paths.get(sharedPath, rendered.outputDir()));
+            }
 
             String taskId = executionEngine.submit(worker.getUrl(), execution,
                     rendered.command(), timeoutSeconds);
@@ -158,20 +163,37 @@ public class PipelineTaskDispatcher {
     @org.springframework.beans.factory.annotation.Value("${bioplatform.omics.root:/data/16T/luosg/workflow/Omics}")
     private String omicsRoot;
 
+    /** 上传卷宿主机路径({{data_root}} 同源);暂存文件经卷写入,命令侧再拷进输出目录 */
+    @org.springframework.beans.factory.annotation.Value("${bioplatform.storage.dataRoot:}")
+    private String dataRoot;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.bioplatform.service.SystemService systemService;
+
+    /** 执行输出根目录:system_configs 的 execution.outputRoot(仅超管可改),空 = 默认上传卷 */
+    private String resolveOutputRoot() {
+        String v = systemService.getConfigValue("execution.outputRoot");
+        return (v == null || v.isBlank()) ? dataRoot : v.trim();
+    }
+
     /**
-     * 为 Omics 模板生成执行命令(worker 在容器内 bash -c,经 chroot /host 直达宿主机运行环境)。
-     * {{data_root}}/{{output_dir}} 占位符留给 CommandRenderer 统一替换。
+     * 为 Omics 模板生成执行命令(worker 经 nsenter 在宿主机命名空间执行)。
+     * 产物落 <输出根目录>/<projectId>/results/exec_<id>/;meta/合并配置由 backend 先写入
+     * 上传卷暂存目录(<pid>/stage_exec_<id>),命令侧 mkdir+cp 进输出目录——输出根目录可能
+     * 在 backend 的 /host:ro 挂载之外,backend 直接写不进去。
+     * 结束后 chown --reference=输出根目录:产物属主跟随根目录属主,指向自己的数据目录即摆脱 root。
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
-        String outputDir = execution.getProjectId() + "/results/exec_" + execution.getId();
-        Path absOut = Paths.get(sharedPath, outputDir);
-        Files.createDirectories(absOut);
+        String outputDirRel = execution.getProjectId() + "/results/exec_" + execution.getId();
+        String outRoot = resolveOutputRoot();
+        String absOutStr = outRoot + "/" + outputDirRel;
+        String stageRel = execution.getProjectId() + "/stage_exec_" + execution.getId();
+        Files.createDirectories(Paths.get(sharedPath, stageRel));
+        String stageHost = dataRoot + "/" + stageRel;
 
-        String out = "{{data_root}}/{{output_dir}}";
         Map<String, Object> overrides = flattenedOverrides(pipeline);
-        StringBuilder inner = new StringBuilder();
-        inner.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; cd \"")
-                .append(escDq(omicsRoot)).append("\" && ");
+        List<String> copyFiles = new ArrayList<>();
+        StringBuilder run = new StringBuilder();
 
         if ("pipeline".equals(template.getType())) {
             String metaArg;
@@ -179,16 +201,17 @@ public class PipelineTaskDispatcher {
                     && pipeline.getMetaContent() != null && !pipeline.getMetaContent().isBlank()) {
                 metaArg = "\"" + escDq(pipeline.getMetaContent().trim()) + "\"";
             } else {
-                Files.writeString(absOut.resolve("meta.tsv"),
+                Files.writeString(Paths.get(sharedPath, stageRel, "meta.tsv"),
                         pipeline.getMetaContent() != null ? pipeline.getMetaContent() : "");
-                metaArg = "\"" + out + "/meta.tsv\"";
+                copyFiles.add("meta.tsv");
+                metaArg = "\"" + escDq(absOutStr + "/meta.tsv") + "\"";
             }
-            inner.append("python3 run.py -w \"").append(escDq(template.getName()))
+            run.append("python3 run.py -w \"").append(escDq(template.getName()))
                     .append("\" -m ").append(metaArg)
-                    .append(" -o \"").append(out).append("\" -t 16 --sdm apptainer");
+                    .append(" -o \"").append(escDq(absOutStr)).append("\" -t 16 --sdm apptainer");
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {
-                inner.append(' ').append(e.getKey())
+                run.append(' ').append(e.getKey())
                         .append("=\"").append(escDq(String.valueOf(e.getValue()))).append('"');
             }
         } else {
@@ -197,18 +220,36 @@ public class PipelineTaskDispatcher {
             SampleGroups groups = sampleGroupsFromMeta(pipeline.getMetaContent());
             if (!groups.paired.isEmpty()) cfg.set("paired_samples", MAPPER.valueToTree(groups.paired));
             if (!groups.single.isEmpty()) cfg.set("single_samples", MAPPER.valueToTree(groups.single));
-            Files.writeString(absOut.resolve("config.json"), MAPPER.writeValueAsString(cfg));
-            inner.append("python3 run_module.py --snakefile \"").append(escDq(template.getSnakemakePath()))
-                    .append("\" --config \"").append(out + "/config.json\"")
-                    .append(" -o \"").append(out).append("\" -t 8 --sdm apptainer");
+            Files.writeString(Paths.get(sharedPath, stageRel, "config.json"), MAPPER.writeValueAsString(cfg));
+            copyFiles.add("config.json");
+            run.append("python3 run_module.py --snakefile \"").append(escDq(template.getSnakemakePath()))
+                    .append("\" --config \"").append(escDq(absOutStr + "/config.json"))
+                    .append("\" -o \"").append(escDq(absOutStr)).append("\" -t 8 --sdm apptainer");
             List<String> samples = groups.all();
             if (!samples.isEmpty()) {
-                inner.append(" --samples");
+                run.append(" --samples");
                 for (String s : samples) {
-                    inner.append(" \"").append(escDq(s)).append('"');
+                    run.append(" \"").append(escDq(s)).append('"');
                 }
             }
         }
+
+        StringBuilder inner = new StringBuilder();
+        inner.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; ");
+        inner.append("mkdir -p \"").append(escDq(absOutStr)).append("\" || exit 1; ");
+        if (!copyFiles.isEmpty()) {
+            inner.append("cp");
+            for (String f : copyFiles) {
+                inner.append(" \"").append(escDq(stageHost + "/" + f)).append('"');
+            }
+            inner.append(" \"").append(escDq(absOutStr)).append("/\"; ");
+        }
+        inner.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
+        // 产物属主跟随输出根目录属主(chown 到项目层,连 results/exec 包装目录一并摆脱 root);
+        // 暂存目录用完即删;保留运行退出码
+        inner.append("; rc=$?; chown -R --reference=\"").append(escDq(outRoot)).append("\" \"")
+                .append(escDq(outRoot + "/" + execution.getProjectId())).append("\" >/dev/null 2>&1; rm -rf \"")
+                .append(escDq(stageHost)).append("\"; exit $rc");
 
         // 外层经 nsenter 进宿主机命名空间运行(用户态 apptainer 的 newuidmap 流程只在宿主机命名空间可用;
         // worker 容器 privileged + pid:host 才能 nsenter -t 1)。同 ShellExecuteTool 的宿主机语义。
