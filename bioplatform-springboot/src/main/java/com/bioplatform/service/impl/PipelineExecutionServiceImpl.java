@@ -166,11 +166,31 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         if (fromJsonl != null) {
             return fromJsonl;
         }
-        // A 层:snakemake 控制台日志。目录按分析复用后同一目录有多个会话日志(每次续跑一段),
-        // 跨会话累计:总量取最大(最初完整 DAG),完成量 = 总量 − 最新会话剩余
+        // A 层:本执行自己的 snakemake 会话日志。目录按分析复用、多执行多会话,
+        // 每条执行记录只认自己执行时间窗内的会话(否则会显示成别的执行/全目录的进度)
         java.util.List<java.nio.file.Path> logs = snakemakeLogs(e);
-        if (!logs.isEmpty()) {
-            return parseSnakemakeSessions(logs, e.getStatus());
+        java.time.Instant from = e.getStartedAt() == null ? java.time.Instant.EPOCH
+                : e.getStartedAt().atZone(java.time.ZoneId.systemDefault()).toInstant();
+        java.time.Instant to;
+        if ("RUNNING".equals(e.getStatus()) || "PENDING".equals(e.getStatus())) {
+            to = java.time.Instant.now().plusSeconds(120);
+        } else {
+            java.time.LocalDateTime end = e.getFinishedAt() != null ? e.getFinishedAt() : e.getHeartbeatAt();
+            to = (end != null ? end.plusMinutes(2) : java.time.LocalDateTime.now())
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant();
+        }
+        java.nio.file.Path own = null;
+        for (java.nio.file.Path p : logs) {
+            try {
+                java.time.Instant t = java.nio.file.Files.getLastModifiedTime(p).toInstant();
+                if (!t.isBefore(from) && !t.isAfter(to)) {
+                    own = p; // logs 升序,最后一个即窗口内最新
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (own != null) {
+            return parseSnakemakeSessions(java.util.List.of(own), e.getStatus());
         }
         String text = tailOf(resolveTaskLog(e), 16_384);
         if (text == null || text.isBlank()) {
@@ -185,9 +205,8 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
             java.util.regex.Pattern.compile("(?m)^\\s*(?:local)?rule (\\w+):");
 
     /**
-     * 跨会话累计进度:总量 = 各会话总步数最大值(最初完整 DAG),
-     * 完成量 = 总量 − 最新会话剩余(最新会话 X/Y:剩余 = Y−X)。
-     * 例:首跑 105 步,续跑会话剩 47 步已完成 5 → 显示 63/105。
+     * 会话进度:完成 = 最新"X of Y"的 X,总量 = Y(本会话自己排的步骤)。
+     * 传入多个日志时按累计口径:总量取最大,完成 = 总量 − 最新会话剩余。
      */
     private ProgressInfo parseSnakemakeSessions(java.util.List<java.nio.file.Path> logs, String status) {
         int total = 0;
