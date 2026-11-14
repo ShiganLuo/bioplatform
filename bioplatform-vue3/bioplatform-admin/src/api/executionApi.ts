@@ -48,3 +48,8 @@ export function cancelExecution(id: number) {
 export function getExecutionLogs(id: number) {
   return http.get<string>(`/api/admin/executions/${id}/logs`)
 }
+
+// 删除执行记录(超管;只删记录,产物保留)
+export function deleteExecution(id: number) {
+  return http.delete(`/api/admin/executions/${id}`)
+}

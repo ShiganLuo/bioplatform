@@ -51,6 +51,13 @@ public interface PipelineExecutionService {
     void cancelExecution(Long id);
 
     /**
+     * 删除执行记录(仅删 DB 记录;产物目录按分析共用,绝不跟删)
+     *
+     * @param id 执行记录ID
+     */
+    void deleteExecution(Long id);
+
+    /**
      * 获取执行日志
      *
      * @param id 执行记录ID

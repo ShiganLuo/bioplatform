@@ -76,6 +76,14 @@
             >
               取消
             </el-button>
+            <el-button
+              v-if="userStore.hasRole('ROLE_ADMIN')"
+              type="danger"
+              link
+              @click="handleDelete(row as Execution)"
+            >
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -155,8 +163,11 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { listExecutions, getExecution, cancelExecution } from '@/api/executionApi'
+import { listExecutions, getExecution, cancelExecution, deleteExecution } from '@/api/executionApi'
 import type { Execution } from '@/api/executionApi'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 const executionList = ref<Execution[]>([])
@@ -222,6 +233,25 @@ const resetSearch = () => {
   searchForm.pipelineName = ''
   searchForm.status = ''
   handleSearch()
+}
+
+const handleDelete = async (row: Execution) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除执行记录 #${row.id}?只删记录,产物文件保留。`,
+      '删除执行记录',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await deleteExecution(row.id!)
+    ElMessage.success('执行记录已删除')
+    loadExecutions()
+  } catch (error) {
+    console.error('Failed to delete execution:', error)
+  }
 }
 
 const handleViewDetail = async (row: Execution) => {

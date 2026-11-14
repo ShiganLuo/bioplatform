@@ -166,14 +166,70 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         if (fromJsonl != null) {
             return fromJsonl;
         }
-        String text = tailOf(newestSnakemakeLog(e), 16_384);
-        if (text == null || text.isBlank()) {
-            text = tailOf(resolveTaskLog(e), 16_384);
+        // A 层:snakemake 控制台日志。目录按分析复用后同一目录有多个会话日志(每次续跑一段),
+        // 跨会话累计:总量取最大(最初完整 DAG),完成量 = 总量 − 最新会话剩余
+        java.util.List<java.nio.file.Path> logs = snakemakeLogs(e);
+        if (!logs.isEmpty()) {
+            return parseSnakemakeSessions(logs, e.getStatus());
         }
+        String text = tailOf(resolveTaskLog(e), 16_384);
         if (text == null || text.isBlank()) {
             text = resultText;
         }
         return parseSnakemakeText(text, e.getStatus());
+    }
+
+    private static final java.util.regex.Pattern STEPS_PAT =
+            java.util.regex.Pattern.compile("(\\d+) of (\\d+) steps \\((\\d+)%\\) done");
+    private static final java.util.regex.Pattern RULE_PAT =
+            java.util.regex.Pattern.compile("(?m)^\\s*(?:local)?rule (\\w+):");
+
+    /**
+     * 跨会话累计进度:总量 = 各会话总步数最大值(最初完整 DAG),
+     * 完成量 = 总量 − 最新会话剩余(最新会话 X/Y:剩余 = Y−X)。
+     * 例:首跑 105 步,续跑会话剩 47 步已完成 5 → 显示 63/105。
+     */
+    private ProgressInfo parseSnakemakeSessions(java.util.List<java.nio.file.Path> logs, String status) {
+        int total = 0;
+        int latestX = -1;
+        int latestY = -1;
+        String stage = null;
+        for (java.nio.file.Path p : logs) {
+            String tail = tailOf(p, 8_192);
+            if (tail == null || tail.isBlank()) {
+                continue;
+            }
+            int x = -1;
+            int y = -1;
+            java.util.regex.Matcher m = STEPS_PAT.matcher(tail);
+            while (m.find()) {
+                x = Integer.parseInt(m.group(1));
+                y = Integer.parseInt(m.group(2));
+            }
+            if (y > 0) {
+                latestX = x;
+                latestY = y;
+                if (y > total) {
+                    total = y;
+                }
+            }
+            java.util.regex.Matcher r = RULE_PAT.matcher(tail);
+            String st = null;
+            while (r.find()) {
+                st = r.group(1);
+            }
+            if (st != null) {
+                stage = st;
+            }
+        }
+        if (latestY <= 0 || total <= 0) {
+            String prep = "准备中(DAG 构建)" + (total > 0 ? "· 共 " + total + " 步" : "");
+            return new ProgressInfo(null, "RUNNING".equals(status) ? prep : null);
+        }
+        int remaining = Math.max(0, latestY - latestX);
+        int completed = Math.max(0, total - remaining);
+        int pct = Math.min(99, completed * 100 / total);
+        return new ProgressInfo(pct, completed + "/" + total + (stage != null ? " · " + stage : ""));
     }
 
     /** B 层:progress.jsonl 最后一条 progress 事件 + 最新 job 事件的规则名 */
@@ -272,13 +328,12 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         return null;
     }
 
-    /** 输出目录下最新的 snakemake 控制台日志(<工作目录>/.snakemake/log/*.log) */
-    private java.nio.file.Path newestSnakemakeLog(PipelineExecution e) {
+    /** 输出目录下全部 snakemake 会话日志(<工作目录>/.snakemake/log/*.log),按 mtime 升序(最多 20 个) */
+    private java.util.List<java.nio.file.Path> snakemakeLogs(PipelineExecution e) {
+        java.util.List<java.nio.file.Path> out = new java.util.ArrayList<>();
         if (e.getOutputPath() == null || e.getOutputPath().isBlank()) {
-            return null;
+            return out;
         }
-        java.nio.file.Path best = null;
-        java.time.Instant bestTime = java.time.Instant.EPOCH;
         for (String root : outputRoots()) {
             try {
                 java.nio.file.Path dir = com.bioplatform.common.util.HostPathUtil.resolveExisting(
@@ -290,19 +345,25 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                     for (java.nio.file.Path p : stream.filter(java.nio.file.Files::isRegularFile).toList()) {
                         String s = p.toString().replace('\\', '/');
                         if (s.contains("/.snakemake/log/") && s.endsWith(".log")) {
-                            java.time.Instant t = java.nio.file.Files.getLastModifiedTime(p).toInstant();
-                            if (t.isAfter(bestTime)) {
-                                bestTime = t;
-                                best = p;
-                            }
+                            out.add(p);
                         }
                     }
+                }
+                if (!out.isEmpty()) {
+                    out.sort(java.util.Comparator.comparingLong(p -> {
+                        try {
+                            return java.nio.file.Files.getLastModifiedTime(p).toMillis();
+                        } catch (Exception ex) {
+                            return 0L;
+                        }
+                    }));
+                    return out.size() > 20 ? out.subList(out.size() - 20, out.size()) : out;
                 }
             } catch (Exception ignored) {
                 // 该根下不可读,试下一个
             }
         }
-        return best;
+        return out;
     }
 
     private List<String> outputRoots() {
@@ -400,6 +461,20 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         }
 
         log.info("取消执行成功: executionId={}", id);
+    }
+
+    @Override
+    public void deleteExecution(Long id) {
+        PipelineExecution execution = pipelineExecutionMapper.selectById(id);
+        if (execution == null) {
+            throw new IllegalArgumentException("执行记录不存在");
+        }
+        if ("RUNNING".equals(execution.getStatus()) || "PENDING".equals(execution.getStatus())) {
+            throw new IllegalArgumentException("执行进行中,请先取消再删除");
+        }
+        // 只删 DB 记录:输出目录按分析共用(results/<分析id>/),产物绝不跟删
+        pipelineExecutionMapper.deleteById(id);
+        log.info("删除执行记录: executionId={}", id);
     }
 
     @Override

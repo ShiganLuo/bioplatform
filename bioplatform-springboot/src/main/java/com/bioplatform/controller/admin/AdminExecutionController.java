@@ -87,4 +87,23 @@ public class AdminExecutionController {
         String logs = pipelineExecutionService.getExecutionLogs(id);
         return ApiResponse.success(logs);
     }
+
+    /**
+     * Delete an execution record (admin only).
+     * 仅删记录不删产物:输出目录按分析共用,文件绝不跟删。
+     */
+    @DeleteMapping("/{id}")
+    @OperLog(module = "执行管理", operation = "删除执行记录")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        if (!OwnershipUtils.isAdmin()) {
+            return ApiResponse.error(403, "仅管理员可删除执行记录");
+        }
+        PipelineExecution execution = pipelineExecutionService.getExecutionById(id);
+        if (execution == null) return ApiResponse.error(404, "执行记录不存在");
+        if ("RUNNING".equals(execution.getStatus()) || "PENDING".equals(execution.getStatus())) {
+            return ApiResponse.error(400, "执行进行中,请先取消再删除");
+        }
+        pipelineExecutionService.deleteExecution(id);
+        return ApiResponse.success();
+    }
 }
