@@ -453,8 +453,9 @@ public class PipelineTaskDispatcher {
     }
 
     /**
-     * 产物活跃度探测:输出目录 10 分钟内有写入 = 执行进程仍存在。
-     * 这是"确认执行进程是否存在"的兜底证据(worker 无任务记录时用)。
+     * 产物活跃度探测:输出目录树 10 分钟内有写入 = 执行进程仍存在。
+     * 递归查新(限深 4):顶层目录 mtime 只在增删直接子项时变化,
+     * 长流程只写深层文件会误判静默、把仍在跑的执行提前定案。
      */
     private boolean isOutputActive(PipelineExecution exec) {
         if (exec.getOutputPath() == null || exec.getOutputPath().isBlank()) {
@@ -462,19 +463,28 @@ public class PipelineTaskDispatcher {
         }
         java.time.Instant cutoff = java.time.LocalDateTime.now().minusMinutes(10)
                 .atZone(java.time.ZoneId.systemDefault()).toInstant();
-        for (String root : new String[]{resolveOutputRoot(), dataRoot, sharedPath}) {
+        for (String root : outputRoots()) {
             if (root == null || root.isBlank()) {
                 continue;
             }
             try {
                 java.nio.file.Path dir = com.bioplatform.common.util.HostPathUtil.resolveExisting(
                         root + "/" + exec.getOutputPath());
-                if (java.nio.file.Files.isDirectory(dir)
-                        && java.nio.file.Files.getLastModifiedTime(dir).toInstant().isAfter(cutoff)) {
+                if (!java.nio.file.Files.isDirectory(dir)) {
+                    continue;
+                }
+                if (java.nio.file.Files.getLastModifiedTime(dir).toInstant().isAfter(cutoff)) {
                     return true;
                 }
+                try (var stream = java.nio.file.Files.walk(dir, 4)) {
+                    for (java.nio.file.Path p : stream.filter(java.nio.file.Files::isRegularFile).toList()) {
+                        if (java.nio.file.Files.getLastModifiedTime(p).toInstant().isAfter(cutoff)) {
+                            return true;
+                        }
+                    }
+                }
             } catch (Exception ignored) {
-                // 该根下没有,试下一个
+                // 该根下不可读,试下一个
             }
         }
         return false;
