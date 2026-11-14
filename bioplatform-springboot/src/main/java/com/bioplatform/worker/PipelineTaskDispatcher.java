@@ -463,7 +463,7 @@ public class PipelineTaskDispatcher {
         }
         java.time.Instant cutoff = java.time.LocalDateTime.now().minusMinutes(10)
                 .atZone(java.time.ZoneId.systemDefault()).toInstant();
-        for (String root : outputRoots()) {
+        for (String root : new String[]{resolveOutputRoot(), dataRoot, sharedPath}) {
             if (root == null || root.isBlank()) {
                 continue;
             }
