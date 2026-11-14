@@ -670,9 +670,11 @@
     <!-- Execute Analysis Dialog -->
     <el-dialog v-model="executeDialogVisible" title="执行分析" width="560px">
       <div v-if="executingPipeline">
-        <p class="exec-hint">
-          分析：{{ executingPipeline.name }}。结果目录由系统自动创建（项目 results/exec_*），执行状态见「执行状态」列或执行监控页。
-        </p>
+        <div style="margin-bottom: 14px;">
+          <div style="font-weight: 600; margin-bottom: 4px;">{{ executingPipeline.name }}</div>
+          <div class="exec-hint">结果目录 results/{{ executingPipeline.id }}/，自动创建；同一分析重跑共用该目录，增量续跑</div>
+          <div class="exec-hint">进度与日志见「执行状态」列和执行监控页</div>
+        </div>
         <el-form label-width="130px">
           <el-form-item v-for="p in inputParamRows" :key="p.key" :label="p.key">
             <el-select
@@ -690,9 +692,7 @@
             <el-input v-else v-model="p.value" :placeholder="'执行参数 ' + p.key" />
           </el-form-item>
           <el-form-item v-if="!inputParamRows.length" label="执行参数">
-            <span style="color: var(--el-text-color-secondary)">
-              该模板无需执行时参数（输入数据与参数覆盖已在分析配置中），直接执行即可
-            </span>
+            <span class="exec-hint">无需执行时参数</span>
           </el-form-item>
         </el-form>
       </div>
