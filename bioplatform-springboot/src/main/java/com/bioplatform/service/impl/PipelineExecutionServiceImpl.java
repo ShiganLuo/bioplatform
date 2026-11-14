@@ -190,7 +190,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
             }
         }
         if (own != null) {
-            return parseSnakemakeSessions(java.util.List.of(own), e.getStatus());
+            return ownSessionProgress(own, logs, e.getStatus());
         }
         String text = tailOf(resolveTaskLog(e), 16_384);
         if (text == null || text.isBlank()) {
@@ -205,48 +205,47 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
             java.util.regex.Pattern.compile("(?m)^\\s*(?:local)?rule (\\w+):");
 
     /**
-     * 会话进度:完成 = 最新"X of Y"的 X,总量 = Y(本会话自己排的步骤)。
-     * 传入多个日志时按累计口径:总量取最大,完成 = 总量 − 最新会话剩余。
+     * 单会话进度按全量口径:总任务数 = 全目录会话的最大步数(最初完整 DAG,各记录相同),
+     * 已完成 = 总量 − 本会话结束时剩余(y−x)——每条执行"运行到第几步 / 共几步"。
+     * 例:总量 105,本会话 35/82(剩 47)→ 显示 58/105。
      */
-    private ProgressInfo parseSnakemakeSessions(java.util.List<java.nio.file.Path> logs, String status) {
-        int total = 0;
-        int latestX = -1;
-        int latestY = -1;
+    private ProgressInfo ownSessionProgress(java.nio.file.Path own,
+                                            java.util.List<java.nio.file.Path> all,
+                                            String status) {
+        String tail = tailOf(own, 8_192);
+        int x = -1;
+        int y = -1;
         String stage = null;
-        for (java.nio.file.Path p : logs) {
-            String tail = tailOf(p, 8_192);
-            if (tail == null || tail.isBlank()) {
-                continue;
-            }
-            int x = -1;
-            int y = -1;
+        if (tail != null) {
             java.util.regex.Matcher m = STEPS_PAT.matcher(tail);
             while (m.find()) {
                 x = Integer.parseInt(m.group(1));
                 y = Integer.parseInt(m.group(2));
-            }
-            if (y > 0) {
-                latestX = x;
-                latestY = y;
-                if (y > total) {
-                    total = y;
-                }
             }
             java.util.regex.Matcher r = RULE_PAT.matcher(tail);
             String st = null;
             while (r.find()) {
                 st = r.group(1);
             }
-            if (st != null) {
-                stage = st;
+            stage = st;
+        }
+        int total = 0;
+        for (java.nio.file.Path p : all) {
+            String t2 = tailOf(p, 4_096);
+            if (t2 == null) {
+                continue;
+            }
+            java.util.regex.Matcher m2 = STEPS_PAT.matcher(t2);
+            while (m2.find()) {
+                total = Math.max(total, Integer.parseInt(m2.group(2)));
             }
         }
-        if (latestY <= 0 || total <= 0) {
-            String prep = "准备中(DAG 构建)" + (total > 0 ? "· 共 " + total + " 步" : "");
-            return new ProgressInfo(null, "RUNNING".equals(status) ? prep : null);
+        if (y <= 0 || total <= 0) {
+            return new ProgressInfo(null, "RUNNING".equals(status)
+                    ? "准备中(DAG 构建)" + (total > 0 ? "· 共 " + total + " 步" : "") : null);
         }
-        int remaining = Math.max(0, latestY - latestX);
-        int completed = Math.max(0, total - remaining);
+        int remaining = Math.max(0, y - x);
+        int completed = Math.max(0, Math.min(total, total - remaining));
         int pct = Math.min(99, completed * 100 / total);
         return new ProgressInfo(pct, completed + "/" + total + (stage != null ? " · " + stage : ""));
     }
