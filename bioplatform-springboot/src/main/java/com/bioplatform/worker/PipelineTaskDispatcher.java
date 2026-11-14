@@ -139,10 +139,10 @@ public class PipelineTaskDispatcher {
             execution.setTaskId(taskId);
             execution.setExecutor("local");
             execution.setStatus("RUNNING");
-            // Omics 桥接的产物在 <projectId>/results/<pipelineId>(按分析复用目录),
+            // Omics 桥接的产物在 <输出根目录>/<pipelineId>(按分析复用目录,一层),
             // rendered.outputDir() 是旧 exec_<id> 布局,不能拿来当 output_path(进度/日志解析全靠它)
             execution.setOutputPath(omicsBridge
-                    ? execution.getProjectId() + "/results/" + execution.getPipelineId()
+                    ? String.valueOf(execution.getPipelineId())
                     : rendered.outputDir());
             execution.setHeartbeatAt(LocalDateTime.now());
             executionMapper.updateById(execution);
@@ -192,14 +192,14 @@ public class PipelineTaskDispatcher {
 
     /**
      * 为 Omics 模板生成执行命令(worker 经 nsenter 在宿主机命名空间执行)。
-     * 产物落 <输出根目录>/<projectId>/results/<pipelineId>/ —— 按分析复用目录:
+     * 产物落 <输出根目录>/<pipelineId>/ —— 按分析复用目录(一层,id 全局唯一):
      * 重跑时 snakemake 增量续跑(已完成步骤自动跳过),不支持同分析并发执行。
      * meta/合并配置由 backend 先写入上传卷暂存目录(<pid>/stage_exec_<id>),命令侧 mkdir+cp
      * 进输出目录——输出根目录可能在 backend 的 /host:ro 挂载之外,backend 直接写不进去。
      * 结束后 chown --reference=输出根目录:产物属主跟随根目录属主,指向自己的数据目录即摆脱 root。
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
-        String outputDirRel = execution.getProjectId() + "/results/" + execution.getPipelineId();
+        String outputDirRel = String.valueOf(execution.getPipelineId());
         String outRoot = resolveOutputRoot();
         String absOutStr = outRoot + "/" + outputDirRel;
         String stageRel = execution.getProjectId() + "/stage_exec_" + execution.getId();
@@ -266,19 +266,22 @@ public class PipelineTaskDispatcher {
             inner.append(" \"").append(escDq(absOutStr)).append("/\"; ");
         }
         inner.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
-        // 产物属主跟随输出根目录属主(chown 到项目层,连 results/exec 包装目录一并摆脱 root);
+        // 产物属主跟随输出根目录属主(chown 到分析目录自身,一层布局无包装层);
         // 暂存目录用完即删;保留运行退出码
         inner.append("; rc=$?; chown -R --reference=\"").append(escDq(outRoot)).append("\" \"")
-                .append(escDq(outRoot + "/" + execution.getProjectId())).append("\" >/dev/null 2>&1; rm -rf \"")
+                .append(escDq(absOutStr)).append("\" >/dev/null 2>&1; rm -rf \"")
                 .append(escDq(stageHost)).append("\"; exit $rc");
 
         // 外层经 nsenter 进宿主机命名空间运行(用户态 apptainer 的 newuidmap 流程只在宿主机命名空间可用;
         // worker 容器 privileged + pid:host 才能 nsenter -t 1)。同 ShellExecuteTool 的宿主机语义。
+        // -n(网络空间)必须带上:回调打 127.0.0.1:8083 要宿主机网络;任务内联网(如 KEGG REST)
+        // 依赖宿主机 DNS——不进 -n 时挂载空间是宿主机的 resolv.conf(127.0.0.53)而网络空间是容器的,
+        // DNS 解析必挂("Could not resolve hostname")。
         // 全程输出实时 tee 到 <输出目录>/task_output.<执行id>.log(执行监控的日志/进度来源;
         // 目录按分析复用,日志按执行独立,互不覆盖)
         String body = "mkdir -p \"" + absOutStr.replace("\"", "\\\"") + "\" && { "
                 + inner + " ; } >> \"" + logPath(absOutStr, execution.getId()) + "\" 2>&1";
-        return "nsenter -t 1 -m -u -i -p --preserve-credentials /bin/bash -c '"
+        return "nsenter -t 1 -m -u -i -p -n --preserve-credentials /bin/bash -c '"
                 + body.replace("'", "'\"'\"'") + "'";
     }
 
