@@ -223,7 +223,7 @@ public class PipelineTaskDispatcher {
             }
             run.append("python3 run.py -w \"").append(escDq(template.getName()))
                     .append("\" -m ").append(metaArg)
-                    .append(" -o \"").append(escDq(absOutStr)).append("\" -t 16 --sdm apptainer");
+                    .append(" -o \"").append(escDq(absOutStr)).append("\" --sdm apptainer");
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {
                 run.append(' ').append(e.getKey())
@@ -239,7 +239,7 @@ public class PipelineTaskDispatcher {
             copyFiles.add("config.json");
             run.append("python3 run_module.py --snakefile \"").append(escDq(template.getSnakemakePath()))
                     .append("\" --config \"").append(escDq(absOutStr + "/config.json"))
-                    .append("\" -o \"").append(escDq(absOutStr)).append("\" -t 8 --sdm apptainer");
+                    .append("\" -o \"").append(escDq(absOutStr)).append("\" --sdm apptainer");
             List<String> samples = groups.all();
             if (!samples.isEmpty()) {
                 run.append(" --samples");
