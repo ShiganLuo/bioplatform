@@ -266,15 +266,27 @@ public class ProjectExportServiceImpl implements ProjectExportService {
     }
 
     /**
-     * 按文件路径列表打包下载
+     * 按文件路径列表打包下载。
+     * 路径必须位于本项目执行输出目录之内（防止任意文件读取）。
      */
-    public ByteArrayOutputStream batchDownloadByPaths(List<String> filePaths, long maxTotalBytes) {
+    public ByteArrayOutputStream batchDownloadByPaths(Long projectId, List<String> filePaths, long maxTotalBytes) {
         if (filePaths.isEmpty()) throw new RuntimeException("未指定文件");
+
+        // 允许范围：本项目所有执行记录的输出目录（与 getFileTree 同源）
+        List<Path> allowedRoots = new ArrayList<>();
+        for (PipelineExecution exec : pipelineExecutionMapper.selectByProjectId(projectId, null)) {
+            if (exec.getOutputPath() != null && !exec.getOutputPath().isBlank()) {
+                allowedRoots.add(Paths.get(exec.getOutputPath()).toAbsolutePath().normalize());
+            }
+        }
 
         long totalSize = 0;
         List<Path> validPaths = new ArrayList<>();
         for (String fp : filePaths) {
-            Path p = Paths.get(fp);
+            Path p = Paths.get(fp).toAbsolutePath().normalize();
+            if (!isUnderAnyRoot(p, allowedRoots)) {
+                throw new IllegalArgumentException("非法文件路径（不在本项目产物目录内）: " + fp);
+            }
             if (Files.exists(p) && Files.isRegularFile(p)) {
                 try {
                     totalSize += Files.size(p);
@@ -302,6 +314,14 @@ public class ProjectExportServiceImpl implements ProjectExportService {
     }
 
     // ========== 工具方法 ==========
+
+    /** 路径是否位于任一根目录之内（含根本身） */
+    private boolean isUnderAnyRoot(Path path, List<Path> roots) {
+        for (Path root : roots) {
+            if (path.startsWith(root)) return true;
+        }
+        return false;
+    }
 
     private CellStyle createHeaderStyle(Workbook wb) {
         CellStyle style = wb.createCellStyle();

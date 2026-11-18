@@ -51,7 +51,7 @@ public class AdminProjectController {
 
     /**
      * Paginated project list (with parent name).
-     * 普通用户只能看自己的项目，管理员看所有
+     * 普通用户可见自己的 + 公开项目，管理员看所有
      */
     @GetMapping("/list")
     public ApiResponse<PageResult<Map<String, Object>>> list(
@@ -65,7 +65,7 @@ public class AdminProjectController {
             list = projectMapper.selectAdminList(name, organism);
         } else {
             Long userId = OwnershipUtils.getCurrentUserId();
-            list = projectMapper.selectAdminListByOwner(userId, name, organism);
+            list = projectMapper.selectAdminListAccessible(userId, name, organism);
         }
         com.github.pagehelper.PageInfo<Map<String, Object>> pageInfo = new com.github.pagehelper.PageInfo<>(list);
         return ApiResponse.success(PageResult.of(pageInfo.getTotal(), page, size, list));
@@ -80,7 +80,8 @@ public class AdminProjectController {
         if (project == null) {
             return ApiResponse.error(404, "项目不存在");
         }
-        OwnershipUtils.checkProjectOwnership(project.getOwnerId());
+        // 读取可见性：管理员/本人/公开项目
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
         return ApiResponse.success(project);
     }
 
@@ -115,6 +116,12 @@ public class AdminProjectController {
     @OperLog(module = "项目管理", operation = "创建分析")
     public ApiResponse<Pipeline> createAnalysis(@PathVariable Long projectId,
                                                 @RequestBody @Valid CreateAnalysisRequest request) {
+        Project project = projectService.getProjectById(projectId);
+        if (project == null) {
+            return ApiResponse.error(404, "项目不存在");
+        }
+        // 写操作：仅本人/管理员可在项目中创建分析
+        OwnershipUtils.checkProjectOwnership(project.getOwnerId());
         Long userId = LoginUserHolder.getCurrentUserId();
         Pipeline pipeline = pipelineService.createAnalysis(projectId, request, userId);
         return ApiResponse.success(pipeline);
@@ -127,6 +134,11 @@ public class AdminProjectController {
     public ApiResponse<PageResult<Pipeline>> listAnalyses(@PathVariable Long projectId,
                                                           @RequestParam(defaultValue = "1") int page,
                                                           @RequestParam(defaultValue = "10") int size) {
+        Project project = projectService.getProjectById(projectId);
+        if (project == null) {
+            return ApiResponse.error(404, "项目不存在");
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
         PageResult<Pipeline> result = pipelineService.listAnalysesByProject(projectId, page, size);
         return ApiResponse.success(result);
     }
@@ -152,7 +164,9 @@ public class AdminProjectController {
      */
     @GetMapping("/parents")
     public ApiResponse<List<Project>> getParentCandidates() {
-        return ApiResponse.success(projectMapper.selectParentCandidates());
+        // 管理员看全部；普通用户只看本人+公开项目（父项目下拉）
+        Long userId = OwnershipUtils.isAdmin() ? null : OwnershipUtils.getCurrentUserId();
+        return ApiResponse.success(projectMapper.selectParentCandidates(userId));
     }
 
     /**
@@ -174,6 +188,9 @@ public class AdminProjectController {
     @PutMapping("/{id}/unbind-parent")
     @OperLog(module = "项目管理", operation = "解除父项目绑定")
     public ApiResponse<Void> unbindParent(@PathVariable Long id) {
+        Project existing = projectService.getProjectById(id);
+        if (existing == null) return ApiResponse.error(404, "项目不存在");
+        OwnershipUtils.checkProjectOwnership(existing.getOwnerId());
         projectMapper.clearParent(id);
         return ApiResponse.success();
     }
@@ -185,9 +202,14 @@ public class AdminProjectController {
      */
     @GetMapping("/{id}/export/excel")
     public void exportExcel(@PathVariable Long id, HttpServletResponse response) throws IOException {
-        ByteArrayOutputStream baos = projectExportService.generateExcel(id);
         Project project = projectService.getProjectById(id);
-        String filename = (project != null ? project.getName() : "project") + "_report.xlsx";
+        if (project == null) {
+            response.setStatus(404);
+            return;
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
+        ByteArrayOutputStream baos = projectExportService.generateExcel(id);
+        String filename = project.getName() + "_report.xlsx";
         downloadResponse(response, baos, filename,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
@@ -197,9 +219,14 @@ public class AdminProjectController {
      */
     @GetMapping("/{id}/export/ppt")
     public void exportPpt(@PathVariable Long id, HttpServletResponse response) throws IOException {
-        ByteArrayOutputStream baos = projectExportService.generatePpt(id);
         Project project = projectService.getProjectById(id);
-        String filename = (project != null ? project.getName() : "project") + "_report.pptx";
+        if (project == null) {
+            response.setStatus(404);
+            return;
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
+        ByteArrayOutputStream baos = projectExportService.generatePpt(id);
+        String filename = project.getName() + "_report.pptx";
         downloadResponse(response, baos, filename,
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     }
@@ -209,6 +236,11 @@ public class AdminProjectController {
      */
     @GetMapping("/{id}/files/tree")
     public ApiResponse<List<FileTreeNode>> getFileTree(@PathVariable Long id) {
+        Project project = projectService.getProjectById(id);
+        if (project == null) {
+            return ApiResponse.error(404, "项目不存在");
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
         return ApiResponse.success(projectExportService.getFileTree(id));
     }
 
@@ -219,9 +251,14 @@ public class AdminProjectController {
     public void batchDownload(@PathVariable Long id,
                               @RequestBody List<String> filePaths,
                               HttpServletResponse response) throws IOException {
-        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(filePaths, MAX_BATCH_DOWNLOAD_BYTES);
         Project project = projectService.getProjectById(id);
-        String filename = (project != null ? project.getName() : "project") + "_files.zip";
+        if (project == null) {
+            response.setStatus(404);
+            return;
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
+        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(id, filePaths, MAX_BATCH_DOWNLOAD_BYTES);
+        String filename = project.getName() + "_files.zip";
         downloadResponse(response, baos, filename, "application/zip");
     }
 
@@ -230,6 +267,12 @@ public class AdminProjectController {
      */
     @GetMapping("/{id}/export/download-all")
     public void downloadAll(@PathVariable Long id, HttpServletResponse response) throws IOException {
+        Project project = projectService.getProjectById(id);
+        if (project == null) {
+            response.setStatus(404);
+            return;
+        }
+        OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
         List<FileTreeNode> tree = projectExportService.getFileTree(id);
         List<String> allPaths = new ArrayList<>();
         collectFilePaths(tree, allPaths);
@@ -239,9 +282,8 @@ public class AdminProjectController {
             response.getWriter().write("{\"code\":400,\"message\":\"没有可下载的文件\"}");
             return;
         }
-        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(allPaths, MAX_BATCH_DOWNLOAD_BYTES);
-        Project project = projectService.getProjectById(id);
-        String filename = (project != null ? project.getName() : "project") + "_all.zip";
+        ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(id, allPaths, MAX_BATCH_DOWNLOAD_BYTES);
+        String filename = project.getName() + "_all.zip";
         downloadResponse(response, baos, filename, "application/zip");
     }
 

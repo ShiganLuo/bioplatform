@@ -216,4 +216,13 @@
         LIMIT 50
     </select>
 
+    <!-- 文件关联到的"当前用户可读"项目数：公开项目或本人项目（文件可读性判定用） -->
+    <select id="countReadableFileLinks" resultType="int">
+        SELECT COUNT(*)
+        FROM `data_file_projects` dp
+        JOIN `projects` p ON dp.`project_id` = p.`id`
+        WHERE dp.`file_id` = #{fileId}
+          AND (p.`private` = 0 OR p.`owner_id` = #{userId})
+    </select>
+
 </mapper>

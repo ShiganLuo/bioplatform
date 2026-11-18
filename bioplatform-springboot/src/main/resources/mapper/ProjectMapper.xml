@@ -101,8 +101,8 @@
         ORDER BY p.`updated_at` DESC
     </select>
 
-    <!-- 管理后台列表（按owner过滤） -->
-    <select id="selectAdminListByOwner" resultType="java.util.Map">
+    <!-- 管理后台列表（本人 + 公开项目） -->
+    <select id="selectAdminListAccessible" resultType="java.util.Map">
         SELECT p.`id`, p.`parent_id` AS parentId, p.`name`, p.`description`,
                p.`organism`, p.`genome_version` AS genomeVersion,
                p.`owner_id` AS ownerId, u.`username` AS ownerUsername,
@@ -112,7 +112,7 @@
         FROM `projects` p
         LEFT JOIN `users` u ON p.`owner_id` = u.`id`
         LEFT JOIN `projects` pp ON p.`parent_id` = pp.`id`
-        WHERE p.`owner_id` = #{ownerId}
+        WHERE (p.`owner_id` = #{ownerId} OR p.`private` = 0)
         <if test="name != null and name != ''">
             AND (p.`name` LIKE CONCAT('%', #{name}, '%') OR p.`description` LIKE CONCAT('%', #{name}, '%'))
         </if>
@@ -122,11 +122,14 @@
         ORDER BY p.`updated_at` DESC
     </select>
 
-    <!-- 获取所有顶级项目（用于父项目下拉选择） -->
+    <!-- 获取所有顶级项目（用于父项目下拉选择）；userId 非空时只取本人+公开项目 -->
     <select id="selectParentCandidates" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM `projects`
         WHERE `parent_id` IS NULL
+        <if test="userId != null">
+            AND (`owner_id` = #{userId} OR `private` = 0)
+        </if>
         ORDER BY `name`
     </select>
 
@@ -176,10 +179,12 @@
         ORDER BY `updated_at` DESC
     </select>
 
+    <!-- 前台公开搜索：只搜公开项目（私有项目不进搜索结果） -->
     <select id="searchByName" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM `projects`
-        WHERE (`name` LIKE CONCAT('%', #{name}, '%') OR `description` LIKE CONCAT('%', #{name}, '%'))
+        WHERE `private` = 0
+          AND (`name` LIKE CONCAT('%', #{name}, '%') OR `description` LIKE CONCAT('%', #{name}, '%'))
         <if test="ownerId != null">
             AND `owner_id` = #{ownerId}
         </if>

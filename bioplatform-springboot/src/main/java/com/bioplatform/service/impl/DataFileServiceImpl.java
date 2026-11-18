@@ -3,6 +3,7 @@ package com.bioplatform.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.bioplatform.common.util.HostPathUtil;
+import com.bioplatform.common.util.OwnershipUtils;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.dto.datafile.StorageInfo;
 import com.bioplatform.entity.DataFile;
@@ -342,5 +343,13 @@ public class DataFileServiceImpl implements DataFileService {
                 result.add(dataFile);
             }
         }
+    }
+
+    @Override
+    public boolean canCurrentUserRead(DataFile file) {
+        if (OwnershipUtils.isAdmin()) return true;
+        Long userId = OwnershipUtils.getCurrentUserId();
+        if (userId != null && userId.equals(file.getUploadedBy())) return true;
+        return dataFileMapper.countReadableFileLinks(file.getId(), userId) > 0;
     }
 }

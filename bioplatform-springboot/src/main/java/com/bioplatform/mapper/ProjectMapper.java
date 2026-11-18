@@ -41,11 +41,11 @@ public interface ProjectMapper {
     /** 管理后台列表：联表查父项目名+创建者用户名 */
     List<Map<String, Object>> selectAdminList(@Param("name") String name, @Param("organism") String organism);
 
-    /** 管理后台列表（按owner过滤）：联表查父项目名+创建者用户名 */
-    List<Map<String, Object>> selectAdminListByOwner(@Param("ownerId") Long ownerId, @Param("name") String name, @Param("organism") String organism);
+    /** 管理后台列表（本人 + 公开项目）：联表查父项目名+创建者用户名 */
+    List<Map<String, Object>> selectAdminListAccessible(@Param("ownerId") Long ownerId, @Param("name") String name, @Param("organism") String organism);
 
-    /** 获取顶级项目列表（用于父项目下拉选择） */
-    List<Project> selectParentCandidates();
+    /** 获取顶级项目列表（用于父项目下拉选择）；userId 非空时只取本人+公开项目 */
+    List<Project> selectParentCandidates(@Param("userId") Long userId);
 
     /** 解除子项目绑定（父项目删除时） */
     int unbindChildren(@Param("parentId") Long parentId);

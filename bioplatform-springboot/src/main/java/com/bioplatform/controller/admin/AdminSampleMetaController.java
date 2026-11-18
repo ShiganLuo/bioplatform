@@ -39,9 +39,16 @@ public class AdminSampleMetaController {
         }
     }
 
+    private void checkProjectReadAccess(Long projectId) {
+        Project project = projectService.getProjectById(projectId);
+        if (project != null) {
+            OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
+        }
+    }
+
     @GetMapping("/list")
     public ApiResponse<List<SampleMeta>> list(@RequestParam Long projectId) {
-        checkProjectOwner(projectId);
+        checkProjectReadAccess(projectId);
         return ApiResponse.success(sampleMetaService.listByProject(projectId));
     }
 
@@ -49,13 +56,16 @@ public class AdminSampleMetaController {
     public ApiResponse<SampleMeta> getById(@PathVariable Long id) {
         SampleMeta meta = sampleMetaService.getById(id);
         if (meta == null) return ApiResponse.error(404, "Meta不存在");
-        checkProjectOwner(meta.getProjectId());
+        checkProjectReadAccess(meta.getProjectId());
         return ApiResponse.success(meta);
     }
 
     @PostMapping("/create")
     @OperLog(module = "样本信息", operation = "创建样本Meta")
     public ApiResponse<SampleMeta> create(@RequestBody @Valid SampleMeta sampleMeta) {
+        if (sampleMeta.getProjectId() != null) {
+            checkProjectOwner(sampleMeta.getProjectId());
+        }
         Long userId = LoginUserHolder.getCurrentUserId();
         sampleMeta.setCreatedBy(userId);
         sampleMetaService.create(sampleMeta);
@@ -88,7 +98,7 @@ public class AdminSampleMetaController {
     public ApiResponse<SampleMetaFilesResult> files(@PathVariable Long id) {
         SampleMeta meta = sampleMetaService.getById(id);
         if (meta == null) return ApiResponse.error(404, "Meta不存在");
-        checkProjectOwner(meta.getProjectId());
+        checkProjectReadAccess(meta.getProjectId());
         return ApiResponse.success(sampleMetaFileService.resolveMetaFiles(id));
     }
 

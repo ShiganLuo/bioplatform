@@ -73,12 +73,16 @@ public class AdminDownloadController {
             if (dataFile == null) {
                 throw new IllegalArgumentException("文件不存在");
             }
-            OwnershipUtils.checkOwnership(dataFile.getUploadedBy(), "文件");
+            // 读取可见性：管理员/上传者/文件关联到可读项目（公开或本人项目）
+            if (!dataFileService.canCurrentUserRead(dataFile)) {
+                throw new org.springframework.security.access.AccessDeniedException("无权下载该文件");
+            }
         } else if (request.projectId() != null) {
             Project project = projectService.getProjectById(request.projectId());
             if (project == null) {
                 throw new IllegalArgumentException("项目不存在");
             }
+            OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
         } else {
             throw new IllegalArgumentException("缺少项目 ID");
         }
@@ -154,7 +158,7 @@ public class AdminDownloadController {
         Project project = projectService.getProjectById(projectId);
         String projectName = project != null ? project.getName() : "project";
         try {
-            ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(filePaths, MAX_BATCH_DOWNLOAD_BYTES);
+            ByteArrayOutputStream baos = projectExportService.batchDownloadByPaths(projectId, filePaths, MAX_BATCH_DOWNLOAD_BYTES);
             downloadResponse(response, baos, projectName + suffix, "application/zip");
         } catch (IllegalArgumentException e) {
             writeJson(response, 400, e.getMessage());

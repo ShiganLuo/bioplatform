@@ -60,4 +60,21 @@ public final class OwnershipUtils {
     public static void checkProjectOwnership(Long projectOwnerId) {
         checkOwnership(projectOwnerId, "项目");
     }
+
+    /**
+     * 校验项目读取可见性：管理员、项目所有者、或公开项目 → 允许读取。
+     * 写操作仍走 {@link #checkProjectOwnership}。
+     *
+     * @param ownerId   项目所有者ID
+     * @param isPrivate 是否私有（true=私有 false/null=公开）
+     * @throws AccessDeniedException 无权访问时抛出
+     */
+    public static void checkProjectReadAccess(Long ownerId, Boolean isPrivate) {
+        if (isAdmin()) return;
+        if (!Boolean.TRUE.equals(isPrivate)) return; // 公开项目所有人可见
+        Long currentUserId = getCurrentUserId();
+        if (currentUserId == null || !currentUserId.equals(ownerId)) {
+            throw new AccessDeniedException("无权访问该项目");
+        }
+    }
 }

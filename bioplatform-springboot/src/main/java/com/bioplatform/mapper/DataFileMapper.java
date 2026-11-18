@@ -50,4 +50,7 @@ public interface DataFileMapper {
 
     /** path 后缀匹配（rawPath 为相对/部分路径时，LIKE CONCAT('%', path)） */
     List<DataFile> searchByPathSuffix(@Param("path") String path);
+
+    /** 文件关联到的"当前用户可读"项目数（公开项目或本人项目），文件可读性判定用 */
+    int countReadableFileLinks(@Param("fileId") Long fileId, @Param("userId") Long userId);
 }

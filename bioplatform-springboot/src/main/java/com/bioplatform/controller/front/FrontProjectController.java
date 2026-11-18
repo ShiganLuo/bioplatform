@@ -34,12 +34,21 @@ public class FrontProjectController {
 
     /**
      * Get project detail by id.
+     * 私有项目仅本人/管理员可见，其他人一律 404（不泄漏存在性）。
      */
     @GetMapping("/{id}")
     public ApiResponse<Project> getById(@PathVariable Long id) {
         Project project = projectService.getProjectById(id);
         if (project == null) {
             return ApiResponse.error(404, "项目不存在");
+        }
+        if (Boolean.TRUE.equals(project.getIsPrivate())) {
+            boolean allowed = com.bioplatform.common.util.OwnershipUtils.isAdmin();
+            Long userId = com.bioplatform.common.util.OwnershipUtils.getCurrentUserId();
+            allowed = allowed || (userId != null && userId.equals(project.getOwnerId()));
+            if (!allowed) {
+                return ApiResponse.error(404, "项目不存在");
+            }
         }
         return ApiResponse.success(project);
     }

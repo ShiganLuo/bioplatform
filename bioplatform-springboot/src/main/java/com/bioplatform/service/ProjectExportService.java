@@ -36,7 +36,12 @@ public interface ProjectExportService {
     ByteArrayOutputStream batchDownload(Long projectId, List<Long> fileIds, long maxTotalBytes);
 
     /**
-     * 按文件路径列表打包下载
+     * 按文件路径列表打包下载。
+     * 路径必须位于本项目执行输出目录之内（防止任意文件读取）。
+     *
+     * @param projectId     项目ID（路径归属校验用）
+     * @param filePaths     文件路径列表
+     * @param maxTotalBytes 最大总字节数，超过抛异常
      */
-    ByteArrayOutputStream batchDownloadByPaths(List<String> filePaths, long maxTotalBytes);
+    ByteArrayOutputStream batchDownloadByPaths(Long projectId, List<String> filePaths, long maxTotalBytes);
 }

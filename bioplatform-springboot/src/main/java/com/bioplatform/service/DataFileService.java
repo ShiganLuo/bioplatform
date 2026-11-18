@@ -120,4 +120,13 @@ public interface DataFileService {
      * @return 导入的文件数量
      */
     int importLocalFiles(String dirPath, Long projectId, Long userId);
+
+    /**
+     * 当前用户是否可读该文件：管理员、上传者、或文件关联到可读项目（公开项目/本人项目）。
+     * 删除/编辑等写操作仍按上传者归属校验。
+     *
+     * @param file 文件（需含 id、uploadedBy）
+     * @return true=可读
+     */
+    boolean canCurrentUserRead(DataFile file);
 }

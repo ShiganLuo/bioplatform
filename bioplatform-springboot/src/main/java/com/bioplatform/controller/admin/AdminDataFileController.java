@@ -64,10 +64,10 @@ public class AdminDataFileController {
             @RequestParam(defaultValue = "10") int size) {
         PageResult result;
         if (projectId != null) {
-            // 按项目查文件时，校验项目归属
+            // 按项目查文件时，校验项目读取可见性（管理员/本人/公开项目）
             com.bioplatform.entity.Project project = dataFileService.getProjectById(projectId);
             if (project != null) {
-                OwnershipUtils.checkProjectOwnership(project.getOwnerId());
+                OwnershipUtils.checkProjectReadAccess(project.getOwnerId(), project.getIsPrivate());
             }
             result = dataFileService.listByProjectId(projectId, page, size, fileName, fileStatus);
         } else {
@@ -223,7 +223,10 @@ public class AdminDataFileController {
         if (dataFile == null) {
             return ApiResponse.error(404, "文件不存在");
         }
-        OwnershipUtils.checkOwnership(dataFile.getUploadedBy(), "文件");
+        // 读取可见性：管理员/上传者/文件关联到可读项目（公开或本人项目）
+        if (!dataFileService.canCurrentUserRead(dataFile)) {
+            return ApiResponse.error(403, "无权访问该文件");
+        }
         return ApiResponse.success(dataFile);
     }
 
