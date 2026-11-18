@@ -28,10 +28,13 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
+    private final com.bioplatform.mapper.PermissionMapper permissionMapper;
 
-    public CustomUserDetailsService(UserMapper userMapper, RoleMapper roleMapper) {
+    public CustomUserDetailsService(UserMapper userMapper, RoleMapper roleMapper,
+                                    com.bioplatform.mapper.PermissionMapper permissionMapper) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
+        this.permissionMapper = permissionMapper;
     }
 
     /**
@@ -75,7 +78,8 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     /**
      * 将角色列表转换为GrantedAuthority列表
-     * 添加ROLE_前缀
+     * 角色名添加ROLE_前缀；并入角色绑定的权限标识（如 system:user:list），
+     * 供 @PreAuthorize("hasAuthority('..')") 使用
      */
     private List<SimpleGrantedAuthority> buildAuthorities(List<Role> roles) {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
@@ -87,6 +91,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                     roleName = "ROLE_" + roleName;
                 }
                 authorities.add(new SimpleGrantedAuthority(roleName));
+                // 权限标识并入（多角色取并集）
+                for (com.bioplatform.entity.Permission p : permissionMapper.selectByRoleId(role.getId())) {
+                    if (p.getPermission() != null && !p.getPermission().isBlank()) {
+                        authorities.add(new SimpleGrantedAuthority(p.getPermission()));
+                    }
+                }
             }
         }
         return authorities;

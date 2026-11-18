@@ -37,13 +37,13 @@ public class AdminSystemController {
     }
 
     @GetMapping("/configs")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('system:config:list')")
     public ApiResponse<List<com.bioplatform.entity.SystemConfig>> listConfigs() {
         return ApiResponse.success(systemService.getAllConfigs());
     }
 
     @PutMapping("/configs")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('system:config:edit')")
     @com.bioplatform.common.annotation.OperLog(module = "系统管理", operation = "更新系统配置")
     public ApiResponse<Void> updateConfig(@RequestBody Map<String, String> params) {
         String key = params.get("key");
@@ -56,7 +56,7 @@ public class AdminSystemController {
     }
 
     @DeleteMapping("/configs/{key}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('system:config:edit')")
     @com.bioplatform.common.annotation.OperLog(module = "系统管理", operation = "删除系统配置")
     public ApiResponse<Void> deleteConfig(@PathVariable String key) {
         if (key == null || key.isBlank()) {
@@ -67,6 +67,7 @@ public class AdminSystemController {
     }
 
     @GetMapping("/dashboard")
+    @PreAuthorize("hasAuthority('dashboard:list')")
     public ApiResponse<Map<String, Object>> dashboard() {
         return ApiResponse.success(systemService.getDashboardStats());
     }
@@ -80,7 +81,7 @@ public class AdminSystemController {
      *  - 明文            -> 直接使用
      */
     @PostMapping("/llm/fetch-models")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('system:config:edit')")
     public ApiResponse<List<String>> fetchModels(@RequestBody Map<String, String> params) {
         String baseUrl = params.get("baseUrl");
         String apiKey = params.get("apiKey");

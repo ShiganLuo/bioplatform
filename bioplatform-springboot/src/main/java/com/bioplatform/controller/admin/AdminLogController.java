@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * @author luosg
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('log:operation:list')")
 @RequestMapping("/api/admin/logs")
 public class AdminLogController {
 

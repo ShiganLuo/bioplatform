@@ -13,7 +13,6 @@ import java.util.Map;
  * 计算节点管理接口
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/workers")
 public class AdminWorkerController {
 
@@ -27,6 +26,7 @@ public class AdminWorkerController {
      * 获取所有节点列表
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('worker:list')")
     public ApiResponse<List<WorkerRegistry.WorkerInfo>> listWorkers() {
         return ApiResponse.success(workerRegistry.getAllWorkers());
     }
@@ -35,6 +35,7 @@ public class AdminWorkerController {
      * 添加计算节点
      */
     @PostMapping
+    @PreAuthorize("hasAuthority('worker:create')")
     @OperLog(module = "计算节点", operation = "添加节点")
     public ApiResponse<WorkerRegistry.WorkerInfo> addWorker(@RequestBody Map<String, String> params) {
         String url = params.get("url");
@@ -52,6 +53,7 @@ public class AdminWorkerController {
      * 删除计算节点
      */
     @DeleteMapping("/{nodeId}")
+    @PreAuthorize("hasAuthority('worker:delete')")
     @OperLog(module = "计算节点", operation = "删除节点")
     public ApiResponse<Void> removeWorker(@PathVariable String nodeId) {
         workerRegistry.removeNode(nodeId);
@@ -62,6 +64,7 @@ public class AdminWorkerController {
      * 更新计算节点信息（URL/主机名）
      */
     @PutMapping("/{nodeId}")
+    @PreAuthorize("hasAuthority('worker:edit')")
     @OperLog(module = "计算节点", operation = "更新节点")
     public ApiResponse<WorkerRegistry.WorkerInfo> updateWorker(@PathVariable String nodeId,
                                                                 @RequestBody Map<String, String> params) {
@@ -78,6 +81,7 @@ public class AdminWorkerController {
      * 启用/禁用节点
      */
     @PutMapping("/{nodeId}/status")
+    @PreAuthorize("hasAuthority('worker:edit')")
     @OperLog(module = "计算节点", operation = "启用/禁用节点")
     public ApiResponse<Void> setEnabled(@PathVariable String nodeId, @RequestBody Map<String, Boolean> params) {
         Boolean enabled = params.get("enabled");
@@ -89,6 +93,7 @@ public class AdminWorkerController {
      * 测试节点连接
      */
     @PostMapping("/test")
+    @PreAuthorize("hasAuthority('worker:edit')")
     public ApiResponse<Map<String, Object>> testConnection(@RequestBody Map<String, String> params) {
         String url = params.get("url");
         if (url == null || url.isBlank()) {

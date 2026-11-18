@@ -467,7 +467,36 @@ INSERT INTO `permissions` (`id`, `name`, `permission`, `type`, `parent_id`, `pat
 (52, 'Tool Management', 'agent:tool:list',        1, 50, '/agent/tool',        2),
 
 -- 6. Logs (menu)
-(60, 'Operation Logs',  'log:operation:list',     1, 0, '/log/operation',      6);
+(60, 'Operation Logs',  'log:operation:list',     1, 0, '/log/operation',      6),
+
+-- 7. Dashboard / Executions / Templates / Workers / Feedback (menu)
+(100, 'Dashboard',       'dashboard',            1, 0,  '/dashboard',        7),
+(101, 'Executions',      'execution',            1, 0,  '/executions',       8),
+(102, 'Templates',       'template',             1, 0,  '/system/templates', 9),
+(103, 'Workers',         'worker',               1, 0,  '/workers',         10),
+(104, 'Feedback',        'feedback',             1, 0,  '/feedback',        11),
+(105, 'View Dashboard',  'dashboard:list',       3, 100, NULL,               1),
+(106, 'View Executions', 'execution:list',       3, 101, NULL,               1),
+(107, 'Cancel Execution','execution:cancel',     3, 101, NULL,               2),
+(108, 'Delete Execution','execution:delete',     3, 101, NULL,               3),
+(109, 'View Templates',  'template:list',        3, 102, NULL,               1),
+(110, 'Create Template', 'template:create',      3, 102, NULL,               2),
+(111, 'Edit Template',   'template:edit',        3, 102, NULL,               3),
+(112, 'Delete Template', 'template:delete',      3, 102, NULL,               4),
+(113, 'Import Templates','template:import',      3, 102, NULL,               5),
+(114, 'View Workers',    'worker:list',          3, 103, NULL,               1),
+(115, 'Add Worker',      'worker:create',        3, 103, NULL,               2),
+(116, 'Edit Worker',     'worker:edit',          3, 103, NULL,               3),
+(117, 'Delete Worker',   'worker:delete',        3, 103, NULL,               4),
+(118, 'View Feedback',   'feedback:list',        3, 104, NULL,               1),
+(119, 'Close Feedback',  'feedback:close',       3, 104, NULL,               2),
+(120, 'Export Project',  'project:export',       3, 21,  NULL,               4),
+(121, 'View Samples',    'project:sample:list',  3, 21,  NULL,               5),
+(122, 'Create Sample',   'project:sample:create',3, 21,  NULL,               6),
+(123, 'Edit Sample',     'project:sample:edit',  3, 21,  NULL,               7),
+(124, 'Delete Sample',   'project:sample:delete',3, 21,  NULL,               8),
+(125, 'Edit File',       'data:edit',            3, 41,  NULL,               4),
+(126, 'Verify Files',    'data:verify',          3, 41,  NULL,               5);
 
 -- ----------------------------
 -- Admin role -> all permissions
@@ -476,26 +505,40 @@ INSERT INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT 2, `id` FROM `permissions`;
 
 -- ----------------------------
--- USER role -> read-only subset
+-- USER role -> business-domain default set (row-level isolation applies on top)
 -- ----------------------------
 INSERT INTO `role_permissions` (`role_id`, `permission_id`)
 VALUES
+(1, 20),  -- projects menu
 (1, 21),  -- project list
 (1, 22),  -- create project
 (1, 23),  -- edit project
+(1, 24),  -- delete project
+(1, 30),  -- pipelines menu
 (1, 31),  -- pipeline list
+(1, 32),  -- create pipeline
+(1, 33),  -- edit pipeline
+(1, 34),  -- delete pipeline
 (1, 35),  -- run pipeline
+(1, 40),  -- data menu
 (1, 41),  -- data list
 (1, 42),  -- upload
 (1, 43),  -- download
+(1, 44),  -- delete file
+(1, 50),  -- agent menu
 (1, 51),  -- agent chat
-(1, 52);  -- agent tools
-INSERT INTO `role_permissions` (`role_id`, `permission_id`)
-VALUES
-(1, 20),
-(1, 30),
-(1, 40),
-(1, 50);
+(1, 52),  -- agent tools
+(1, 105), -- dashboard
+(1, 106), -- execution list
+(1, 107), -- execution cancel
+(1, 109), -- template list
+(1, 118), -- feedback list (own, row-level)
+(1, 120), -- project export
+(1, 121), -- sample list
+(1, 122), -- sample create
+(1, 123), -- sample edit
+(1, 124), -- sample delete
+(1, 125); -- file edit
 
 -- ----------------------------
 -- Admin user  (password = placeholder bcrypt hash)

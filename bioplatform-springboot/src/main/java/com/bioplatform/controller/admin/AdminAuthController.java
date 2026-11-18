@@ -101,7 +101,8 @@ public class AdminAuthController {
                 user.getUsername(),
                 user.getNickName(),
                 user.getAvatarUrl(),
-                roleNames
+                roleNames,
+                roleService.getPermissionStringsByUserId(user.getId())
         );
         return ApiResponse.success(userInfoDTO);
     }

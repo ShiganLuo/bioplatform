@@ -19,7 +19,8 @@ public final class FrontUserDTO {
             String username,
             String nickName,
             String avatarUrl,
-            List<String> roles
+            List<String> roles,
+            List<String> permissions
     ) {
     }
 

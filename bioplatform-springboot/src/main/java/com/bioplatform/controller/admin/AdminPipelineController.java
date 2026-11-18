@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Admin pipeline management controller.
@@ -32,6 +33,7 @@ public class AdminPipelineController {
      * Paginated pipeline list, optionally filtered by category.
      */
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('pipeline:list')")
     public ApiResponse<PageResult> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -50,6 +52,7 @@ public class AdminPipelineController {
      * Get pipeline by id.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('pipeline:list')")
     public ApiResponse<Pipeline> getById(@PathVariable Long id) {
         Pipeline pipeline = pipelineService.getPipelineById(id);
         if (pipeline == null) {
@@ -63,6 +66,7 @@ public class AdminPipelineController {
      * Create a pipeline.
      */
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority('pipeline:create')")
     @OperLog(module = "流水线管理", operation = "创建流水线")
     public ApiResponse<Pipeline> create(@RequestBody @Valid AdminPipelineCreateRequest request) {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -74,6 +78,7 @@ public class AdminPipelineController {
      * Update a pipeline.
      */
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('pipeline:edit')")
     @OperLog(module = "流水线管理", operation = "更新流水线")
     public ApiResponse<Void> update(@RequestBody @Valid com.bioplatform.dto.admin.AdminPipelineDTO.AdminPipelineUpdateRequest request) {
         Pipeline existing = pipelineService.getPipelineById(request.id());
@@ -91,6 +96,7 @@ public class AdminPipelineController {
      * Delete a pipeline.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('pipeline:delete')")
     @OperLog(module = "流水线管理", operation = "删除流水线")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         Pipeline existing = pipelineService.getPipelineById(id);
@@ -104,6 +110,7 @@ public class AdminPipelineController {
      * Execute a pipeline.
      */
     @PostMapping("/{id}/execute")
+    @PreAuthorize("hasAuthority('pipeline:run')")
     @OperLog(module = "流水线管理", operation = "执行流水线")
     public ApiResponse<PipelineExecution> execute(@PathVariable Long id,
                                                    @RequestBody(required = false) Map<String, Object> params) {

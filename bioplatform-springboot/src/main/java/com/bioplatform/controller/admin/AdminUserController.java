@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
  * @author luosg
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/users")
 public class AdminUserController {
 
@@ -32,6 +31,7 @@ public class AdminUserController {
      * Paginated user list with optional keyword/status filter.
      */
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('system:user:list')")
     public ApiResponse<PageResult<AdminUserListDTO>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -45,6 +45,7 @@ public class AdminUserController {
      * Create a new user.
      */
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority('system:user:create')")
     @OperLog(module = "用户管理", operation = "创建用户")
     public ApiResponse<Void> create(@RequestBody @Valid AdminUserCreateRequest request) {
         userService.createUser(request);
@@ -55,6 +56,7 @@ public class AdminUserController {
      * Update user info.
      */
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('system:user:edit')")
     @OperLog(module = "用户管理", operation = "更新用户")
     public ApiResponse<Void> update(@RequestBody @Valid AdminUserUpdateRequest request) {
         userService.updateUser(request);
@@ -65,6 +67,7 @@ public class AdminUserController {
      * Enable/disable a user.
      */
     @PutMapping("/status")
+    @PreAuthorize("hasAuthority('system:user:edit')")
     @OperLog(module = "用户管理", operation = "更新用户状态")
     public ApiResponse<Void> updateStatus(@RequestBody @Valid AdminUserStatusUpdateRequest request) {
         userService.updateUserStatus(request.id(), request.status());
@@ -75,6 +78,7 @@ public class AdminUserController {
      * Delete a user.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('system:user:delete')")
     @OperLog(module = "用户管理", operation = "删除用户")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         userService.deleteUser(id);
@@ -85,6 +89,7 @@ public class AdminUserController {
      * Reset user password.
      */
     @PutMapping("/reset-password")
+    @PreAuthorize("hasAuthority('system:user:edit')")
     @OperLog(module = "用户管理", operation = "重置用户密码")
     public ApiResponse<Void> resetPassword(@RequestBody @Valid AdminUserResetPasswordRequest request) {
         userService.resetUserPassword(request);

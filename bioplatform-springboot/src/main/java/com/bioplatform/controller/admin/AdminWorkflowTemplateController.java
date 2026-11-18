@@ -16,7 +16,6 @@ import java.util.Map;
  * @author luosg
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/templates")
 public class AdminWorkflowTemplateController {
 
@@ -27,6 +26,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('template:list')")
     public ApiResponse<PageResult> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -37,6 +37,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('template:list')")
     public ApiResponse<WorkflowTemplate> getById(@PathVariable Long id) {
         WorkflowTemplate template = templateService.getTemplateById(id);
         if (template == null) {
@@ -46,6 +47,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority('template:create')")
     @OperLog(module = "模板管理", operation = "创建模板")
     public ApiResponse<WorkflowTemplate> create(@RequestBody @Valid AdminWorkflowTemplateDTO.CreateRequest request) {
         WorkflowTemplate template = templateService.createTemplate(request);
@@ -53,6 +55,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('template:edit')")
     @OperLog(module = "模板管理", operation = "更新模板")
     public ApiResponse<Void> update(@RequestBody @Valid AdminWorkflowTemplateDTO.UpdateRequest request) {
         templateService.updateTemplate(request);
@@ -60,6 +63,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('template:delete')")
     @OperLog(module = "模板管理", operation = "删除模板")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         templateService.deleteTemplate(id);
@@ -67,6 +71,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @PostMapping("/import")
+    @PreAuthorize("hasAuthority('template:import')")
     @OperLog(module = "模板管理", operation = "导入模板")
     public ApiResponse<Integer> importFromOmics(@RequestBody @Valid AdminWorkflowTemplateDTO.ImportRequest request) {
         int count = templateService.importFromOmics(request.omicsDir());
@@ -74,6 +79,7 @@ public class AdminWorkflowTemplateController {
     }
 
     @GetMapping("/{id}/meta-template")
+    @PreAuthorize("hasAuthority('template:list')")
     public ApiResponse<WorkflowTemplateService.MetaTemplate> metaTemplate(@PathVariable Long id) {
         return ApiResponse.success(templateService.getMetaTemplate(id));
     }
@@ -82,6 +88,7 @@ public class AdminWorkflowTemplateController {
      * 调试用：扫描目录返回将要导入的文件列表
      */
     @GetMapping("/debug-scan")
+    @PreAuthorize("hasAuthority('template:list')")
     public ApiResponse<Object> debugScan(@RequestParam String dir) {
         java.nio.file.Path configDir = java.nio.file.Paths.get(dir, "config");
         java.util.List<String> files = new java.util.ArrayList<>();

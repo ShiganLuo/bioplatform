@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Admin project management controller.
@@ -54,6 +55,7 @@ public class AdminProjectController {
      * 普通用户可见自己的 + 公开项目，管理员看所有
      */
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<PageResult<Map<String, Object>>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -75,6 +77,7 @@ public class AdminProjectController {
      * Get project by id.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<Project> getById(@PathVariable Long id) {
         Project project = projectService.getProjectById(id);
         if (project == null) {
@@ -89,6 +92,7 @@ public class AdminProjectController {
      * Create a project.
      */
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority('project:create')")
     @OperLog(module = "项目管理", operation = "创建项目")
     public ApiResponse<Project> create(@RequestBody @Valid AdminProjectCreateRequest request) {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -100,6 +104,7 @@ public class AdminProjectController {
      * Update a project.
      */
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('project:edit')")
     @OperLog(module = "项目管理", operation = "更新项目")
     public ApiResponse<Void> update(@RequestBody @Valid AdminProjectUpdateRequest request) {
         Project existing = projectService.getProjectById(request.id());
@@ -113,6 +118,7 @@ public class AdminProjectController {
      * Create analysis in project context.
      */
     @PostMapping("/{projectId}/analyses")
+    @PreAuthorize("hasAuthority('pipeline:create')")
     @OperLog(module = "项目管理", operation = "创建分析")
     public ApiResponse<Pipeline> createAnalysis(@PathVariable Long projectId,
                                                 @RequestBody @Valid CreateAnalysisRequest request) {
@@ -131,6 +137,7 @@ public class AdminProjectController {
      * List analyses (pipelines) for a project.
      */
     @GetMapping("/{projectId}/analyses")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<PageResult<Pipeline>> listAnalyses(@PathVariable Long projectId,
                                                           @RequestParam(defaultValue = "1") int page,
                                                           @RequestParam(defaultValue = "10") int size) {
@@ -147,6 +154,7 @@ public class AdminProjectController {
      * Get distinct organisms from all projects.
      */
     @GetMapping("/organisms")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<List<String>> getOrganisms() {
         return ApiResponse.success(projectMapper.selectDistinctOrganisms());
     }
@@ -155,6 +163,7 @@ public class AdminProjectController {
      * Get distinct genome versions from all projects.
      */
     @GetMapping("/genome-versions")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<List<String>> getGenomeVersions() {
         return ApiResponse.success(projectMapper.selectDistinctGenomeVersions());
     }
@@ -163,6 +172,7 @@ public class AdminProjectController {
      * Get parent project candidates (top-level projects for dropdown).
      */
     @GetMapping("/parents")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<List<Project>> getParentCandidates() {
         // 管理员看全部；普通用户只看本人+公开项目（父项目下拉）
         Long userId = OwnershipUtils.isAdmin() ? null : OwnershipUtils.getCurrentUserId();
@@ -173,6 +183,7 @@ public class AdminProjectController {
      * Delete a project.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('project:delete')")
     @OperLog(module = "项目管理", operation = "删除项目")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         Project existing = projectService.getProjectById(id);
@@ -186,6 +197,7 @@ public class AdminProjectController {
      * Unbind a project from its parent.
      */
     @PutMapping("/{id}/unbind-parent")
+    @PreAuthorize("hasAuthority('project:edit')")
     @OperLog(module = "项目管理", operation = "解除父项目绑定")
     public ApiResponse<Void> unbindParent(@PathVariable Long id) {
         Project existing = projectService.getProjectById(id);
@@ -201,6 +213,7 @@ public class AdminProjectController {
      * 导出项目 Excel 报表
      */
     @GetMapping("/{id}/export/excel")
+    @PreAuthorize("hasAuthority('project:export')")
     public void exportExcel(@PathVariable Long id, HttpServletResponse response) throws IOException {
         Project project = projectService.getProjectById(id);
         if (project == null) {
@@ -218,6 +231,7 @@ public class AdminProjectController {
      * 导出项目 PPT 报告
      */
     @GetMapping("/{id}/export/ppt")
+    @PreAuthorize("hasAuthority('project:export')")
     public void exportPpt(@PathVariable Long id, HttpServletResponse response) throws IOException {
         Project project = projectService.getProjectById(id);
         if (project == null) {
@@ -235,6 +249,7 @@ public class AdminProjectController {
      * 获取项目文件树
      */
     @GetMapping("/{id}/files/tree")
+    @PreAuthorize("hasAuthority('project:list')")
     public ApiResponse<List<FileTreeNode>> getFileTree(@PathVariable Long id) {
         Project project = projectService.getProjectById(id);
         if (project == null) {
@@ -248,6 +263,7 @@ public class AdminProjectController {
      * 批量打包下载文件（按文件路径）
      */
     @PostMapping("/{id}/files/batch-download")
+    @PreAuthorize("hasAuthority('project:export')")
     public void batchDownload(@PathVariable Long id,
                               @RequestBody List<String> filePaths,
                               HttpServletResponse response) throws IOException {
@@ -266,6 +282,7 @@ public class AdminProjectController {
      * 全部下载（zip）- 扫描所有执行输出目录
      */
     @GetMapping("/{id}/export/download-all")
+    @PreAuthorize("hasAuthority('project:export')")
     public void downloadAll(@PathVariable Long id, HttpServletResponse response) throws IOException {
         Project project = projectService.getProjectById(id);
         if (project == null) {

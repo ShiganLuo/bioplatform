@@ -67,37 +67,43 @@ const routes: RouteRecordRaw[] = [
         path: 'system/users',
         name: 'SystemUsers',
         component: () => import('@/views/system/user/UserView.vue'),
-        meta: { title: '用户管理', icon: 'User', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '用户管理', icon: 'User', parent: 'system', permissions: ['system:user:list'] }
+      },
+      {
+        path: 'system/roles',
+        name: 'SystemRoles',
+        component: () => import('@/views/system/role/RoleView.vue'),
+        meta: { title: '权限管理', icon: 'Lock', parent: 'system', permissions: ['system:role:list'] }
       },
       {
         path: 'system/config',
         name: 'SystemConfig',
         component: () => import('@/views/system/config/ConfigView.vue'),
-        meta: { title: '系统配置', icon: 'Setting', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '系统配置', icon: 'Setting', parent: 'system', permissions: ['system:config:list'] }
       },
       {
         path: 'system/templates',
         name: 'SystemTemplates',
         component: () => import('@/views/system/template/TemplateView.vue'),
-        meta: { title: '分析模板', icon: 'Menu', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '分析模板', icon: 'Menu', parent: 'system', permissions: ['template:list'] }
       },
       {
         path: 'monitor/logs',
         name: 'MonitorLogs',
         component: () => import('@/views/monitor/LogView.vue'),
-        meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor', roles: ['ROLE_ADMIN'] }
+        meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor', permissions: ['log:operation:list'] }
       },
       {
         path: 'feedback',
         name: 'Feedback',
         component: () => import('@/views/feedback/FeedbackView.vue'),
-        meta: { title: '用户反馈', icon: 'Comment', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '用户反馈', icon: 'Comment', parent: 'system', permissions: ['feedback:list'] }
       },
       {
         path: 'workers',
         name: 'Workers',
         component: () => import('@/views/worker/WorkerView.vue'),
-        meta: { title: '计算节点', icon: 'Cpu', parent: 'system', roles: ['ROLE_ADMIN'] }
+        meta: { title: '计算节点', icon: 'Cpu', parent: 'system', permissions: ['worker:list'] }
       },
       {
         path: 'profile',
@@ -141,11 +147,19 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Role-based route guard
+  // Role / permission based route guard（角色名或权限标识任一命中即放行）
   const requiredRoles = to.meta.roles as string[] | undefined
   if (requiredRoles && requiredRoles.length > 0) {
     const hasRole = requiredRoles.some(role => userStore.hasRole(role))
     if (!hasRole) {
+      next({ path: '/dashboard' })
+      return
+    }
+  }
+  const requiredPerms = to.meta.permissions as string[] | undefined
+  if (requiredPerms && requiredPerms.length > 0) {
+    const hasPerm = requiredPerms.some(perm => userStore.hasPermission(perm))
+    if (!hasPerm) {
       next({ path: '/dashboard' })
       return
     }

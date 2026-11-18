@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * 分片上传控制器
@@ -35,6 +36,7 @@ public class ChunkUploadController {
      * 上传单个分片
      */
     @PostMapping("/upload-chunk")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "上传分片")
     public ApiResponse<Map<String, Object>> uploadChunk(
             @RequestParam("chunk") MultipartFile chunk,
@@ -57,6 +59,7 @@ public class ChunkUploadController {
      * 查询已上传的分片（断点续传用）
      */
     @GetMapping("/upload-status")
+    @PreAuthorize("hasAuthority('data:upload')")
     public ApiResponse<Map<String, Object>> uploadStatus(@RequestParam String uploadId) {
         List<Integer> uploadedChunks = chunkUploadService.getUploadedChunks(uploadId);
         Map<String, Object> result = new HashMap<>();
@@ -70,6 +73,7 @@ public class ChunkUploadController {
      * 命中返回既有记录（前端据此跳过上传），未命中返回 success(null)
      */
     @GetMapping("/check-instant")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "秒传检查")
     public ApiResponse<DataFile> checkInstant(@RequestParam String fileHash,
                                               @RequestParam Long projectId) {
@@ -80,6 +84,7 @@ public class ChunkUploadController {
      * 合并所有分片为最终文件
      */
     @PostMapping("/merge-chunks")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "合并分片")
     public ApiResponse<DataFile> mergeChunks(
             @RequestParam String uploadId,

@@ -10,6 +10,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Front-end AI Agent controller (optional auth).
@@ -30,6 +31,7 @@ public class FrontAgentController {
      * Chat with AI (optional auth, uses anonymous user if not authenticated).
      */
     @PostMapping("/chat")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<AgentMessage> chat(@RequestBody Map<String, Object> params) {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -63,6 +65,7 @@ public class FrontAgentController {
      * 流式聊天（SSE）
      */
     @PostMapping("/chat/stream")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public SseEmitter chatStream(@RequestBody Map<String, Object> params) {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -103,6 +106,7 @@ public class FrontAgentController {
      * List available agent tools.
      */
     @GetMapping("/tools")
+    @PreAuthorize("hasAuthority('agent:tool:list')")
     public ApiResponse<List<AgentTool>> listTools() {
         List<AgentTool> tools = agentService.listEnabledTools();
         return ApiResponse.success(tools);
@@ -112,6 +116,7 @@ public class FrontAgentController {
      * List current user's conversations.
      */
     @GetMapping("/conversations")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<List<AgentConversation>> listConversations() {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -124,6 +129,7 @@ public class FrontAgentController {
      * Get messages of a conversation.
      */
     @GetMapping("/conversations/{id}/messages")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<List<AgentMessage>> getMessages(@PathVariable Long id) {
         return ApiResponse.success(agentService.getMessages(id));
     }
@@ -132,6 +138,7 @@ public class FrontAgentController {
      * Delete a conversation.
      */
     @DeleteMapping("/conversations/{id}")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<Void> deleteConversation(@PathVariable Long id) {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -145,6 +152,7 @@ public class FrontAgentController {
      * 批量删除对话
      */
     @PostMapping("/conversations/batch-delete")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<Void> batchDelete(@RequestBody Map<String, Object> params) {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -163,6 +171,7 @@ public class FrontAgentController {
      * 清空当前用户所有对话
      */
     @DeleteMapping("/conversations/all")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<Void> deleteAll() {
         Long userId = com.bioplatform.common.util.LoginUserHolder.getCurrentUserId();
         if (userId == null) {

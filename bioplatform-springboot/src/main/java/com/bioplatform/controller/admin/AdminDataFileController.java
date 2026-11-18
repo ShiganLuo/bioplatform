@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Admin data file management controller.
@@ -45,6 +46,7 @@ public class AdminDataFileController {
      * @param pendingSize 待上传文件总大小（字节），可选
      */
     @GetMapping("/storage-check")
+    @PreAuthorize("hasAuthority('data:list')")
     public ApiResponse<StorageInfo> storageCheck(
             @RequestParam(defaultValue = "0") long pendingSize) {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -56,6 +58,7 @@ public class AdminDataFileController {
      * List files by project.
      */
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('data:list')")
     public ApiResponse<PageResult> list(
             @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) String fileName,
@@ -85,6 +88,7 @@ public class AdminDataFileController {
      * 全量校验文件状态（逐行探测磁盘并回写 file_status）
      */
     @PostMapping("/verify")
+    @PreAuthorize("hasAuthority('data:verify')")
     @OperLog(module = "数据文件管理", operation = "校验文件状态")
     public ApiResponse<Map<String, Object>> verify(
             @RequestParam(required = false) Long projectId) {
@@ -98,6 +102,7 @@ public class AdminDataFileController {
      * Upload a file.
      */
     @PostMapping("/upload")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "上传文件")
     public ApiResponse<DataFile> upload(
             @RequestParam("file") MultipartFile file,
@@ -120,6 +125,7 @@ public class AdminDataFileController {
      * 批量上传文件（支持文件夹上传，保留目录结构）
      */
     @PostMapping("/batch-upload")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "批量上传文件")
     public ApiResponse<List<DataFile>> batchUpload(
             @RequestParam("files") MultipartFile[] files,
@@ -151,6 +157,7 @@ public class AdminDataFileController {
      * 导入服务器本地目录中的文件（不上传，仅登记元数据）
      */
     @PostMapping("/import-local")
+    @PreAuthorize("hasAuthority('data:upload')")
     @OperLog(module = "数据文件管理", operation = "导入本地文件")
     public ApiResponse<Map<String, Object>> importLocal(
             @RequestParam String dirPath,
@@ -171,6 +178,7 @@ public class AdminDataFileController {
      * 获取 rsync 传输信息（供用户在本地终端执行）
      */
     @GetMapping("/rsync-info")
+    @PreAuthorize("hasAuthority('data:upload')")
     public ApiResponse<Map<String, String>> rsyncInfo() {
         Map<String, String> info = new HashMap<>();
         info.put("host", "localhost");
@@ -186,6 +194,7 @@ public class AdminDataFileController {
      * Delete a file.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('data:delete')")
     @OperLog(module = "数据文件管理", operation = "删除文件")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         DataFile existing = dataFileService.getFileById(id);
@@ -199,6 +208,7 @@ public class AdminDataFileController {
      * 编辑文件（元数据 + 多对多项目归属）
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('data:edit')")
     @OperLog(module = "数据文件管理", operation = "编辑文件")
     public ApiResponse<DataFile> update(@PathVariable Long id,
                                         @RequestBody @Valid com.bioplatform.dto.datafile.DataFileUpdateRequest request) {
@@ -218,6 +228,7 @@ public class AdminDataFileController {
      * Get file info by id.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('data:list')")
     public ApiResponse<DataFile> getById(@PathVariable Long id) {
         DataFile dataFile = dataFileService.getFileById(id);
         if (dataFile == null) {
@@ -234,6 +245,7 @@ public class AdminDataFileController {
      * Download a file.
      */
     @GetMapping("/{id}/download")
+    @PreAuthorize("hasAuthority('data:download')")
     public ResponseEntity<Resource> download(@PathVariable Long id) {
         DataFile dataFile = dataFileService.getFileById(id);
         if (dataFile == null) {

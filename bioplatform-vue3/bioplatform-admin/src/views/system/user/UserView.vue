@@ -128,9 +128,12 @@
         </el-form-item>
         <el-form-item label="角色" prop="roles">
           <el-select v-model="formData.roles" multiple placeholder="请选择角色">
-            <el-option label="管理员" value="admin" />
-            <el-option label="普通用户" value="user" />
-            <el-option label="访客" value="guest" />
+            <el-option
+              v-for="r in roleOptions"
+              :key="r.id"
+              :label="r.roleDesc ? `${r.roleName}（${r.roleDesc}）` : r.roleName"
+              :value="r.roleName"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -159,6 +162,13 @@ import {
   resetPassword
 } from '@/api/userApi'
 import type { User } from '@/api/userApi'
+import { listRoles } from '@/api/roleApi'
+import type { RoleListItem } from '@/api/roleApi'
+
+const roleOptions = ref<RoleListItem[]>([])
+const loadRoles = async () => {
+  roleOptions.value = (await listRoles()) as unknown as RoleListItem[]
+}
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -328,6 +338,7 @@ const handleSubmit = async () => {
 
 onMounted(() => {
   loadUsers()
+  loadRoles()
 })
 </script>
 

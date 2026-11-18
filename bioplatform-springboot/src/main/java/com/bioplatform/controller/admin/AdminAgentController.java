@@ -12,6 +12,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Admin AI Agent controller.
@@ -32,6 +33,7 @@ public class AdminAgentController {
      * List user conversations.
      */
     @GetMapping("/conversations")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<List<AgentConversation>> listConversations() {
         Long userId = LoginUserHolder.getCurrentUserId();
         List<AgentConversation> conversations = agentService.listConversations(userId);
@@ -42,6 +44,7 @@ public class AdminAgentController {
      * Create a new conversation.
      */
     @PostMapping("/conversations")
+    @PreAuthorize("hasAuthority('agent:chat')")
     @OperLog(module = "AI Agent管理", operation = "创建对话")
     public ApiResponse<AgentConversation> createConversation(@RequestBody Map<String, Object> params) {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -57,6 +60,7 @@ public class AdminAgentController {
      * Delete a conversation.
      */
     @DeleteMapping("/conversations/{id}")
+    @PreAuthorize("hasAuthority('agent:chat')")
     @OperLog(module = "AI Agent管理", operation = "删除对话")
     public ApiResponse<Void> deleteConversation(@PathVariable Long id) {
         agentService.deleteConversation(id);
@@ -67,6 +71,7 @@ public class AdminAgentController {
      * 批量删除对话
      */
     @PostMapping("/conversations/batch-delete")
+    @PreAuthorize("hasAuthority('agent:chat')")
     @OperLog(module = "AI Agent管理", operation = "批量删除对话")
     public ApiResponse<Void> batchDelete(@RequestBody Map<String, Object> params) {
         List<?> ids = (List<?>) params.get("ids");
@@ -82,6 +87,7 @@ public class AdminAgentController {
      * 清空当前用户所有对话
      */
     @DeleteMapping("/conversations/all")
+    @PreAuthorize("hasAuthority('agent:chat')")
     @OperLog(module = "AI Agent管理", operation = "清空所有对话")
     public ApiResponse<Void> deleteAll() {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -96,6 +102,7 @@ public class AdminAgentController {
      * Get messages for a conversation.
      */
     @GetMapping("/conversations/{id}/messages")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public ApiResponse<List<AgentMessage>> getMessages(@PathVariable Long id) {
         List<AgentMessage> messages = agentService.getMessages(id);
         return ApiResponse.success(messages);
@@ -105,6 +112,7 @@ public class AdminAgentController {
      * Send a chat message and get AI response.
      */
     @PostMapping("/chat")
+    @PreAuthorize("hasAuthority('agent:chat')")
     @OperLog(module = "AI Agent管理", operation = "发送消息")
     public ApiResponse<AgentMessage> chat(@RequestBody Map<String, Object> params) {
         Long userId = LoginUserHolder.getCurrentUserId();
@@ -140,6 +148,7 @@ public class AdminAgentController {
      * 流式聊天（SSE）
      */
     @PostMapping("/chat/stream")
+    @PreAuthorize("hasAuthority('agent:chat')")
     public SseEmitter chatStream(@RequestBody Map<String, Object> params) {
         Long userId = LoginUserHolder.getCurrentUserId();
 
@@ -176,6 +185,7 @@ public class AdminAgentController {
      * List available agent tools.
      */
     @GetMapping("/tools")
+    @PreAuthorize("hasAuthority('agent:tool:list')")
     public ApiResponse<List<AgentTool>> listTools() {
         List<AgentTool> tools = agentService.listEnabledTools();
         return ApiResponse.success(tools);

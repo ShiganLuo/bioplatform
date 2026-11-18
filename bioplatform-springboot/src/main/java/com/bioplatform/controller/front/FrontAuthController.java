@@ -112,7 +112,8 @@ public class FrontAuthController {
                 user.getUsername(),
                 user.getNickName(),
                 user.getAvatarUrl(),
-                roleNames
+                roleNames,
+                roleService.getPermissionStringsByUserId(user.getId())
         );
         return ApiResponse.success(userInfoDTO);
     }

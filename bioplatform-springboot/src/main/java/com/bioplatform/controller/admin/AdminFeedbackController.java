@@ -15,7 +15,6 @@ import java.util.List;
  * @author luosg
  */
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/feedback")
 public class AdminFeedbackController {
 
@@ -29,6 +28,7 @@ public class AdminFeedbackController {
      * 获取所有open会话
      */
     @GetMapping("/sessions")
+    @PreAuthorize("hasAuthority('feedback:list')")
     public ApiResponse<List<FeedbackSession>> listOpenSessions() {
         return ApiResponse.success(feedbackService.listOpenSessions());
     }
@@ -37,6 +37,7 @@ public class AdminFeedbackController {
      * 获取会话消息列表
      */
     @GetMapping("/sessions/{id}/messages")
+    @PreAuthorize("hasAuthority('feedback:list')")
     public ApiResponse<List<FeedbackMessage>> getMessages(@PathVariable Long id) {
         return ApiResponse.success(feedbackService.getMessages(id));
     }
@@ -45,6 +46,7 @@ public class AdminFeedbackController {
      * 关闭会话
      */
     @PutMapping("/sessions/{id}/close")
+    @PreAuthorize("hasAuthority('feedback:close')")
     @com.bioplatform.common.annotation.OperLog(module = "反馈管理", operation = "关闭反馈会话")
     public ApiResponse<Void> closeSession(@PathVariable Long id) {
         feedbackService.closeSession(id);

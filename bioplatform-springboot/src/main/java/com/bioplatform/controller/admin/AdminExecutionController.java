@@ -7,6 +7,7 @@ import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.PipelineExecution;
 import com.bioplatform.service.PipelineExecutionService;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * Admin pipeline execution controller.
@@ -27,6 +28,7 @@ public class AdminExecutionController {
      * Paginated execution list.
      */
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('execution:list')")
     public ApiResponse<PageResult> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -54,6 +56,7 @@ public class AdminExecutionController {
      * Get execution by id.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('execution:list')")
     public ApiResponse<com.bioplatform.dto.common.ExecutionVO> getById(@PathVariable Long id) {
         com.bioplatform.dto.common.ExecutionVO vo = pipelineExecutionService.getExecutionVO(id);
         if (vo == null) {
@@ -67,6 +70,7 @@ public class AdminExecutionController {
      * Cancel an execution.
      */
     @PutMapping("/{id}/cancel")
+    @PreAuthorize("hasAuthority('execution:cancel')")
     @OperLog(module = "执行管理", operation = "取消执行")
     public ApiResponse<Void> cancel(@PathVariable Long id) {
         PipelineExecution execution = pipelineExecutionService.getExecutionById(id);
@@ -80,6 +84,7 @@ public class AdminExecutionController {
      * Get execution logs.
      */
     @GetMapping("/{id}/logs")
+    @PreAuthorize("hasAuthority('execution:list')")
     public ApiResponse<String> getLogs(@PathVariable Long id) {
         PipelineExecution execution = pipelineExecutionService.getExecutionById(id);
         if (execution == null) return ApiResponse.error(404, "执行记录不存在");
@@ -93,6 +98,7 @@ public class AdminExecutionController {
      * 仅删记录不删产物:输出目录按分析共用,文件绝不跟删。
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('execution:delete')")
     @OperLog(module = "执行管理", operation = "删除执行记录")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         if (!OwnershipUtils.isAdmin()) {

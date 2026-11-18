@@ -8,6 +8,7 @@ import com.bioplatform.service.FeedbackService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * 前台反馈接口
@@ -28,6 +29,7 @@ public class FrontFeedbackController {
      * 获取当前用户的open会话
      */
     @GetMapping("/session")
+    @PreAuthorize("hasAuthority('feedback:list')")
     public ApiResponse<FeedbackSession> getMySession() {
         Long userId = LoginUserHolder.getCurrentUserId();
         if (userId == null) {
@@ -42,6 +44,7 @@ public class FrontFeedbackController {
      * 获取会话历史消息
      */
     @GetMapping("/messages")
+    @PreAuthorize("hasAuthority('feedback:list')")
     public ApiResponse<List<FeedbackMessage>> getMessages(@RequestParam Long sessionId) {
         return ApiResponse.success(feedbackService.getMessages(sessionId));
     }

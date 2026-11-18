@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/admin/sample-meta")
@@ -47,12 +48,14 @@ public class AdminSampleMetaController {
     }
 
     @GetMapping("/list")
+    @PreAuthorize("hasAuthority('project:sample:list')")
     public ApiResponse<List<SampleMeta>> list(@RequestParam Long projectId) {
         checkProjectReadAccess(projectId);
         return ApiResponse.success(sampleMetaService.listByProject(projectId));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('project:sample:list')")
     public ApiResponse<SampleMeta> getById(@PathVariable Long id) {
         SampleMeta meta = sampleMetaService.getById(id);
         if (meta == null) return ApiResponse.error(404, "Meta不存在");
@@ -61,6 +64,7 @@ public class AdminSampleMetaController {
     }
 
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority('project:sample:create')")
     @OperLog(module = "样本信息", operation = "创建样本Meta")
     public ApiResponse<SampleMeta> create(@RequestBody @Valid SampleMeta sampleMeta) {
         if (sampleMeta.getProjectId() != null) {
@@ -73,6 +77,7 @@ public class AdminSampleMetaController {
     }
 
     @PutMapping("/update")
+    @PreAuthorize("hasAuthority('project:sample:edit')")
     @OperLog(module = "样本信息", operation = "更新样本Meta")
     public ApiResponse<Void> update(@RequestBody @Valid SampleMeta sampleMeta) {
         if (sampleMeta.getId() == null) return ApiResponse.error(400, "id不能为空");
@@ -83,6 +88,7 @@ public class AdminSampleMetaController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('project:sample:delete')")
     @OperLog(module = "样本信息", operation = "删除样本Meta")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         SampleMeta existing = sampleMetaService.getById(id);
@@ -95,6 +101,7 @@ public class AdminSampleMetaController {
      * 解析 meta 的文件引用，与 data_files 匹配（已入库/未入库、在库/丢失）。
      */
     @GetMapping("/{id}/files")
+    @PreAuthorize("hasAuthority('project:sample:list')")
     public ApiResponse<SampleMetaFilesResult> files(@PathVariable Long id) {
         SampleMeta meta = sampleMetaService.getById(id);
         if (meta == null) return ApiResponse.error(404, "Meta不存在");
@@ -106,6 +113,7 @@ public class AdminSampleMetaController {
      * 将 meta 中未入库、但磁盘上存在的引用登记进 data_files。
      */
     @PostMapping("/{id}/register-missing")
+    @PreAuthorize("hasAuthority('project:sample:edit')")
     @OperLog(module = "样本信息", operation = "登记未入库文件引用")
     public ApiResponse<Map<String, Object>> registerMissing(@PathVariable Long id) {
         SampleMeta meta = sampleMetaService.getById(id);

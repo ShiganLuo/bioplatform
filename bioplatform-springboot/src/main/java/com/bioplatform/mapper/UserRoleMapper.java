@@ -26,5 +26,7 @@ public interface UserRoleMapper {
 
     int deleteByRoleId(@Param("roleId") Long roleId);
 
+    int countByRoleId(@Param("roleId") Long roleId);
+
     int deleteById(@Param("userId") Long userId, @Param("roleId") Long roleId);
 }

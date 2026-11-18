@@ -14,69 +14,73 @@
         router
         class="sidebar-menu"
       >
-        <el-menu-item index="/dashboard">
+        <el-menu-item v-if="userStore.hasPermission('dashboard:list')" index="/dashboard">
           <el-icon><Odometer /></el-icon>
           <template #title>仪表盘</template>
         </el-menu-item>
 
-        <el-menu-item index="/projects">
+        <el-menu-item v-if="userStore.hasPermission('project:list')" index="/projects">
           <el-icon><Folder /></el-icon>
           <template #title>项目管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/pipelines">
+        <el-menu-item v-if="userStore.hasPermission('pipeline:list')" index="/pipelines">
           <el-icon><Connection /></el-icon>
           <template #title>流程管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/executions">
+        <el-menu-item v-if="userStore.hasPermission('execution:list')" index="/executions">
           <el-icon><Monitor /></el-icon>
           <template #title>执行监控</template>
         </el-menu-item>
 
-        <el-menu-item index="/data">
+        <el-menu-item v-if="userStore.hasPermission('data:list')" index="/data">
           <el-icon><Document /></el-icon>
           <template #title>数据管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/agent">
+        <el-menu-item v-if="userStore.hasPermission('agent:chat')" index="/agent">
           <el-icon><ChatDotRound /></el-icon>
           <template #title>AI 助手</template>
         </el-menu-item>
 
-        <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="system">
+        <el-sub-menu v-if="userStore.hasPermission('system:user:list') || userStore.hasPermission('system:role:list') || userStore.hasPermission('system:config:list') || userStore.hasPermission('template:list') || userStore.hasPermission('feedback:list') || userStore.hasPermission('worker:list')" index="system">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </template>
-          <el-menu-item index="/system/users">
+          <el-menu-item v-if="userStore.hasPermission('system:user:list')" index="/system/users">
             <el-icon><User /></el-icon>
             <template #title>用户管理</template>
           </el-menu-item>
-          <el-menu-item index="/system/config">
+          <el-menu-item v-if="userStore.hasPermission('system:role:list')" index="/system/roles">
+            <el-icon><Lock /></el-icon>
+            <template #title>权限管理</template>
+          </el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('system:config:list')" index="/system/config">
             <el-icon><Tools /></el-icon>
             <template #title>系统配置</template>
           </el-menu-item>
-          <el-menu-item index="/system/templates">
+          <el-menu-item v-if="userStore.hasPermission('template:list')" index="/system/templates">
             <el-icon><Menu /></el-icon>
             <template #title>分析模板</template>
           </el-menu-item>
-          <el-menu-item index="/feedback">
+          <el-menu-item v-if="userStore.hasPermission('feedback:list')" index="/feedback">
             <el-icon><Comment /></el-icon>
             <template #title>用户反馈</template>
           </el-menu-item>
-          <el-menu-item index="/workers">
+          <el-menu-item v-if="userStore.hasPermission('worker:list')" index="/workers">
             <el-icon><Cpu /></el-icon>
             <template #title>计算节点</template>
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu v-if="userStore.hasRole('ROLE_ADMIN')" index="monitor">
+        <el-sub-menu v-if="userStore.hasPermission('log:operation:list')" index="monitor">
           <template #title>
             <el-icon><DataLine /></el-icon>
             <span>系统监控</span>
           </template>
-          <el-menu-item index="/monitor/logs">
+          <el-menu-item v-if="userStore.hasPermission('log:operation:list')" index="/monitor/logs">
             <el-icon><Tickets /></el-icon>
             <template #title>操作日志</template>
           </el-menu-item>
@@ -153,7 +157,7 @@ import WorkTab from '@/components/WorkTab.vue'
 import {
   Odometer, Folder, Connection, Monitor, Document,
   ChatDotRound, Setting, User, Tools, DataLine, Tickets,
-  Fold, Expand, ArrowDown, SwitchButton, DataBoard, Refresh
+  Fold, Expand, ArrowDown, SwitchButton, DataBoard, Refresh, Lock
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

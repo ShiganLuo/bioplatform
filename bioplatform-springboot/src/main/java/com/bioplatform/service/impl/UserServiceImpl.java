@@ -51,6 +51,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
+    private final com.bioplatform.mapper.PermissionMapper permissionMapper;
     private final JwtTokenProviderUtil jwtTokenProviderUtil;
     private final PasswordEncoder passwordEncoder;
     private final OperationLogService operationLogService;
@@ -58,15 +59,30 @@ public class UserServiceImpl implements UserService {
     public UserServiceImpl(UserMapper userMapper,
                            RoleMapper roleMapper,
                            UserRoleMapper userRoleMapper,
+                           com.bioplatform.mapper.PermissionMapper permissionMapper,
                            JwtTokenProviderUtil jwtTokenProviderUtil,
                            PasswordEncoder passwordEncoder,
                            OperationLogService operationLogService) {
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
+        this.permissionMapper = permissionMapper;
         this.jwtTokenProviderUtil = jwtTokenProviderUtil;
         this.passwordEncoder = passwordEncoder;
         this.operationLogService = operationLogService;
+    }
+
+    /** 用户权限标识列表（角色权限并集） */
+    private java.util.List<String> collectPermissionStrings(java.util.List<Role> roles) {
+        java.util.Set<String> result = new java.util.LinkedHashSet<>();
+        for (Role role : roles) {
+            for (com.bioplatform.entity.Permission p : permissionMapper.selectByRoleId(role.getId())) {
+                if (p.getPermission() != null && !p.getPermission().isBlank()) {
+                    result.add(p.getPermission());
+                }
+            }
+        }
+        return new java.util.ArrayList<>(result);
     }
 
     @Override
@@ -117,7 +133,8 @@ public class UserServiceImpl implements UserService {
                     user.getUsername(),
                     user.getNickName(),
                     user.getAvatarUrl(),
-                    roleNames
+                    roleNames,
+                    collectPermissionStrings(userRoles)
             );
 
             log.info("用户登录成功: {}", user.getUsername());
@@ -180,7 +197,8 @@ public class UserServiceImpl implements UserService {
                 user.getUsername(),
                 user.getNickName(),
                 user.getAvatarUrl(),
-                roleNames
+                roleNames,
+                collectPermissionStrings(userRoles)
         );
     }
 

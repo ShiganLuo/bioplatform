@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * 浏览器原生下载（一次性票据）
@@ -64,6 +65,7 @@ public class AdminDownloadController {
      * 签发下载票据（需登录；归属校验在签发时做，下载端点免鉴权后票据即凭证）
      */
     @PostMapping("/download-ticket")
+    @PreAuthorize("hasAnyAuthority('data:download','project:export')")
     public ApiResponse<Map<String, String>> issue(@RequestBody TicketRequest request) {
         if (request.type() == null) {
             throw new IllegalArgumentException("缺少下载类型");
@@ -90,6 +92,15 @@ public class AdminDownloadController {
         String ticket = ticketService.issue(new DownloadTicketService.Ticket(
                 request.type(), request.fileId(), request.projectId(),
                 request.filePaths(), System.currentTimeMillis()));
+
+        // hasAnyAuthority 只做粗准入，这里按下载类型细判对应权限
+        String required = "file".equals(request.type()) ? "data:download" : "project:export";
+        boolean allowed = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(required));
+        if (!allowed) {
+            throw new org.springframework.security.access.AccessDeniedException("无权执行该下载类型");
+        }
         Map<String, String> result = new HashMap<>();
         result.put("ticket", ticket);
         result.put("url", "/api/admin/download?ticket=" + ticket);
