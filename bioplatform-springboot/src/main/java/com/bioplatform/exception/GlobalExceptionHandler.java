@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ApiResponse<Void> handleAccessDeniedException(Exception ex) {
         log.warn("Access denied: {}", ex.getMessage());
-        return ApiResponse.error(403, "权限不足，需要管理员角色");
+        return ApiResponse.error(403, "无权访问或操作该资源");
     }
 
     /**

@@ -27,7 +27,7 @@ public class AccessDeniedEntryPoint implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        ApiResponse<Void> body = ApiResponse.error(403, "权限不足，需要管理员角色");
+        ApiResponse<Void> body = ApiResponse.error(403, "无权访问或操作该资源");
         objectMapper.writeValue(response.getOutputStream(), body);
     }
 }
