@@ -21,7 +21,7 @@ public final class FrontProjectDTO {
             String organism,
             String genomeVersion,
             Integer status,
-            String ownerNickName,
+            String ownerName,
             LocalDateTime createdAt
     ) {
     }
@@ -34,7 +34,7 @@ public final class FrontProjectDTO {
             String name,
             String description,
             Long ownerId,
-            String ownerNickName,
+            String ownerName,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {

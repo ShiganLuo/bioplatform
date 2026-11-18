@@ -16,9 +16,12 @@ import org.springframework.web.bind.annotation.*;
 public class FrontProjectController {
 
     private final ProjectService projectService;
+    private final com.bioplatform.mapper.UserMapper userMapper;
 
-    public FrontProjectController(ProjectService projectService) {
+    public FrontProjectController(ProjectService projectService,
+                                  com.bioplatform.mapper.UserMapper userMapper) {
         this.projectService = projectService;
+        this.userMapper = userMapper;
     }
 
     /**
@@ -48,6 +51,14 @@ public class FrontProjectController {
             allowed = allowed || (userId != null && userId.equals(project.getOwnerId()));
             if (!allowed) {
                 return ApiResponse.error(404, "项目不存在");
+            }
+        }
+        // 回填负责人显示名（昵称优先，空则用户名）
+        if (project.getOwnerId() != null) {
+            com.bioplatform.entity.User owner = userMapper.selectById(project.getOwnerId());
+            if (owner != null) {
+                project.setOwnerName((owner.getNickName() != null && !owner.getNickName().isBlank())
+                        ? owner.getNickName() : owner.getUsername());
             }
         }
         return ApiResponse.success(project);

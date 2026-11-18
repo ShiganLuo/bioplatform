@@ -34,6 +34,9 @@ public class Project {
     /** 是否私有：true=私有 false=公开 */
     private Boolean isPrivate;
 
+    /** 负责人显示名（非表字段，前台详情回填：昵称优先，空则用户名） */
+    private String ownerName;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

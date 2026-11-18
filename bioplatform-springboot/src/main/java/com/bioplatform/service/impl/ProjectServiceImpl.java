@@ -115,11 +115,13 @@ public class ProjectServiceImpl implements ProjectService {
         // 转换为前台DTO
         List<FrontProjectListDTO> dtoList = projects.stream()
                 .map(p -> {
-                    String ownerNickName = null;
+                    String ownerName = null;
                     if (p.getOwnerId() != null) {
                         User owner = userMapper.selectById(p.getOwnerId());
                         if (owner != null) {
-                            ownerNickName = owner.getNickName();
+                            // 昵称优先，空则回退用户名（负责人不能显示为空）
+                            ownerName = (owner.getNickName() != null && !owner.getNickName().isBlank())
+                                    ? owner.getNickName() : owner.getUsername();
                         }
                     }
                     return new FrontProjectListDTO(
@@ -129,7 +131,7 @@ public class ProjectServiceImpl implements ProjectService {
                             p.getOrganism(),
                             p.getGenomeVersion(),
                             p.getStatus(),
-                            ownerNickName,
+                            ownerName,
                             p.getCreatedAt()
                     );
                 })
