@@ -1,7 +1,8 @@
 # 生物信息学云平台 - Spring Boot 后端 Dockerfile
 # 使用本地已构建的 JAR 包（CI/CD 环境使用）
 
-FROM eclipse-temurin:17-jre-alpine
+# 17.0.21.1_2 = CVE-2026-114938 (Java4Shell) 修复版,勿退回浮动 tag 17-jre-alpine
+FROM eclipse-temurin:17.0.21.1_2-jre-alpine
 
 LABEL maintainer="bioplatform"
 LABEL description="生物信息学云平台后端服务"

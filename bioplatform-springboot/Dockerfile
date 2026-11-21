@@ -6,7 +6,8 @@
 # 若构建时拉不到基础镜像，用 `docker pull eclipse-temurin:17-jre-alpine` 补缓存，
 # 而不是退回 FROM 旧应用镜像的增量构建。
 
-FROM eclipse-temurin:17-jre-alpine
+# 17.0.21.1_2 = CVE-2026-114938 (Java4Shell) 修复版,勿退回浮动 tag 17-jre-alpine
+FROM eclipse-temurin:17.0.21.1_2-jre-alpine
 
 LABEL maintainer="bioplatform"
 LABEL description="生物信息学云平台后端服务"
