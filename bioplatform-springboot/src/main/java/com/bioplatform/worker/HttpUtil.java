@@ -27,9 +27,13 @@ public final class HttpUtil {
     }
 
     public static String get(String url, Map<String, String> headers) throws IOException, InterruptedException {
+        return get(url, headers, Duration.ofSeconds(10));
+    }
+
+    public static String get(String url, Map<String, String> headers, Duration timeout) throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(10))
+                .timeout(timeout)
                 .GET();
         if (headers != null) {
             headers.forEach(builder::header);

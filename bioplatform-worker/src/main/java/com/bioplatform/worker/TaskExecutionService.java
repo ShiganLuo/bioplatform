@@ -240,6 +240,15 @@ public class TaskExecutionService {
     }
 
     /**
+     * 运行中(RUNNING)任务数（节点指标用）
+     */
+    public long countRunning() {
+        return tasks.values().stream()
+                .filter(t -> "RUNNING".equals(t.getStatus()))
+                .count();
+    }
+
+    /**
      * 列出所有任务(内存 + 磁盘恢复的历史)
      */
     public List<Task> listTasks() {

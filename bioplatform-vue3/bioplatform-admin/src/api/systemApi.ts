@@ -9,19 +9,27 @@ export interface SystemConfig {
   updateTime: string
 }
 
+export interface NodeMetrics {
+  role: 'APP' | 'COMPUTE'
+  nodeId: string
+  hostname: string
+  online: boolean
+  cpuUsage: number | null
+  memoryUsage: number | null
+  diskUsage: number | null
+  runningTasks: number | null
+  uptime: string | null
+  version?: string | null
+  metricNote?: string
+}
+
 export interface DashboardData {
   totalUsers: number
   totalProjects: number
   totalPipelines: number
   totalExecutions: number
   recentExecutions: any[]
-  systemInfo: {
-    version: string
-    uptime: string
-    cpuUsage: number
-    memoryUsage: number
-    diskUsage: number
-  }
+  nodes: NodeMetrics[]
 }
 
 export function getConfigs(category?: string) {
