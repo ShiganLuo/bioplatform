@@ -75,11 +75,15 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu v-if="userStore.hasPermission('log:operation:list')" index="monitor">
+        <el-sub-menu v-if="userStore.hasPermission('log:operation:list') || userStore.hasPermission('worker:list')" index="monitor">
           <template #title>
             <el-icon><DataLine /></el-icon>
             <span>系统监控</span>
           </template>
+          <el-menu-item v-if="userStore.hasPermission('worker:list')" index="/monitor/hosts">
+            <el-icon><Monitor /></el-icon>
+            <template #title>主机监控</template>
+          </el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('log:operation:list')" index="/monitor/logs">
             <el-icon><Tickets /></el-icon>
             <template #title>操作日志</template>

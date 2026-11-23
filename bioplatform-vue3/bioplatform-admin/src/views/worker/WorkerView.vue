@@ -28,8 +28,20 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="CPU" width="70">
+        <el-table-column label="核数" width="70">
           <template #default="{ row }">{{ row.cpuCores || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="CPU使用" width="90">
+          <template #default="{ row }">{{ fmtPercent(row.metrics?.cpuUsage) }}</template>
+        </el-table-column>
+        <el-table-column label="内存" width="90">
+          <template #default="{ row }">{{ fmtPercent(row.metrics?.memoryUsage) }}</template>
+        </el-table-column>
+        <el-table-column label="磁盘" width="90">
+          <template #default="{ row }">{{ fmtPercent(row.metrics?.diskUsage) }}</template>
+        </el-table-column>
+        <el-table-column label="运行任务" width="90">
+          <template #default="{ row }">{{ row.metrics?.runningTasks ?? 'N/A' }}</template>
         </el-table-column>
         <el-table-column label="可用内存" width="100">
           <template #default="{ row }">{{ row.freeMemoryGB ? row.freeMemoryGB + ' GB' : '-' }}</template>
@@ -139,6 +151,13 @@ import { Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/utils/http/axios'
 
+interface WorkerMetrics {
+  cpuUsage: number | null
+  memoryUsage: number | null
+  diskUsage: number | null
+  runningTasks: number | null
+}
+
 interface WorkerInfo {
   id: string
   url: string
@@ -149,6 +168,7 @@ interface WorkerInfo {
   healthy: boolean
   status: number
   lastHeartbeat: number
+  metrics?: WorkerMetrics
 }
 
 const workers = ref<WorkerInfo[]>([])
@@ -162,10 +182,32 @@ const editForm = ref({ nodeId: '', url: '', hostname: '' })
 
 const onlineCount = computed(() => workers.value.filter(w => w.healthy).length)
 
+function fmtPercent(v: number | null | undefined): string {
+  return v == null ? 'N/A' : `${v}%`
+}
+
 async function loadWorkers() {
   try {
     const res = await http.get('/api/admin/workers') as any
-    workers.value = Array.isArray(res) ? res : []
+    const rows: WorkerInfo[] = Array.isArray(res) ? res : []
+    // 负载列（实时指标）：按 nodeId 合并，接口失败降级为 N/A
+    let metricsMap: Record<string, WorkerMetrics> = {}
+    try {
+      const metrics = await http.get('/api/admin/workers/metrics') as any
+      if (Array.isArray(metrics)) {
+        for (const m of metrics) {
+          metricsMap[m.nodeId] = {
+            cpuUsage: m.cpuUsage ?? null,
+            memoryUsage: m.memoryUsage ?? null,
+            diskUsage: m.diskUsage ?? null,
+            runningTasks: m.runningTasks ?? null
+          }
+        }
+      }
+    } catch {
+      // 指标不可得，负载列显示 N/A
+    }
+    workers.value = rows.map(r => ({ ...r, metrics: metricsMap[r.id] }))
   } catch {
     workers.value = []
   }

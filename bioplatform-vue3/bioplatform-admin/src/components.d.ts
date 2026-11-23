@@ -58,6 +58,7 @@ declare module 'vue' {
     ElTree: typeof import('element-plus/es')['ElTree']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FileEditDialog: typeof import('./components/FileEditDialog.vue')['default']
+    NodeCard: typeof import('./components/NodeCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SchemaForm: typeof import('./components/SchemaForm.vue')['default']

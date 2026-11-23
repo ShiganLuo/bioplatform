@@ -94,6 +94,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '操作日志', icon: 'Tickets', parent: 'monitor', permissions: ['log:operation:list'] }
       },
       {
+        path: 'monitor/hosts',
+        name: 'MonitorHosts',
+        component: () => import('@/views/monitor/HostMonitorView.vue'),
+        meta: { title: '主机监控', icon: 'Monitor', parent: 'monitor', permissions: ['worker:list'] }
+      },
+      {
         path: 'feedback',
         name: 'Feedback',
         component: () => import('@/views/feedback/FeedbackView.vue'),

@@ -19,6 +19,7 @@
       </el-col>
     </el-row>
 
+    <!-- 两卡等高对齐：左执行记录、右节点状态（列表内部滚动） -->
     <el-row :gutter="20" class="content-row">
       <!-- Recent Executions -->
       <el-col :span="16">
@@ -60,55 +61,7 @@
           </div>
 
           <div class="node-list">
-            <div v-for="node in dashboardData.nodes" :key="node.nodeId" class="node-card">
-              <div class="node-head">
-                <el-tag size="small" :type="node.role === 'APP' ? 'primary' : 'warning'" effect="plain">
-                  {{ node.role === 'APP' ? '应用' : '计算' }}
-                </el-tag>
-                <span class="node-host">{{ node.hostname }}</span>
-                <el-tag size="small" :type="node.online ? 'success' : 'info'" effect="light" round>
-                  {{ node.online ? '在线' : '离线' }}
-                </el-tag>
-              </div>
-
-              <div class="info-item">
-                <span class="info-label">CPU 使用率</span>
-                <el-progress
-                  v-if="node.cpuUsage != null"
-                  :percentage="node.cpuUsage"
-                  :color="getProgressColor(node.cpuUsage)"
-                  :stroke-width="8"
-                />
-                <span v-else class="info-na">N/A</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">内存使用率</span>
-                <el-progress
-                  v-if="node.memoryUsage != null"
-                  :percentage="node.memoryUsage"
-                  :color="getProgressColor(node.memoryUsage)"
-                  :stroke-width="8"
-                />
-                <span v-else class="info-na">N/A</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">磁盘使用率</span>
-                <el-progress
-                  v-if="node.diskUsage != null"
-                  :percentage="node.diskUsage"
-                  :color="getProgressColor(node.diskUsage)"
-                  :stroke-width="8"
-                />
-                <span v-else class="info-na">N/A</span>
-              </div>
-
-              <div class="node-meta">
-                <span v-if="node.role === 'COMPUTE'">运行任务 {{ node.runningTasks ?? 'N/A' }}</span>
-                <span v-if="node.role === 'APP' && node.version">版本 {{ node.version }}</span>
-                <span v-if="node.uptime">运行 {{ node.uptime }}</span>
-              </div>
-              <div v-if="node.metricNote" class="metric-note">{{ node.metricNote }}</div>
-            </div>
+            <NodeCard v-for="node in dashboardData.nodes" :key="node.nodeId" :node="node" />
           </div>
         </el-card>
       </el-col>
@@ -120,6 +73,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { User, Folder, Connection, Monitor } from '@element-plus/icons-vue'
 import { getDashboard, type NodeMetrics } from '@/api/systemApi'
+import NodeCard from '@/components/NodeCard.vue'
 
 const dashboardData = ref<{
   totalUsers: number
@@ -182,12 +136,6 @@ const getStatusLabel = (status: string) => {
     CANCELLED: '已取消'
   }
   return map[status] || status
-}
-
-const getProgressColor = (percentage: number) => {
-  if (percentage < 60) return '#67c23a'
-  if (percentage < 80) return '#e6a23c'
-  return '#f56c6c'
 }
 
 onMounted(async () => {
@@ -262,22 +210,36 @@ onMounted(async () => {
   font-size: 28px;
 }
 
-/* ===== Content Row ===== */
+/* ===== Content Row（两卡等高对齐） ===== */
 .content-row {
   margin-top: 20px;
 }
 
-.table-card,
-.info-card {
+.content-row .el-card {
+  height: 600px;
   border-radius: 12px;
   border: none;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.content-row .el-card :deep(.el-card__body) {
+  height: calc(100% - 56px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .card-header {
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+}
+
+/* 左卡：表格区域自适应，超出滚动 */
+.table-card :deep(.el-table) {
+  flex: 1;
+  overflow: auto;
 }
 
 /* ===== Node Status ===== */
@@ -291,6 +253,7 @@ onMounted(async () => {
   padding-bottom: 12px;
   border-bottom: 1px solid #ebeef5;
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .disk-summary.disk-ok {
@@ -306,64 +269,31 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+/* 右卡：节点卡片列表固定区域，内部滑动 */
 .node-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-right: 4px;
 }
 
-.node-card {
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.node-list::-webkit-scrollbar {
+  width: 6px;
 }
 
-.node-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.node-list::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 3px;
 }
 
-.node-host {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.node-list::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
 }
 
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.info-label {
-  font-size: 12px;
-  color: #909399;
-  font-weight: 500;
-}
-
-.info-na {
-  font-size: 13px;
-  color: #c0c4cc;
-}
-
-.node-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: #606266;
-}
-
-.metric-note {
-  font-size: 11px;
-  color: #c0c4cc;
+.node-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 </style>

@@ -2,6 +2,7 @@ package com.bioplatform.controller.admin;
 
 import com.bioplatform.common.annotation.OperLog;
 import com.bioplatform.dto.common.ApiResponse;
+import com.bioplatform.service.NodeMetricsService;
 import com.bioplatform.worker.WorkerRegistry;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +18,11 @@ import java.util.Map;
 public class AdminWorkerController {
 
     private final WorkerRegistry workerRegistry;
+    private final NodeMetricsService nodeMetricsService;
 
-    public AdminWorkerController(WorkerRegistry workerRegistry) {
+    public AdminWorkerController(WorkerRegistry workerRegistry, NodeMetricsService nodeMetricsService) {
         this.workerRegistry = workerRegistry;
+        this.nodeMetricsService = nodeMetricsService;
     }
 
     /**
@@ -29,6 +32,16 @@ public class AdminWorkerController {
     @PreAuthorize("hasAuthority('worker:list')")
     public ApiResponse<List<WorkerRegistry.WorkerInfo>> listWorkers() {
         return ApiResponse.success(workerRegistry.getAllWorkers());
+    }
+
+    /**
+     * 节点状态指标（应用节点 + 计算节点，实时采集）
+     * 供计算节点管理负载列与主机监控页使用
+     */
+    @GetMapping("/metrics")
+    @PreAuthorize("hasAuthority('worker:list')")
+    public ApiResponse<List<Map<String, Object>>> nodeMetrics() {
+        return ApiResponse.success(nodeMetricsService.buildNodeCards());
     }
 
     /**
