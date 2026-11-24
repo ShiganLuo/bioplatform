@@ -34,11 +34,14 @@ public class PublicExecutionCallbackController {
 
     private final PipelineExecutionMapper executionMapper;
     private final ExecCallbackTokenUtil tokenUtil;
+    private final com.bioplatform.worker.PipelineTaskDispatcher dispatcher;
 
     public PublicExecutionCallbackController(PipelineExecutionMapper executionMapper,
-                                             ExecCallbackTokenUtil tokenUtil) {
+                                             ExecCallbackTokenUtil tokenUtil,
+                                             com.bioplatform.worker.PipelineTaskDispatcher dispatcher) {
         this.executionMapper = executionMapper;
         this.tokenUtil = tokenUtil;
+        this.dispatcher = dispatcher;
     }
 
     public record CallbackRequest(Long executionId, String token, String status,
@@ -76,6 +79,8 @@ public class PublicExecutionCallbackController {
         }
         executionMapper.updateById(exec);
         log.info("执行回调更新: executionId={}, status={}, exitCode={}", exec.getId(), status, req.exitCode());
+        // 回调报终态时命令尾句 chown 可能还没跑(或进程随后被杀):补发属主修复(幂等)
+        dispatcher.repairOmicsOwnership(exec);
         return ApiResponse.success(null);
     }
 }

@@ -175,6 +175,9 @@ public class PipelineTaskDispatcher {
     private com.bioplatform.service.SystemService systemService;
 
     @org.springframework.beans.factory.annotation.Autowired
+    private WorkerClient workerClient;
+
+    @org.springframework.beans.factory.annotation.Autowired
     private com.bioplatform.common.util.ExecCallbackTokenUtil callbackTokenUtil;
 
     /** 执行回调地址(流程框架回报终态用):系统配置 execution.callbackUrl,宿主机侧默认本机后端 */
@@ -267,9 +270,11 @@ public class PipelineTaskDispatcher {
         }
         inner.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
         // 产物属主跟随输出根目录属主(chown 到分析目录自身,一层布局无包装层);
-        // 暂存目录用完即删;保留运行退出码
+        // 暂存目录用完即删;保留运行退出码。
+        // chown 报错进 task log(不再 >/dev/null 吞掉);进程被强杀跑不到本句时,
+        // 由 backend 在终态后经 worker shell 补发 repairOmicsOwnership(幂等)
         inner.append("; rc=$?; chown -R --reference=\"").append(escDq(outRoot)).append("\" \"")
-                .append(escDq(absOutStr)).append("\" >/dev/null 2>&1; rm -rf \"")
+                .append(escDq(absOutStr)).append("\"; rm -rf \"")
                 .append(escDq(stageHost)).append("\"; exit $rc");
 
         // 外层经 nsenter 进宿主机命名空间运行(用户态 apptainer 的 newuidmap 流程只在宿主机命名空间可用;
@@ -500,6 +505,7 @@ public class PipelineTaskDispatcher {
                 persistTaskOutput(exec);
                 touch(exec);
                 log.info("任务完成: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+                repairOmicsOwnership(exec);
             }
             case "FAILED", "CANCELLED" -> {
                 // 执行进程还在写产物时,worker 的终态可能只是上一世代任务记录的陈旧结论
@@ -515,11 +521,13 @@ public class PipelineTaskDispatcher {
                     writeTaskOutputFile(exec, output);
                     touch(exec);
                     log.warn("任务失败: executionId={}, taskId={}", exec.getId(), exec.getTaskId());
+                    repairOmicsOwnership(exec);
                 } else {
                     exec.setStatus("CANCELLED");
                     persistTaskOutput(exec);
                     touch(exec);
                     log.info("任务已取消: executionId={}", exec.getId());
+                    repairOmicsOwnership(exec);
                 }
             }
             case "NOT_FOUND" -> {
@@ -592,6 +600,7 @@ public class PipelineTaskDispatcher {
         execution.setHeartbeatAt(LocalDateTime.now());
         executionMapper.updateById(execution);
         log.info("任务已取消: executionId={}", executionId);
+        repairOmicsOwnership(execution);
         return true;
     }
 
@@ -625,6 +634,51 @@ public class PipelineTaskDispatcher {
         exec.setHeartbeatAt(LocalDateTime.now());
         executionMapper.updateById(exec);
         log.warn("执行失败: executionId={}, reason={}", exec.getId(), reason);
+        repairOmicsOwnership(exec);
+    }
+
+    /**
+     * Omics 桥接产物属主修复(幂等,终态后补发):
+     * 命令尾句 chown 在进程被强杀(取消/对账判死/worker 重启)时跑不到 → 产物残留 root 属主
+     * (2026-11-24 实例:执行35 FAILED 后 results/22/ 整树 root:root)。终态时 backend 经
+     * worker shell 端点(nsenter 宿主机命名空间)补发 chown --reference,属主跟随输出根目录;
+     * 正常退出时尾句已 chown,重复执行无副作用。延迟数秒等被杀进程的文件写入落定。
+     */
+    public void repairOmicsOwnership(PipelineExecution exec) {
+        if (exec == null || exec.getTaskId() == null || exec.getWorkerUrl() == null) {
+            return; // 从未提交到执行端,无产物
+        }
+        try {
+            Pipeline pipeline = pipelineMapper.selectById(exec.getPipelineId());
+            if (pipeline == null || pipeline.getTemplateId() == null) {
+                return;
+            }
+            WorkflowTemplate template = workflowTemplateMapper.selectById(pipeline.getTemplateId());
+            if (template == null) {
+                return;
+            }
+            boolean omicsBridge = (template.getCommandTemplate() == null || template.getCommandTemplate().isBlank())
+                    && template.getSnakemakePath() != null && !template.getSnakemakePath().isBlank();
+            if (!omicsBridge) {
+                return; // 手写模板产物在共享卷(root 属主常态),不属本机制
+            }
+            String outRoot = resolveOutputRoot();
+            String absOut = outRoot + "/" + exec.getPipelineId();
+            String cmd = "chown -R --reference=\"" + escDq(outRoot) + "\" \"" + escDq(absOut) + "\"";
+            String workerUrl = exec.getWorkerUrl();
+            Long executionId = exec.getId();
+            new Thread(() -> {
+                try {
+                    Thread.sleep(5_000); // 等被杀进程的在途写入落定,避免 chown 后又冒出 root 文件
+                    java.util.Map<String, Object> r = workerClient.executeShell(workerUrl, cmd, 600, null);
+                    log.info("产物属主修复完成: executionId={}, exitCode={}", executionId, r.get("exit_code"));
+                } catch (Exception e) {
+                    log.warn("产物属主修复失败: executionId={}, error={}", executionId, e.getMessage());
+                }
+            }, "ownership-repair-" + exec.getId()).start();
+        } catch (Exception e) {
+            log.warn("产物属主修复调度失败: executionId={}, error={}", exec.getId(), e.getMessage());
+        }
     }
 
     private String truncate(String s) {
