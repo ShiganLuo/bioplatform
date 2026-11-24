@@ -228,7 +228,10 @@ public class PipelineTaskDispatcher {
             }
             run.append("python3 run.py -w \"").append(escDq(template.getName()))
                     .append("\" -m ").append(metaArg)
-                    .append(" -o \"").append(escDq(absOutStr)).append("\" --sdm apptainer");
+                    .append(" -o \"").append(escDq(absOutStr)).append("\" --sdm apptainer")
+                    // 降权后日志不能落仓库根(默认 workflow.log 在 cwd=Omics 根,root 遗留文件会 EACCES);
+                    // 定向到输出目录,与 task_output 日志同处(2026-11-24 e2e 实踩)
+                    .append(" --log \"").append(escDq(absOutStr + "/workflow.log")).append('"');
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {
                 run.append(' ').append(e.getKey())
