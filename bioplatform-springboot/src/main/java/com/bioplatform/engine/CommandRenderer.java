@@ -42,6 +42,18 @@ public class CommandRenderer {
     @Value("${bioplatform.storage.dataRoot:}")
     private String dataRoot;
 
+    /**
+     * 占位符值安全字符集(2026-11-24 参数注入修复):{{inputParams.*}}/{{config.*}} 的值
+     * 是用户可控的,原文拼进命令模板 = 命令注入(shell 元字符/引号/反斜杠/换行一律拒绝,
+     * 快速失败)。路径/数字/枚举/中文样本名等常规值全覆盖。
+     */
+    private static final java.util.regex.Pattern SAFE_VALUE =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9\\u4e00-\\u9fa5 _\\-./:,+=@%\\[\\]]*$");
+
+    /** {{image}} 严格字符集(镜像引用;防参数注入,如 "alpine --privileged") */
+    private static final java.util.regex.Pattern SAFE_IMAGE =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9._\\-/:]*$");
+
     public CommandRenderer(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
@@ -81,6 +93,12 @@ public class CommandRenderer {
             if (val == null) {
                 unresolved.append("{{").append(key).append("}} ");
             } else {
+                // 参数注入防护(2026-11-24):值是用户可控的,拼进命令前按白名单校验
+                java.util.regex.Pattern safe = "image".equals(key) ? SAFE_IMAGE : SAFE_VALUE;
+                if (!safe.matcher(val).matches()) {
+                    throw new IllegalArgumentException(
+                            "占位符 {{" + key + "}} 的值包含不安全字符(shell 元字符/引号/换行),已拒绝执行");
+                }
                 m.appendReplacement(rendered, java.util.regex.Matcher.quoteReplacement(val));
             }
         }

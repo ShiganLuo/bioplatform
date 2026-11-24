@@ -234,6 +234,10 @@ public class PipelineTaskDispatcher {
                     .append(" --log \"").append(escDq(absOutStr + "/workflow.log")).append('"');
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {
+                // 参数名注入防护(2026-11-24):key 直接拼在命令行上,白名单外拒绝
+                if (!SAFE_PARAM_KEY.matcher(e.getKey()).matches()) {
+                    throw new IllegalArgumentException("参数名不安全(仅允许字母/数字/._-): " + e.getKey());
+                }
                 run.append(' ').append(e.getKey())
                         .append("=\"").append(escDq(String.valueOf(e.getValue()))).append('"');
             }
@@ -454,6 +458,10 @@ public class PipelineTaskDispatcher {
         }
         return g;
     }
+
+    /** 参数 key 安全字符集(dot-notation CLI 参数名,防命令注入,2026-11-24) */
+    private static final java.util.regex.Pattern SAFE_PARAM_KEY =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9_][A-Za-z0-9_.\\-]*$");
 
     /** 双引号内转义(外层整体再以单引号包裹给 bash -c) */
     private String escDq(String s) {

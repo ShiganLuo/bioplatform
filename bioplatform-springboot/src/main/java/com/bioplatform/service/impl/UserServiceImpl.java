@@ -93,7 +93,8 @@ public class UserServiceImpl implements UserService {
             // 根据用户名或邮箱查找用户
             User user = userMapper.selectByUsernameOrEmail(usernameOrEmail);
             if (user == null) {
-                throw new IllegalArgumentException("用户不存在");
+                // 防枚举(2026-11-24):不区分"用户不存在/密码错误",统一文案
+                throw new IllegalArgumentException("用户名或密码错误");
             }
             userId = user.getId();
             username = user.getUsername();
@@ -112,7 +113,8 @@ public class UserServiceImpl implements UserService {
             if (!passwordEncoder.matches(password, user.getPassword())) {
                 // 增加登录尝试次数
                 userMapper.incrementLoginAttempts(user.getId());
-                throw new IllegalArgumentException("密码错误");
+                // 防枚举(2026-11-24):与"用户不存在"同文案
+                throw new IllegalArgumentException("用户名或密码错误");
             }
 
             // 重置登录尝试次数并更新最后登录时间
