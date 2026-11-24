@@ -297,9 +297,17 @@ public class PipelineTaskDispatcher {
         StringBuilder inner = new StringBuilder();
         inner.append(prep);
         if (dropPrivs) {
-            inner.append("setpriv --reuid=").append(owner.split(":")[0])
-                    .append(" --regid=").append(owner.split(":")[1])
-                    .append(" --clear-groups /bin/bash -c '").append(flow).append("'");
+            String uid = owner.split(":")[0];
+            String gid = owner.split(":")[1];
+            // 降权段必须把 HOME/USER/LOGNAME 切到目标用户:root 的 HOME=/root 会让
+            // snakemake/python 去写 /root/.cache 直接 EACCES(2026-11-24 e2e 实踩)
+            inner.append("setpriv --reuid=").append(uid)
+                    .append(" --regid=").append(gid)
+                    .append(" --clear-groups /bin/bash -c '")
+                    .append("export USER=$(getent passwd ").append(uid)
+                    .append(" | cut -d: -f1) HOME=$(getent passwd ").append(uid)
+                    .append(" | cut -d: -f6) LOGNAME=$USER; ")
+                    .append(flow).append("'");
         } else {
             inner.append(flow);
         }
