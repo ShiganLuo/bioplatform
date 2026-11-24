@@ -52,6 +52,7 @@ public class NodeMetricsService {
 
     /**
      * 组装节点卡片：应用节点自采 + 计算节点并行拉 /worker/metrics。
+     * 只含启用节点（已禁用节点仅在"计算节点管理"页可见，不进状态展示，避免污染在线数）；
      * 单节点失败只降级该卡片（online=false，指标 null），绝不影响整体响应。
      */
     public List<Map<String, Object>> buildNodeCards() {
@@ -60,10 +61,6 @@ public class NodeMetricsService {
         List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
         for (WorkerRegistry.WorkerInfo w : workerRegistry.getAllWorkers()) {
             if (w.getStatus() != 1) {
-                Map<String, Object> card = computeCardShell(w);
-                card.put("online", false);
-                card.put("metricNote", "已禁用");
-                cards.add(card);
                 continue;
             }
             futures.add(CompletableFuture
