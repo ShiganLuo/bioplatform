@@ -199,7 +199,9 @@ public class PipelineTaskDispatcher {
      * 重跑时 snakemake 增量续跑(已完成步骤自动跳过),不支持同分析并发执行。
      * meta/合并配置由 backend 先写入上传卷暂存目录(<pid>/stage_exec_<id>),命令侧 mkdir+cp
      * 进输出目录——输出根目录可能在 backend 的 /host:ro 挂载之外,backend 直接写不进去。
-     * 结束后 chown --reference=输出根目录:产物属主跟随根目录属主,指向自己的数据目录即摆脱 root。
+     * 降权执行(2026-11-24 方案A):流程本体以输出根目录属主身份跑(setpriv),
+     * 产物天然属主正确;尾句 chown --reference 保留作兜底(进程被强杀时另有
+     * backend 终态补发 repairOmicsOwnership)。
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
         String outputDirRel = String.valueOf(execution.getPipelineId());
@@ -252,25 +254,53 @@ public class PipelineTaskDispatcher {
             }
         }
 
-        StringBuilder inner = new StringBuilder();
-        inner.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; ");
-        // 回调接口环境变量:流程框架终止/完成时回报终态(/api/public/executions/callback)
-        inner.append("export BIPLATFORM_EXEC_ID=").append(execution.getId()).append("; ");
-        inner.append("export BIPLATFORM_CALLBACK_TOKEN=\"")
-                .append(escDq(callbackTokenUtil.token(execution.getId()))).append("\"; ");
-        inner.append("export BIPLATFORM_CALLBACK_URL=\"")
-                .append(escDq(resolveCallbackUrl())).append("\"; ");
-        inner.append("mkdir -p \"").append(escDq(absOutStr)).append("\" || exit 1; ");
+        // ===== 命令组装:root 段(属主准备/收尾) + 降权段(流程本体) =====
+        // 降权执行(2026-11-24 方案A):流程以输出根目录属主身份跑
+        // (setpriv --clear-groups 最小权限;实测 apptainer/sif、数据读、smk env 均可用,
+        // 且降权段不碰上传卷——暂存拷贝在 root 段做)。stat 不可得/属主为 root
+        // → 退化为 root 执行(现状行为)并打 WARN。
+        String owner = resolveOutputOwner(outRoot); // "uid:gid" 或 null
+        boolean dropPrivs = owner != null;
+
+        // root 段 1:暂存拷贝(卷区 root 属主) + 输出目录/日志属主移交
+        StringBuilder prep = new StringBuilder();
         if (!copyFiles.isEmpty()) {
-            inner.append("cp");
+            prep.append("cp");
             for (String f : copyFiles) {
-                inner.append(" \"").append(escDq(stageHost + "/" + f)).append('"');
+                prep.append(" \"").append(escDq(stageHost + "/" + f)).append('"');
             }
-            inner.append(" \"").append(escDq(absOutStr)).append("/\"; ");
+            prep.append(" \"").append(escDq(absOutStr)).append("/\"; ");
         }
-        inner.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
-        // 产物属主跟随输出根目录属主(chown 到分析目录自身,一层布局无包装层);
-        // 暂存目录用完即删;保留运行退出码。
+        if (dropPrivs) {
+            prep.append("chown ").append(owner).append(" \"").append(escDq(absOutStr)).append("\"");
+            for (String f : copyFiles) {
+                prep.append(" \"").append(escDq(absOutStr + "/" + f)).append('"');
+            }
+            // 日志文件由外层重定向以 root 打开,一并移交属主(被杀场景不留 root 残留)
+            prep.append(" \"").append(escDq(logPath(absOutStr, execution.getId()))).append("\"; ");
+        }
+
+        // 降权段:流程本体(环境变量/回调/run.py|run_module.py)
+        StringBuilder flow = new StringBuilder();
+        flow.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; ");
+        // 回调接口环境变量:流程框架终止/完成时回报终态(/api/public/executions/callback)
+        flow.append("export BIPLATFORM_EXEC_ID=").append(execution.getId()).append("; ");
+        flow.append("export BIPLATFORM_CALLBACK_TOKEN=\"")
+                .append(escDq(callbackTokenUtil.token(execution.getId()))).append("\"; ");
+        flow.append("export BIPLATFORM_CALLBACK_URL=\"")
+                .append(escDq(resolveCallbackUrl())).append("\"; ");
+        flow.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
+
+        StringBuilder inner = new StringBuilder();
+        inner.append(prep);
+        if (dropPrivs) {
+            inner.append("setpriv --reuid=").append(owner.split(":")[0])
+                    .append(" --regid=").append(owner.split(":")[1])
+                    .append(" --clear-groups /bin/bash -c '").append(flow).append("'");
+        } else {
+            inner.append(flow);
+        }
+        // 产物属主兜底 chown + 暂存目录清理;保留运行退出码。
         // chown 报错进 task log(不再 >/dev/null 吞掉);进程被强杀跑不到本句时,
         // 由 backend 在终态后经 worker shell 补发 repairOmicsOwnership(幂等)
         inner.append("; rc=$?; chown -R --reference=\"").append(escDq(outRoot)).append("\" \"")
@@ -292,6 +322,27 @@ public class PipelineTaskDispatcher {
 
     private static String logPath(String absOutStr, Long executionId) {
         return absOutStr + "/task_output." + executionId + ".log";
+    }
+
+    /**
+     * 输出根目录属主 uid:gid(降权执行目标)。
+     * 不可得/属主为 root 返回 null → 退化为 root 执行(现状行为,打 WARN)。
+     * backend 经 /host/data/16T 只读挂载读 unix:uid/gid 属性,HostPathUtil 处理前缀映射。
+     */
+    private String resolveOutputOwner(String outRoot) {
+        try {
+            java.nio.file.Path p = com.bioplatform.common.util.HostPathUtil.resolveExisting(outRoot);
+            int uid = (Integer) java.nio.file.Files.getAttribute(p, "unix:uid");
+            int gid = (Integer) java.nio.file.Files.getAttribute(p, "unix:gid");
+            if (uid == 0) {
+                log.warn("输出根目录属主为 root,流程将以 root 执行(建议输出根指向用户目录): {}", outRoot);
+                return null;
+            }
+            return uid + ":" + gid;
+        } catch (Exception e) {
+            log.warn("输出根目录属主不可得,流程退化为 root 执行: outRoot={}, error={}", outRoot, e.getMessage());
+            return null;
+        }
     }
 
     /**
