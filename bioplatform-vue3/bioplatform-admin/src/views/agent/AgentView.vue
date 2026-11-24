@@ -77,6 +77,24 @@
             </div>
           </div>
 
+          <!-- 高危工具人审闸门：等用户批准/拒绝 -->
+          <div v-if="pendingConfirm" class="message-item assistant">
+            <div class="msg-avatar assistant">
+              <el-icon><ChatDotRound /></el-icon>
+            </div>
+            <div class="message-content">
+              <div class="message-role">AI 助手请求执行高危操作</div>
+              <div class="confirm-card">
+                <div class="confirm-tool">工具：{{ pendingConfirm.tool }}</div>
+                <div class="confirm-cmd">{{ pendingConfirm.preview }}</div>
+                <div class="confirm-actions">
+                  <el-button type="danger" size="small" @click="respondConfirm(false)">拒绝</el-button>
+                  <el-button type="primary" size="small" @click="respondConfirm(true)">批准执行</el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Welcome Message -->
           <div v-if="messages.length === 0 && !streamingContent" class="welcome-section">
             <div class="welcome-icon">
@@ -143,6 +161,7 @@ import { marked } from 'marked'
 marked.setOptions({ gfm: true, breaks: true })
 import {
   chatStream,
+  confirmTool,
   listConversations,
   getMessages,
   deleteConversation,
@@ -161,6 +180,15 @@ const sidebarCollapsed = ref(false)
 const streamingContent = ref('')
 const batchMode = ref(false)
 const selectedIds = ref<string[]>([])
+// 高危工具人审闸门:待确认的工具调用(shell_execute 等)
+const pendingConfirm = ref<{ confirmId: string; tool: string; preview: string } | null>(null)
+
+function respondConfirm(approved: boolean) {
+  if (!pendingConfirm.value) return
+  const id = pendingConfirm.value.confirmId
+  pendingConfirm.value = null
+  confirmTool(id, approved).catch(() => { /* 确认失败由后端超时兜底 */ })
+}
 
 const defaultSuggestions = [
   'RNA-seq 数据分析的标准流程是什么？',
@@ -341,6 +369,11 @@ const sendMessage = async () => {
       streamingContent.value = ''
       sending.value = false
       scrollToBottom()
+    },
+    // onConfirm - 高危工具人审:展示确认卡片,等用户批准/拒绝
+    (c) => {
+      pendingConfirm.value = c
+      scrollToBottom()
     }
   )
 }
@@ -351,6 +384,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.confirm-card {
+  background: #fef0f0;
+  border: 1px solid #fbc4c4;
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 560px;
+}
+.confirm-tool {
+  font-weight: 600;
+  color: #f56c6c;
+  margin-bottom: 6px;
+}
+.confirm-cmd {
+  font-family: monospace;
+  font-size: 12px;
+  background: #fff;
+  border-radius: 4px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #303133;
+  margin-bottom: 10px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 .agent-container {
   height: 100%;
 }

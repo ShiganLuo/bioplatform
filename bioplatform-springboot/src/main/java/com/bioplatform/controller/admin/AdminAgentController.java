@@ -24,9 +24,28 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class AdminAgentController {
 
     private final AgentService agentService;
+    private final com.bioplatform.agent.tools.PendingToolConfirmations pendingConfirmations;
 
-    public AdminAgentController(AgentService agentService) {
+    public AdminAgentController(AgentService agentService,
+                                com.bioplatform.agent.tools.PendingToolConfirmations pendingConfirmations) {
         this.agentService = agentService;
+        this.pendingConfirmations = pendingConfirmations;
+    }
+
+    /**
+     * 高危工具人审回调(2026-11-24 入侵面收敛二期):
+     * 流式会话中 shell_execute 等高危工具执行前推送 tool_confirm 事件挂起,
+     * 用户在此批准/拒绝;拒绝与超时均不执行(审计由闸门侧落库)。
+     */
+    @PostMapping("/tools/confirm")
+    @PreAuthorize("hasAuthority('agent:chat')")
+    public ApiResponse<Boolean> confirmTool(@RequestBody Map<String, Object> params) {
+        String confirmId = params.getOrDefault("confirmId", "").toString();
+        boolean approved = Boolean.parseBoolean(String.valueOf(params.get("approved")));
+        boolean ok = pendingConfirmations.resolve(
+                confirmId, LoginUserHolder.getCurrentUserId(), approved);
+        return ok ? ApiResponse.success(true)
+                : ApiResponse.error(404, "确认不存在或已过期");
     }
 
     /**

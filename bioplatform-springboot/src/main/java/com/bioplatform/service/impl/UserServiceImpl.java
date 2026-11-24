@@ -46,6 +46,15 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl implements UserService {
 
+    // ===== 登录防爆破(2026-11-24 入侵面收敛二期):IP 滑动窗口 + 账号锁时间解锁(内存态,重启自愈) =====
+    private static final int LOGIN_IP_LIMIT = 10;              // 同 IP 每分钟最多登录尝试次数
+    private static final long LOGIN_IP_WINDOW_MS = 60_000L;
+    private static final long ACCOUNT_LOCK_MS = 15 * 60_000L;  // 5 次失败锁 15 分钟,到期自动解锁
+    private final java.util.Map<String, java.util.Deque<Long>> loginAttemptsByIp =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<Long, Long> accountLockedUntil =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserMapper userMapper;
@@ -90,6 +99,11 @@ public class UserServiceImpl implements UserService {
         Long userId = null;
         String username = usernameOrEmail;
         try {
+            // IP 限速(2026-11-24):同 IP 1 分钟窗口超限即拒,防横向试密码/恶意锁号
+            if (ipRateLimited(com.bioplatform.common.util.RequestContextUtil.getClientIp())) {
+                throw new IllegalArgumentException("尝试过于频繁,请稍后再试");
+            }
+
             // 根据用户名或邮箱查找用户
             User user = userMapper.selectByUsernameOrEmail(usernameOrEmail);
             if (user == null) {
@@ -104,21 +118,36 @@ public class UserServiceImpl implements UserService {
                 throw new IllegalArgumentException("账号已被禁用");
             }
 
-            // 检查登录尝试次数
+            // 检查登录尝试次数(2026-11-24:5 次失败锁 15 分钟,到期自动解锁——防锁死型 DoS;
+            // 计时在内存,重启后锁自愈,不再永久锁死到邮箱重置)
             if (user.getLoginAttempts() != null && user.getLoginAttempts() >= 5) {
-                throw new IllegalArgumentException("登录尝试次数过多，请稍后再试");
+                Long until = accountLockedUntil.get(user.getId());
+                long now = System.currentTimeMillis();
+                if (until == null || now >= until) {
+                    accountLockedUntil.remove(user.getId());
+                    userMapper.resetLoginAttempts(user.getId());
+                    user.setLoginAttempts(0);
+                } else {
+                    throw new IllegalArgumentException("登录尝试次数过多,请稍后再试");
+                }
             }
 
             // 验证密码
             if (!passwordEncoder.matches(password, user.getPassword())) {
                 // 增加登录尝试次数
                 userMapper.incrementLoginAttempts(user.getId());
+                // 满 5 次记锁定到期时间(15 分钟后自动解锁)
+                int attempts = (user.getLoginAttempts() == null ? 0 : user.getLoginAttempts()) + 1;
+                if (attempts >= 5) {
+                    accountLockedUntil.put(user.getId(), System.currentTimeMillis() + ACCOUNT_LOCK_MS);
+                }
                 // 防枚举(2026-11-24):与"用户不存在"同文案
                 throw new IllegalArgumentException("用户名或密码错误");
             }
 
             // 重置登录尝试次数并更新最后登录时间
             userMapper.resetLoginAttempts(user.getId());
+            accountLockedUntil.remove(user.getId());
 
             // 生成token
             String accessToken = jwtTokenProviderUtil.generateAccessToken(user.getId(), user.getUsername());
@@ -365,7 +394,27 @@ public class UserServiceImpl implements UserService {
         log.info("用户通过邮箱验证码重置密码: userId={}, email={}", user.getId(), email);
     }
 
-    private void assignRoles(Long userId, List<String> requestedRoles, boolean fallbackToDefaultUserRole) {
+    /** IP 滑动窗口限速:窗口内尝试次数超限返回 true(命中即拒,不记录本次) */
+    private boolean ipRateLimited(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        java.util.Deque<Long> q = loginAttemptsByIp.computeIfAbsent(
+                ip, k -> new java.util.concurrent.ConcurrentLinkedDeque<>());
+        synchronized (q) {
+            while (!q.isEmpty() && now - q.peekFirst() > LOGIN_IP_WINDOW_MS) {
+                q.pollFirst();
+            }
+            if (q.size() >= LOGIN_IP_LIMIT) {
+                return true;
+            }
+            q.addLast(now);
+            return false;
+        }
+    }
+
+    private void assignRoles(Long userId, java.util.List<String> requestedRoles, boolean fallbackToDefaultUserRole) {
         List<String> normalizedRoles = normalizeRoles(requestedRoles);
         if (normalizedRoles.isEmpty() && fallbackToDefaultUserRole) {
             normalizedRoles = List.of(RoleTypeEnum.USER.getRoleName());

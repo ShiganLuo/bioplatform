@@ -17,7 +17,10 @@ import com.bioplatform.agent.LLMResponse;
 import com.bioplatform.agent.ToolCall;
 import com.bioplatform.agent.ToolDefinition;
 import com.bioplatform.agent.tools.AgentToolExecutor;
+import com.bioplatform.agent.tools.PendingToolConfirmations;
+import com.bioplatform.agent.tools.Tool;
 import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.service.OperationLogService;
 import com.bioplatform.service.SystemService;
 import com.bioplatform.service.AgentService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -58,6 +61,8 @@ public class AgentServiceImpl implements AgentService {
     private final LLMClient llmClient;
     private final AgentToolExecutor toolExecutor;
     private final com.bioplatform.agent.skill.SkillRegistry skillRegistry;
+    private final PendingToolConfirmations pendingConfirmations;
+    private final OperationLogService operationLogService;
 
     public AgentServiceImpl(AgentConversationMapper conversationMapper,
                             AgentMessageMapper messageMapper,
@@ -66,7 +71,9 @@ public class AgentServiceImpl implements AgentService {
                             ObjectMapper objectMapper,
                             LLMClient llmClient,
                             AgentToolExecutor toolExecutor,
-                            com.bioplatform.agent.skill.SkillRegistry skillRegistry) {
+                            com.bioplatform.agent.skill.SkillRegistry skillRegistry,
+                            PendingToolConfirmations pendingConfirmations,
+                            OperationLogService operationLogService) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.toolMapper = toolMapper;
@@ -75,6 +82,8 @@ public class AgentServiceImpl implements AgentService {
         this.llmClient = llmClient;
         this.toolExecutor = toolExecutor;
         this.skillRegistry = skillRegistry;
+        this.pendingConfirmations = pendingConfirmations;
+        this.operationLogService = operationLogService;
 
         // 配置OkHttp客户端（连接池复用，降低延迟）
         this.httpClient = new OkHttpClient.Builder()
@@ -349,7 +358,14 @@ public class AgentServiceImpl implements AgentService {
                 try {
                     Map<String, String> args = objectMapper.readValue(
                             toolCall.arguments(), new TypeReference<>() {});
-                    result = toolExecutor.executeTool(toolCall.name(), args);
+                    Tool tool = toolExecutor.getTool(toolCall.name());
+                    String required = tool != null ? tool.requiredAuthority() : null;
+                    if (required != null) {
+                        // 高危工具人审闸门(2026-11-24):执行前必须用户确认
+                        result = confirmThenExecute(toolCall, args, emitter);
+                    } else {
+                        result = toolExecutor.executeTool(toolCall.name(), args);
+                    }
                 } catch (Exception e) {
                     result = "{\"error\": \"工具执行失败: " + e.getMessage() + "\"}";
                 }
@@ -395,6 +411,56 @@ public class AgentServiceImpl implements AgentService {
         }
 
         return finalContent;
+    }
+
+    /**
+     * 高危工具人审闸门(2026-11-24 入侵面收敛二期):requiredAuthority 非空的工具
+     * (如 shell_execute)执行前必须用户确认。SSE 推 tool_confirm 事件,流线程挂起等待
+     * /api/admin/agent/tools/confirm 回调;拒绝/超时(3 分钟)不执行并落审计。
+     */
+    private String confirmThenExecute(ToolCall toolCall, Map<String, String> args, SseEmitter emitter) {
+        Long userId = LoginUserHolder.getCurrentUserId();
+        String username = LoginUserHolder.getCurrentUsername();
+        PendingToolConfirmations.Entry entry =
+                pendingConfirmations.create(userId, toolCall.name(), args);
+        try {
+            String preview = args.getOrDefault("command", String.valueOf(args));
+            sendSse(emitter, "tool_confirm", "{\"confirmId\":\"" + escapeJson(entry.id())
+                    + "\",\"tool\":\"" + escapeJson(toolCall.name())
+                    + "\",\"preview\":" + objectMapper.writeValueAsString(preview) + "}");
+            boolean approved = entry.future().get(
+                    PendingToolConfirmations.CONFIRM_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            if (!approved) {
+                auditToolGate(toolCall.name(), args, userId, username, "用户拒绝执行");
+                return "{\"error\": \"用户拒绝执行该操作\"}";
+            }
+        } catch (java.util.concurrent.TimeoutException e) {
+            auditToolGate(toolCall.name(), args, userId, username, "确认超时");
+            return "{\"error\": \"确认超时,操作已取消\"}";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            auditToolGate(toolCall.name(), args, userId, username, "会话中断");
+            return "{\"error\": \"会话中断,操作已取消\"}";
+        } catch (Exception e) {
+            auditToolGate(toolCall.name(), args, userId, username, "确认流程失败: " + e.getMessage());
+            return "{\"error\": \"确认流程失败: " + e.getMessage() + "\"}";
+        } finally {
+            pendingConfirmations.cleanup(entry.id());
+        }
+        return toolExecutor.executeTool(toolCall.name(), args);
+    }
+
+    /** 闸门拒绝/超时的审计落库(与 ShellExecuteTool 审计同口径,status=FAIL) */
+    private void auditToolGate(String toolName, Map<String, String> args,
+                               Long userId, String username, String reason) {
+        try {
+            String params = "target=blocked; tool=" + toolName
+                    + "; cmd=" + String.valueOf(args.getOrDefault("command", ""));
+            operationLogService.record("系统", "执行宿主机命令", toolName,
+                    userId, username, null, params, "FAIL", reason);
+        } catch (Exception e) {
+            log.warn("工具闸门审计写入失败(不影响业务): {}", e.getMessage());
+        }
     }
 
     /**

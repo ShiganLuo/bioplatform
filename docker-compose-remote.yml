@@ -74,7 +74,9 @@ services:
     volumes:
       - bioplatform-uploads:/app/uploads
       - bio-worker-tasks:/data/tasks
-      - /var/run/docker.sock:/var/run/docker.sock
+      # [2026-11-24 二期] docker.sock 挂载已摘:任务/shell 命令经 nsenter 在宿主机
+      # 命名空间执行,用的是宿主机自己的 socket,容器内挂载从未参与——纯冗余暴露面。
+      # docker-socket-proxy 方案对该架构无效(nsenter 路径绕过任何容器侧代理),不采纳。
       # [2026-11-24 方案C] /:/host 整盘挂载已摘除:chroot /host 时代遗留,nsenter 路径
       # 进宿主机挂载命名空间不经容器挂载(冗余);消费点已改 /proc/1/root 探测
     # apptainer 建 user namespace 需要 CAP_SYS_ADMIN(Ubuntu apparmor 限制 + docker 默认能力集无此 cap),

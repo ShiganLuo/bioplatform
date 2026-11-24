@@ -52,7 +52,8 @@ export function chatStream(
   data: ChatRequest,
   onToken: (token: string) => void,
   onDone: (info: { conversationId: string }) => void,
-  onError: (err: string) => void
+  onError: (err: string) => void,
+  onConfirm?: (c: { confirmId: string; tool: string; preview: string }) => void
 ): AbortController {
   const abortController = new AbortController()
 
@@ -99,6 +100,11 @@ export function chatStream(
             const obj = JSON.parse(jsonStr)
             if (obj.error) { onError('服务不可用'); return }
             if (obj.done) { onDone({ conversationId: String(obj.conversationId) }); return }
+            // 高危工具人审闸门(2026-11-24):等待用户批准/拒绝,流继续
+            if (obj.tool_confirm) {
+              if (onConfirm) onConfirm(obj.tool_confirm)
+              continue
+            }
             if (obj.delta) { onToken(obj.delta) }
           } catch { /* skip malformed */ }
         }
@@ -130,4 +136,9 @@ export function batchDeleteConversations(ids: string[]) {
 
 export function deleteAllConversations() {
   return http.delete('/api/admin/agent/conversations/all')
+}
+
+/** 高危工具人审回调:批准/拒绝流式会话中挂起的 shell_execute 等工具调用 */
+export function confirmTool(confirmId: string, approved: boolean) {
+  return http.post('/api/admin/agent/tools/confirm', { confirmId, approved })
 }
