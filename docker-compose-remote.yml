@@ -75,8 +75,8 @@ services:
       - bioplatform-uploads:/app/uploads
       - bio-worker-tasks:/data/tasks
       - /var/run/docker.sock:/var/run/docker.sock
-      # Omics 模板执行经 chroot /host 直达宿主机运行环境(run.py/run_module.py + smk env + apptainer)
-      - /:/host
+      # [2026-11-24 方案C] /:/host 整盘挂载已摘除:chroot /host 时代遗留,nsenter 路径
+      # 进宿主机挂载命名空间不经容器挂载(冗余);消费点已改 /proc/1/root 探测
     # apptainer 建 user namespace 需要 CAP_SYS_ADMIN(Ubuntu apparmor 限制 + docker 默认能力集无此 cap),
     # 直接 privileged(本 worker 已挂 docker.sock,信任边界不变;宿主机 userns/sif 均正常)
     privileged: true

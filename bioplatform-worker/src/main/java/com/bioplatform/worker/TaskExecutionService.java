@@ -255,9 +255,12 @@ public class TaskExecutionService {
         return new ArrayList<>(tasks.values());
     }
 
-    /** /host 挂载存在 = 容器内且有特权，可 nsenter 进宿主机命名空间 */
+    /** 容器内 + 宿主机 PID 命名空间可用 = 可 nsenter 进宿主机命名空间
+     * (2026-11-24 方案C:/:/host 挂载已摘,改经 /proc/1/root 探测——pid: host 下
+     * /proc/1 即宿主机 init,root 视图可达说明特权与命名空间均在) */
     private boolean hostNamespaceAvailable() {
-        return java.nio.file.Files.isRegularFile(java.nio.file.Path.of("/host/etc/hostname"));
+        return java.nio.file.Files.isRegularFile(
+                java.nio.file.Path.of("/proc/1/root/etc/hostname"));
     }
 
     /**

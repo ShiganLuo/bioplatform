@@ -50,10 +50,7 @@ public class ShellExecuteTool implements Tool {
     /** 是否在容器内运行（/host 目录存在说明挂载了宿主机根目录） */
     private final boolean inContainer;
 
-    /** 容器内执行时的 chroot 前缀 */
-    private static final String[] CHROOT_PREFIX = {"chroot", "/host", "bash", "-c"};
-
-    /** 本地直接执行前缀 */
+    /** 本地直接执行前缀(仅非容器本地开发用;容器内一律经计算节点) */
     private static final String[] LOCAL_PREFIX = {"bash", "-c"};
 
     /** 危险命令黑名单 */
@@ -265,27 +262,18 @@ public class ShellExecuteTool implements Tool {
     }
 
     /**
-     * 本地执行（宿主机上执行）
-     * 容器内通过 chroot /host 访问宿主机环境
+     * 本地执行（仅非容器本地开发用）
+     * 容器内一律经计算节点执行（2026-11-24 方案C：/:/host 已摘，chroot /host 分支退役）
      */
     private String executeLocal(String command, int timeout, String workdir) {
         try {
-            String[] prefix = inContainer ? CHROOT_PREFIX : LOCAL_PREFIX;
-            // chroot /host 时 workdir 需要是相对于 /host 的路径
-            String effectiveWorkdir = inContainer ? null : workdir;
-
-            List<String> cmd = new ArrayList<>(Arrays.asList(prefix));
-            // chroot /host bash -c "command" — 把命令和workdir合成一个字符串
-            if (inContainer && workdir != null && !workdir.isBlank()) {
-                cmd.add("cd " + workdir + " && " + command);
-            } else {
-                cmd.add(command);
-            }
+            List<String> cmd = new ArrayList<>(Arrays.asList(LOCAL_PREFIX));
+            cmd.add(command);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
-            if (effectiveWorkdir != null && !effectiveWorkdir.isBlank()) {
-                pb.directory(new File(effectiveWorkdir));
+            if (workdir != null && !workdir.isBlank()) {
+                pb.directory(new File(workdir));
             }
 
             Process process = pb.start();

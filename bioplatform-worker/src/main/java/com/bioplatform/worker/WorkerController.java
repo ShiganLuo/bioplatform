@@ -250,14 +250,17 @@ public class WorkerController {
     }
 
     private String getHostname() {
-        // 优先宿主机真实主机名（/host = 宿主机根挂载）；容器 ID 主机名无意义
+        // 优先宿主机真实主机名：pid: host 下 /proc/1 即宿主机 init，经其 root 视图读
+        // /etc/hostname（2026-11-24 方案C：/:/host 挂载已摘，不再借道 /host）；
+        // 容器 ID 主机名无意义
         try {
-            String name = java.nio.file.Files.readString(java.nio.file.Path.of("/host/etc/hostname")).trim();
+            String name = java.nio.file.Files.readString(
+                    java.nio.file.Path.of("/proc/1/root/etc/hostname")).trim();
             if (!name.isEmpty()) {
                 return name;
             }
         } catch (Exception ignored) {
-            // 无 /host 挂载（本地开发），用 JVM 主机名
+            // 无宿主机 PID 命名空间（本地开发），用 JVM 主机名
         }
         try {
             return java.net.InetAddress.getLocalHost().getHostName();
