@@ -210,6 +210,36 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private static final java.util.regex.Pattern RULE_PAT =
             java.util.regex.Pattern.compile("(?m)^\\s*(?:local)?rule (\\w+):");
 
+    /** 进度行会被长任务的刷屏输出挤出固定尾窗(2026-11-24 实测:窗口一丢进度回退
+     *  "准备中(DAG 构建)"假象)——向后分块扫,命中 STEPS 行即停,最多回溯 maxBytes */
+    private String tailWithProgress(java.nio.file.Path f, int maxBytes) {
+        if (f == null) {
+            return null;
+        }
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f.toFile(), "r")) {
+            long len = raf.length();
+            long pos = len;
+            java.util.Deque<String> chunks = new java.util.ArrayDeque<>();
+            int acc = 0;
+            while (pos > 0 && acc < maxBytes) {
+                int chunk = (int) Math.min(65_536L, Math.min(pos, maxBytes - acc));
+                pos -= chunk;
+                byte[] b = new byte[chunk];
+                raf.seek(pos);
+                raf.readFully(b);
+                chunks.addFirst(new String(b, java.nio.charset.StandardCharsets.UTF_8));
+                acc += chunk;
+                String s = String.join("", chunks);
+                if (STEPS_PAT.matcher(s).find()) {
+                    return s;
+                }
+            }
+            return String.join("", chunks);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     /**
      * 单会话进度按全量口径:总任务数 = 全目录会话的最大步数(最初完整 DAG,各记录相同),
      * 已完成 = 总量 − 本会话结束时剩余(y−x)——每条执行"运行到第几步 / 共几步"。
@@ -218,7 +248,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private ProgressInfo ownSessionProgress(java.nio.file.Path own,
                                             java.util.List<java.nio.file.Path> all,
                                             String status) {
-        String tail = tailOf(own, 8_192);
+        String tail = tailWithProgress(own, 512 * 1024);
         int x = -1;
         int y = -1;
         String stage = null;
@@ -237,7 +267,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         }
         int total = 0;
         for (java.nio.file.Path p : all) {
-            String t2 = tailOf(p, 4_096);
+            String t2 = tailWithProgress(p, 64 * 1024);
             if (t2 == null) {
                 continue;
             }
