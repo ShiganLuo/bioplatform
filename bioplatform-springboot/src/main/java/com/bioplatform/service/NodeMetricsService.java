@@ -276,6 +276,15 @@ public class NodeMetricsService {
     }
 
     private String localHostname() {
+        // 优先宿主机真实主机名（/host = 宿主机根挂载）；容器 ID 主机名无意义
+        try {
+            String name = java.nio.file.Files.readString(java.nio.file.Paths.get("/host/etc/hostname")).trim();
+            if (!name.isEmpty()) {
+                return name;
+            }
+        } catch (Exception ignored) {
+            // 无 /host 挂载（本地开发），用 JVM 主机名
+        }
         try {
             return java.net.InetAddress.getLocalHost().getHostName();
         } catch (Exception e) {

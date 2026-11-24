@@ -1,8 +1,8 @@
 <template>
   <div class="node-card">
     <div class="node-head">
-      <el-tag size="small" :type="node.role === 'APP' ? 'primary' : 'warning'" effect="plain">
-        {{ node.role === 'APP' ? '应用' : '计算' }}
+      <el-tag size="small" :type="node.role === 'APP' ? 'primary' : 'warning'" effect="light">
+        {{ node.role === 'APP' ? '应用节点' : '计算节点' }}
       </el-tag>
       <span class="node-host">{{ node.hostname }}</span>
       <el-tag size="small" :type="node.online ? 'success' : 'info'" effect="light" round>
