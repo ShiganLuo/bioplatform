@@ -10,8 +10,6 @@ services:
     restart: always
     ports:
       - "8083:8080"
-    cap_add:
-      - SYS_CHROOT
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -32,7 +30,10 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - bioplatform-uploads:/app/uploads
-      - /:/host:ro
+      # [安全收窄 2026-11-24] 不再整盘只读挂 /:/host:ro（整机可读=入侵后主要泄密面）。
+      # 只挂数据盘：输出根/Omics 仓库/交付数据都在 /data/16T 下；
+      # "导入服务器任意路径"降级为 /data/16T/**；宿主机命令执行改经计算节点（不再 chroot）。
+      - /data/16T:/host/data/16T:ro
     networks:
       - blog_net
 

@@ -255,17 +255,27 @@ public class TaskExecutionService {
         return new ArrayList<>(tasks.values());
     }
 
+    /** /host 挂载存在 = 容器内且有特权，可 nsenter 进宿主机命名空间 */
+    private boolean hostNamespaceAvailable() {
+        return java.nio.file.Files.isRegularFile(java.nio.file.Path.of("/host/etc/hostname"));
+    }
+
     /**
      * 同步执行 shell 命令(Agent 工具调用专用)
      */
     public Map<String, Object> executeShellSync(String command, int timeout, String workdir) {
         log.info("同步执行 shell 命令: command={}, timeout={}, workdir={}", command, timeout, workdir);
         try {
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+            // 宿主机命名空间执行（nsenter -t 1）：/host 挂载存在=容器内运行且有特权，
+            // 命令以宿主机路径语义执行（与 chroot /host 时代一致）；本地开发退化为当前环境
+            String wrapped = (workdir != null && !workdir.isBlank())
+                    ? ("cd " + workdir + " && " + command) : command;
+            List<String> cmd = hostNamespaceAvailable()
+                    ? List.of("nsenter", "-t", "1", "-m", "-u", "-i", "-p",
+                            "--preserve-credentials", "/bin/bash", "-c", wrapped)
+                    : List.of("bash", "-c", wrapped);
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
-            if (workdir != null && !workdir.isBlank()) {
-                pb.directory(new File(workdir));
-            }
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();

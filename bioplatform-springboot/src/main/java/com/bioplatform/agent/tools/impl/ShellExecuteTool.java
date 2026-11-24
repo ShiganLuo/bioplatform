@@ -1,8 +1,12 @@
 package com.bioplatform.agent.tools.impl;
 
 import com.bioplatform.agent.tools.Tool;
+import com.bioplatform.common.util.LoginUserHolder;
+import com.bioplatform.common.util.RequestContextUtil;
+import com.bioplatform.service.OperationLogService;
 import com.bioplatform.worker.WorkerClient;
 import com.bioplatform.worker.WorkerRegistry;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,15 +79,17 @@ public class ShellExecuteTool implements Tool {
     private final WorkerRegistry workerRegistry;
     private final WorkerClient workerClient;
     private final ObjectMapper objectMapper;
+    private final OperationLogService operationLogService;
 
     public ShellExecuteTool(WorkerRegistry workerRegistry, WorkerClient workerClient,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper, OperationLogService operationLogService) {
         this.workerRegistry = workerRegistry;
         this.workerClient = workerClient;
         this.objectMapper = objectMapper;
+        this.operationLogService = operationLogService;
         this.inContainer = new File("/host").isDirectory();
         log.info("ShellExecuteTool 初始化: inContainer={}, 执行模式={}",
-                inContainer, inContainer ? "chroot /host" : "本地直接执行");
+                inContainer, inContainer ? "经计算节点执行(挂载已收窄,不 chroot)" : "本地直接执行");
     }
 
     @Override
@@ -164,23 +170,85 @@ public class ShellExecuteTool implements Tool {
         log.info("shell_execute: command={}, timeout={}, workdir={}, workerId={}",
                 command, timeout, workdir, workerId);
 
+        // 审计落库（operation_logs）：谁/何时/在哪执行了什么命令
+        String auditStatus = "FAIL";
+        String auditError = null;
+        String auditTarget = workerId != null && !workerId.isBlank() ? "worker:" + workerId : "host";
         try {
             // 安全校验
             validateCommand(command);
 
-            // 路由：指定了 worker_id 则转发到远程 Worker，否则本地执行
-            if (workerId != null && !workerId.isBlank()) {
-                return executeOnWorker(workerId, command, timeout, workdir);
-            } else {
-                return executeLocal(command, timeout, workdir);
+            // 容器内挂载已收窄（2026-11-24 安全加固），不再 chroot /host：
+            // 宿主机命令一律经计算节点执行；无可用节点则明确报错
+            String effectiveWorkerId = workerId;
+            if (inContainer && (effectiveWorkerId == null || effectiveWorkerId.isBlank())) {
+                List<WorkerRegistry.WorkerInfo> healthy = workerRegistry.getHealthyWorkers();
+                if (healthy.isEmpty()) {
+                    auditError = "无可用计算节点";
+                    return toJson(-1, "宿主机命令执行需计算节点在线（容器内挂载已收窄，不再经 chroot 执行）");
+                }
+                effectiveWorkerId = healthy.get(0).getId();
+                auditTarget = "worker:" + effectiveWorkerId + "(auto)";
             }
+
+            String resultJson;
+            if (effectiveWorkerId != null && !effectiveWorkerId.isBlank()) {
+                resultJson = executeOnWorker(effectiveWorkerId, command, timeout, workdir);
+            } else {
+                resultJson = executeLocal(command, timeout, workdir);
+            }
+            if (extractExitCode(resultJson) == 0) {
+                auditStatus = "SUCCESS";
+            } else {
+                auditError = truncate(resultJson, 300);
+            }
+            return resultJson;
         } catch (SecurityException e) {
             log.warn("shell_execute 安全校验拦截: {}", e.getMessage());
+            auditTarget = "blocked";
+            auditError = e.getMessage();
             return toJson(-1, "命令被拦截: " + e.getMessage());
         } catch (Exception e) {
             log.error("shell_execute 执行异常", e);
+            auditError = e.getMessage();
             return toJson(-1, "执行异常: " + e.getMessage());
+        } finally {
+            auditShell(auditTarget, command, workdir, auditStatus, auditError);
         }
+    }
+
+    /** shell 命令审计落库（operation_logs）。写入失败不影响业务。 */
+    private void auditShell(String target, String command, String workdir, String status, String error) {
+        try {
+            String params = "target=" + target + "; cmd=" + truncate(command, 500)
+                    + (workdir != null && !workdir.isBlank() ? "; workdir=" + workdir : "");
+            operationLogService.record("系统", "执行宿主机命令", "shell_execute",
+                    LoginUserHolder.getCurrentUserId(), LoginUserHolder.getCurrentUsername(),
+                    safeClientIp(), params, status, error);
+        } catch (Exception e) {
+            log.warn("shell_execute 审计写入失败（不影响业务）: {}", e.getMessage());
+        }
+    }
+
+    private String safeClientIp() {
+        try {
+            return RequestContextUtil.getClientIp();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int extractExitCode(String resultJson) {
+        try {
+            JsonNode n = objectMapper.readTree(resultJson);
+            return n.path("exit_code").asInt(-1);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private String truncate(String s, int max) {
+        return s == null ? null : (s.length() <= max ? s : s.substring(0, max) + "...(截断)");
     }
 
     /**
