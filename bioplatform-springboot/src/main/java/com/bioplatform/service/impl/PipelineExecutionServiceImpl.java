@@ -169,6 +169,19 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         // A 层:本执行自己的 snakemake 会话日志。目录按分析复用、多执行多会话,
         // 每条执行记录只认自己执行时间窗内的会话(否则会显示成别的执行/全目录的进度)
         java.util.List<java.nio.file.Path> logs = snakemakeLogs(e);
+        java.nio.file.Path own = pickOwnSession(logs, e);
+        if (own != null) {
+            return ownSessionProgress(own, logs, e.getStatus());
+        }
+        String text = tailOf(resolveTaskLog(e), 16_384);
+        if (text == null || text.isBlank()) {
+            text = resultText;
+        }
+        return parseSnakemakeText(text, e.getStatus());
+    }
+
+    /** 执行时间窗内自己的会话日志(logs 升序,取窗口内最新一个;无则 null) */
+    private java.nio.file.Path pickOwnSession(java.util.List<java.nio.file.Path> logs, PipelineExecution e) {
         java.time.Instant from = e.getStartedAt() == null ? java.time.Instant.EPOCH
                 : e.getStartedAt().atZone(java.time.ZoneId.systemDefault()).toInstant();
         java.time.Instant to;
@@ -189,14 +202,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
             } catch (Exception ignored) {
             }
         }
-        if (own != null) {
-            return ownSessionProgress(own, logs, e.getStatus());
-        }
-        String text = tailOf(resolveTaskLog(e), 16_384);
-        if (text == null || text.isBlank()) {
-            text = resultText;
-        }
-        return parseSnakemakeText(text, e.getStatus());
+        return own;
     }
 
     private static final java.util.regex.Pattern STEPS_PAT =
@@ -397,15 +403,19 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         return roots;
     }
 
-    /** 日志尾部片段(不整读大文件) */
+    /** 日志尾部片段(seek 读尾部,不整读大文件——会话日志可长到几十 MB,2026-11-24) */
     private String tailOf(java.nio.file.Path f, int maxChars) {
         if (f == null) {
             return null;
         }
-        try {
-            byte[] bytes = java.nio.file.Files.readAllBytes(f);
-            int from = Math.max(0, bytes.length - maxChars);
-            return new String(bytes, from, bytes.length - from, java.nio.charset.StandardCharsets.UTF_8);
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f.toFile(), "r")) {
+            long len = raf.length();
+            int want = (int) Math.min(len, maxChars * 4L); // UTF-8 单字最多 4 字节,留余量
+            raf.seek(len - want);
+            byte[] bytes = new byte[want];
+            raf.readFully(bytes);
+            String s = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            return s.length() > maxChars ? s.substring(s.length() - maxChars) : s;
         } catch (Exception ex) {
             return null;
         }
@@ -445,16 +455,31 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         return null;
     }
 
-    /** 执行输出:task_output.log(实时 tee)→ worker 实时输出 → errorLog(兜底) */
+    /** 执行输出:task_output.<执行id>.log(任务控制台)→ 会话日志实时尾部 → worker 输出 → errorLog(兜底) */
     private String resolveLogText(PipelineExecution e) {
+        String base = null;
         java.nio.file.Path f = resolveTaskLog(e);
         if (f != null) {
             try {
                 String text = java.nio.file.Files.readString(f);
-                return text.length() > 200_000 ? text.substring(text.length() - 200_000) : text;
+                base = text.length() > 200_000 ? text.substring(text.length() - 200_000) : text;
             } catch (Exception ignored) {
                 // 落盘读不到时继续兜底
             }
+        }
+        // 运行中补"自己的 snakemake 会话日志"实时尾部:Omics 侧 CmdUtil 把 snakemake
+        // 控制台整体 capture_output,任务跑完才落 task_output 日志——不补这里执行日志
+        // 全程纹丝不动,看起来"迟迟没有更新"(2026-11-24 实测定案)
+        if ("RUNNING".equals(e.getStatus()) || "PENDING".equals(e.getStatus())) {
+            java.nio.file.Path own = pickOwnSession(snakemakeLogs(e), e);
+            String tail = own == null ? null : tailOf(own, 8_192);
+            if (tail != null && !tail.isBlank()) {
+                String live = "\n\n===== snakemake 会话日志(实时) =====\n" + tail;
+                return (base == null || base.isBlank()) ? live : base + live;
+            }
+        }
+        if (base != null && !base.isBlank()) {
+            return base;
         }
         String live = taskDispatcher.fetchTaskOutput(e);
         if (live != null && !live.isBlank()) {

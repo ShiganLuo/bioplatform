@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { listExecutions, getExecution, cancelExecution, deleteExecution } from '@/api/executionApi'
@@ -281,8 +281,38 @@ const handleCancel = async (row: Execution) => {
   }
 }
 
+// 自动刷新(2026-11-24):此前只在挂载时加载一次,运行中执行的状态/进度/日志不刷新,
+// 盯着页面看像"卡住迟迟不更新"。10s 轮询:列表常刷;详情弹窗开着且执行活跃时同步刷。
+const isActive = (s?: string) => s === 'RUNNING' || s === 'PENDING'
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+const refreshDetail = async () => {
+  if (!detailDialogVisible.value || !detailData.value.id || !isActive(detailData.value.status)) return
+  try {
+    const res = await getExecution(detailData.value.id)
+    detailData.value = res as any
+  } catch { /* 弹窗刷新失败不影响列表 */ }
+}
+
+const startAutoRefresh = () => {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  autoRefreshTimer = setInterval(() => {
+    if (document.hidden || loading.value) return
+    loadExecutions()
+    refreshDetail()
+  }, 10_000)
+}
+
 onMounted(() => {
   loadExecutions()
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
 })
 </script>
 
