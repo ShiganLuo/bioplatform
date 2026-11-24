@@ -38,6 +38,9 @@ public class ShellExecuteTool implements Tool {
     /** 输出最大字符数，防止撑爆 LLM 上下文 */
     private static final int MAX_OUTPUT_CHARS = 10240;
 
+    /** 所需权限标识(2026-11-24 入侵面收敛):宿主机命令执行仅限持有者,默认仅发放给管理员 */
+    public static final String REQUIRED_AUTHORITY = "agent:tool:shell";
+
     /** 默认超时秒数 */
     private static final int DEFAULT_TIMEOUT = 30;
 
@@ -95,6 +98,11 @@ public class ShellExecuteTool implements Tool {
     @Override
     public String getName() {
         return "shell_execute";
+    }
+
+    @Override
+    public String requiredAuthority() {
+        return REQUIRED_AUTHORITY;
     }
 
     @Override
@@ -175,6 +183,11 @@ public class ShellExecuteTool implements Tool {
         String auditError = null;
         String auditTarget = workerId != null && !workerId.isBlank() ? "worker:" + workerId : "host";
         try {
+            // 权限门槛(2026-11-24 入侵面收敛):工具定义列表已按权限过滤,此处二次校验
+            // 防 LLM 按名直接调用;无权调用同样落审计(FAIL/blocked)
+            if (!com.bioplatform.common.util.OwnershipUtils.hasAuthority(REQUIRED_AUTHORITY)) {
+                throw new SecurityException("无权执行宿主机命令(需 " + REQUIRED_AUTHORITY + " 权限)");
+            }
             // 安全校验
             validateCommand(command);
 

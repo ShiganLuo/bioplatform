@@ -29,6 +29,20 @@ public final class OwnershipUtils {
     }
 
     /**
+     * 判断当前用户是否持有指定权限标识（管理员视为持有全部权限）。
+     * 权限标识来自 authorities（ROLE_角色名 + 角色全部 permission 标识，每请求 DB 现查）。
+     */
+    public static boolean hasAuthority(String authority) {
+        if (authority == null || authority.isBlank()) return true;
+        if (isAdmin()) return true;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(authority::equals);
+    }
+
+    /**
      * 获取当前用户ID
      */
     public static Long getCurrentUserId() {

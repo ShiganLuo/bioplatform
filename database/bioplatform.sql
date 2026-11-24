@@ -496,7 +496,8 @@ INSERT INTO `permissions` (`id`, `name`, `permission`, `type`, `parent_id`, `pat
 (123, 'Edit Sample',     'project:sample:edit',  3, 21,  NULL,               7),
 (124, 'Delete Sample',   'project:sample:delete',3, 21,  NULL,               8),
 (125, 'Edit File',       'data:edit',            3, 41,  NULL,               4),
-(126, 'Verify Files',    'data:verify',          3, 41,  NULL,               5);
+(126, 'Verify Files',    'data:verify',          3, 41,  NULL,               5),
+(127, 'Host Shell Execute','agent:tool:shell',   3, 50,  NULL,               3);
 
 -- ----------------------------
 -- Admin role -> all permissions

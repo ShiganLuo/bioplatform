@@ -71,6 +71,11 @@ public class AgentToolExecutor {
     public List<ToolDefinition> getAllToolDefinitions() {
         List<ToolDefinition> definitions = new ArrayList<>();
         for (Tool tool : toolRegistry.values()) {
+            // 按当前用户权限过滤(2026-11-24):无权工具不进 LLM 工具列表
+            String required = tool.requiredAuthority();
+            if (required != null && !com.bioplatform.common.util.OwnershipUtils.hasAuthority(required)) {
+                continue;
+            }
             definitions.add(new ToolDefinition(
                     tool.getName(),
                     tool.getDescription(),
