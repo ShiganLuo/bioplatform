@@ -17,6 +17,7 @@ import com.bioplatform.agent.LLMResponse;
 import com.bioplatform.agent.ToolCall;
 import com.bioplatform.agent.ToolDefinition;
 import com.bioplatform.agent.tools.AgentToolExecutor;
+import com.bioplatform.common.util.LoginUserHolder;
 import com.bioplatform.service.SystemService;
 import com.bioplatform.service.AgentService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -208,10 +209,16 @@ public class AgentServiceImpl implements AgentService {
 
         // 捕获当前线程的 SecurityContext，传播到异步线程
         SecurityContext securityContext = SecurityContextHolder.getContext();
+        // LoginUserHolder 也是 ThreadLocal，异步线程恒 null → Agent 工具审计
+        // (ShellExecuteTool) 操作人为空、OwnershipUtils.getCurrentUserId() 不可用。
+        // 起线程前捕获、线程内注入、finally 清理（与 SecurityContext 同步传播）。
+        Long holderUserId = LoginUserHolder.getCurrentUserId();
+        String holderUsername = LoginUserHolder.getCurrentUsername();
 
         // 异步执行：工具调用循环 + 流式输出
         new Thread(() -> {
             SecurityContextHolder.setContext(securityContext);
+            LoginUserHolder.setCurrentUser(holderUserId != null ? holderUserId : userId, holderUsername);
             try {
                 AgentConversation conversation = conversationMapper.selectById(conversationId);
                 String assistantContent = processWithTools(conversation.getModelName(), historyMessages, emitter);
@@ -260,6 +267,7 @@ public class AgentServiceImpl implements AgentService {
                 }
             } finally {
                 SecurityContextHolder.clearContext();
+                LoginUserHolder.clear();
             }
         }, "sse-stream-" + conversationId).start();
 
