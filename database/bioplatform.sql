@@ -165,6 +165,7 @@ CREATE TABLE `pipelines` (
     `project_id`   BIGINT        DEFAULT NULL COMMENT '关联 projects.id',
     `meta_content` TEXT          DEFAULT NULL COMMENT '元数据内容',
     `meta_type`    VARCHAR(32)   DEFAULT NULL COMMENT '元数据类型',
+    `comparison_json` TEXT       DEFAULT NULL COMMENT '实验设计关系JSON(Omics --comparison 列表形态)',
     `extra_params` JSON          DEFAULT NULL COMMENT '额外参数',
     `description`  TEXT          DEFAULT NULL,
     `category`     VARCHAR(64)   DEFAULT NULL COMMENT 'e.g. QC, Alignment, Assembly, Annotation',

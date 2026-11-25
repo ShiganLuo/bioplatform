@@ -7,6 +7,8 @@ export interface Pipeline {
   templateId: number
   projectId: number
   metaContent: string
+  /** 实验设计关系 JSON(Omics --comparison 列表形态),随样本信息"填入"带入 */
+  comparisonJson?: string
   metaType: string
   extraParams: string
   description: string

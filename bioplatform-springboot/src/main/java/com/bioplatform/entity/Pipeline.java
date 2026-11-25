@@ -30,6 +30,10 @@ public class Pipeline {
     /** meta类型：text/path */
     private String metaType;
 
+    /** 实验设计关系 JSON(2026-11-25):样本信息"填入"时随 meta 一并带入,
+     *  执行时落 comparison.json 传 run.py --comparison;Omics 列表同构 */
+    private String comparisonJson;
+
     /** 用户覆盖的额外参数JSON */
     private String extraParams;
 

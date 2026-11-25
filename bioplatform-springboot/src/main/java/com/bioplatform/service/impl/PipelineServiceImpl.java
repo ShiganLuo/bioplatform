@@ -55,6 +55,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType());
         pipeline.setExtraParams(request.extraParams());
+        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
+        pipeline.setComparisonJson(request.comparisonJson());
         pipeline.setDescription(request.description());
         pipeline.setCategory(request.category());
         pipeline.setConfigJson(request.configJson());
@@ -81,6 +83,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType());
         pipeline.setExtraParams(request.extraParams());
+        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
+        pipeline.setComparisonJson(request.comparisonJson());
         pipeline.setDescription(request.description());
         pipeline.setCategory(request.category());
         pipeline.setConfigJson(request.configJson());
@@ -147,6 +151,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType() != null ? request.metaType() : "text");
         pipeline.setExtraParams(request.extraParams());
+        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
+        pipeline.setComparisonJson(request.comparisonJson());
         pipeline.setDescription(request.description() != null ? request.description()
                 : "从项目创建: " + tpl.getName());
         pipeline.setCategory(tpl.getCategory());

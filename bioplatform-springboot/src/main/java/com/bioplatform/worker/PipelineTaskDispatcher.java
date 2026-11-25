@@ -360,12 +360,23 @@ public class PipelineTaskDispatcher {
                 copyFiles.add("meta.tsv");
                 metaArg = "\"" + escDq(absOutStr + "/meta.tsv") + "\"";
             }
+            // 实验设计关系(2026-11-25):样本信息"填入"带入的 comparison_json 落
+            // comparison.json,经 run.py --comparison 消费(跳过 meta design 列,
+            // group_pairs 由该文件生成);task 型(run_module)无此参数,不拼
+            String comparisonJson = pipeline.getComparisonJson();
+            if (comparisonJson != null && !comparisonJson.isBlank()) {
+                Files.writeString(Paths.get(sharedPath, stageRel, "comparison.json"), comparisonJson);
+                copyFiles.add("comparison.json");
+            }
             run.append("python3 run.py -w \"").append(escDq(template.getName()))
                     .append("\" -m ").append(metaArg)
                     .append(" -o \"").append(escDq(absOutStr)).append("\" --sdm apptainer")
                     // 降权后日志不能落仓库根(默认 workflow.log 在 cwd=Omics 根,root 遗留文件会 EACCES);
                     // 定向到输出目录,与 task_output 日志同处(2026-11-24 e2e 实踩)
                     .append(" --log \"").append(escDq(absOutStr + "/workflow.log")).append('"');
+            if (comparisonJson != null && !comparisonJson.isBlank()) {
+                run.append(" --comparison \"").append(escDq(absOutStr + "/comparison.json")).append('"');
+            }
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {
                 // 参数名注入防护(2026-11-24):key 直接拼在命令行上,白名单外拒绝

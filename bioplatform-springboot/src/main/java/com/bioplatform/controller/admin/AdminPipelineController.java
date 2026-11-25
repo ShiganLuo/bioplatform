@@ -88,7 +88,7 @@ public class AdminPipelineController {
                 new AdminPipelineCreateRequest(request.name(), request.type(), request.templateId(),
                         request.projectId(), request.metaContent(), request.metaType(), request.extraParams(),
                         request.description(), request.category(),
-                        request.configJson(), request.dockerImage(), request.timeout()));
+                        request.configJson(), request.dockerImage(), request.timeout(), request.comparisonJson()));
         return ApiResponse.success();
     }
 

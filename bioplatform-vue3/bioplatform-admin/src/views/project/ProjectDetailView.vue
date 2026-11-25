@@ -946,6 +946,7 @@ const selectedTemplateName = ref('')
 const analysisName = ref('')
 const metaType = ref('text')
 const metaContent = ref('')
+const comparisonJson = ref('')
 const analysisDescription = ref('')
 const extraParamsText = ref('')
 const extraParamsError = ref('')
@@ -1115,7 +1116,10 @@ const tsvPreview = (content?: string) => {
 const fillFromSampleMeta = (sm: SampleMeta) => {
   metaType.value = sm.metaMode === 'path' ? 'path' : 'text'
   metaContent.value = sm.metaContent || ''
-  ElMessage.success(`已填入「${sm.name}」`)
+  // 实验设计关系随 meta 一并带入(2026-11-25),执行时落 comparison.json 传 --comparison
+  comparisonJson.value = sm.comparisonJson || ''
+  const n = comparisonJson.value ? (JSON.parse(comparisonJson.value) as unknown[]).length : 0
+  ElMessage.success(`已填入「${sm.name}」` + (n ? `,含 ${n} 个实验对比` : ''))
 }
 
 // --- 参数覆盖:按模板 config/schema 渲染可调参数 ---
@@ -1856,6 +1860,7 @@ const handleCreateAnalysis = async () => {
       name: analysisName.value || undefined,
       metaContent: metaContent.value,
       metaType: metaType.value,
+      comparisonJson: comparisonJson.value || undefined,
       extraParams: Object.keys(overrides).length ? JSON.stringify(overrides) : undefined,
       description: analysisDescription.value || undefined
     })
@@ -1875,6 +1880,7 @@ const handleEdit = (row: Pipeline) => {
   editForm.name = row.name
   editForm.metaType = row.metaType || 'text'
   editForm.metaContent = row.metaContent || ''
+  editForm.comparisonJson = row.comparisonJson || ''
   editVisible.value = true
   loadMetaTemplate(row.templateId)
 }
@@ -1887,13 +1893,16 @@ const editForm = reactive({
   id: 0,
   name: '',
   metaType: 'text',
-  metaContent: ''
+  metaContent: '',
+  comparisonJson: ''
 })
 
 const fillEditFromSampleMeta = (sm: SampleMeta) => {
   editForm.metaType = sm.metaMode === 'path' ? 'path' : 'text'
   editForm.metaContent = sm.metaContent || ''
-  ElMessage.success(`已填入「${sm.name}」`)
+  editForm.comparisonJson = sm.comparisonJson || ''
+  const n = editForm.comparisonJson ? (JSON.parse(editForm.comparisonJson) as unknown[]).length : 0
+  ElMessage.success(`已填入「${sm.name}」` + (n ? `,含 ${n} 个实验对比` : ''))
 }
 
 // --- 工作流 meta 规范(Omics/assests/test/meta_<流程>.tsv,各流程列固定) ---
@@ -1967,7 +1976,8 @@ const handleSaveEdit = async () => {
       ...(editBase.value as any),
       name: editForm.name,
       metaType: editForm.metaType,
-      metaContent: editForm.metaContent
+      metaContent: editForm.metaContent,
+      comparisonJson: editForm.comparisonJson
     } as any)
     ElMessage.success('已保存')
     editVisible.value = false

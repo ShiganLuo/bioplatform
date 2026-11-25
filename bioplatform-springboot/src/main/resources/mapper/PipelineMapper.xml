@@ -10,6 +10,7 @@
         <result column="template_id" property="templateId"/>
         <result column="project_id" property="projectId"/>
         <result column="meta_content" property="metaContent"/>
+        <result column="comparison_json" property="comparisonJson"/>
         <result column="meta_type" property="metaType"/>
         <result column="extra_params" property="extraParams"/>
         <result column="description" property="description"/>
@@ -24,7 +25,7 @@
 
     <sql id="Base_Column_List">
         `id`, `name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
-        `description`, `category`, `config_json`,
+        `comparison_json`, `description`, `category`, `config_json`,
         `docker_image`, `timeout`, `owner_id`, `created_at`, `updated_at`
     </sql>
 
@@ -32,10 +33,10 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipelines` (`name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
-                                 `description`, `category`, `config_json`,
+                                 `comparison_json`, `description`, `category`, `config_json`,
                                  `docker_image`, `timeout`, `owner_id`)
         VALUES (#{name}, #{type}, #{templateId}, #{projectId}, #{metaContent}, #{metaType}, #{extraParams},
-                #{description}, #{category}, #{configJson},
+                #{comparisonJson}, #{description}, #{category}, #{configJson},
                 #{dockerImage}, #{timeout}, #{ownerId})
     </insert>
 
@@ -78,6 +79,8 @@
             <if test="metaContent != null">`meta_content` = #{metaContent},</if>
             <if test="metaType != null">`meta_type` = #{metaType},</if>
             <if test="extraParams != null">`extra_params` = #{extraParams},</if>
+            <!-- 对比实验设计:空串=清空,null=不动(动态集语义) -->
+            <if test="comparisonJson != null">`comparison_json` = #{comparisonJson},</if>
         </set>
         WHERE `id` = #{id}
     </update>
