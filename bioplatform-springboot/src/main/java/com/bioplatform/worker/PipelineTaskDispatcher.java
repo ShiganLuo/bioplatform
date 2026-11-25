@@ -205,10 +205,45 @@ public class PipelineTaskDispatcher {
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
         // 方案一(2026-11-24):--snakemake-args --rerun-incomplete——半成品输出自动重跑,
-        // 根除 IncompleteFilesException 秒败类问题(仅 run.py;run_module.py 无透传)
+        // 根除 IncompleteFilesException 秒败类问题
+        // 运行参数(2026-11-25):--forcerun 为 run.py 原生固定参数(强制重跑指定规则/文件
+        // 并停在该处),从执行参数保留键 _forcerun 提取、逐 token 白名单校验;
+        // pipeline 型走原生参数位,task 型(run_module 无原生 --forcerun)经
+        // --snakemake-args 透传给 snakemake
+        String forcerun = extractForcerun(execution);
+        boolean pipelineType = "pipeline".equals(template.getType());
+        String smkTail = (pipelineType || forcerun == null)
+                ? "--rerun-incomplete"
+                : forcerun + " --rerun-incomplete";
         return nsenterWrap(assembleOmicsRun(template, pipeline, String.valueOf(execution.getPipelineId()),
                 execution.getProjectId() + "/stage_exec_" + execution.getId(),
-                execution.getId(), execution.getId(), null, "--rerun-incomplete", true));
+                execution.getId(), execution.getId(),
+                pipelineType ? forcerun : null, smkTail, true));
+    }
+
+    /** 执行参数保留键 _forcerun(2026-11-25):run.py 原生 --forcerun 的规则名/文件路径,
+     *  空格分隔,逐 token 白名单(与 SAFE_META_FILE 同字符集,规则名与路径皆可);非法即拒 */
+    private String extractForcerun(PipelineExecution execution) {
+        if (execution.getInputParams() == null || execution.getInputParams().isBlank()) {
+            return null;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = MAPPER.readTree(execution.getInputParams());
+            com.fasterxml.jackson.databind.JsonNode f = node.get("_forcerun");
+            if (f == null || f.isNull() || f.asText().isBlank()) {
+                return null;
+            }
+            StringBuilder sb = new StringBuilder("--forcerun");
+            for (String t : f.asText().trim().split("\\s+")) {
+                if (!SAFE_META_FILE.matcher(t).matches()) {
+                    throw new IllegalArgumentException("强制重跑参数不安全(仅允许字母/数字/._-/): " + t);
+                }
+                sb.append(' ').append(t);
+            }
+            return sb.toString();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return null; // 非 JSON 的 inputParams(手写模板纯文本参数)不适用,跳过
+        }
     }
 
     /**

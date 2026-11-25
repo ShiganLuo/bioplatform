@@ -415,18 +415,7 @@
             <el-button type="success" link @click="handleExecute(row as Pipeline)">执行</el-button>
             <el-button v-if="isRunning(row as Pipeline)" type="danger" link @click="handleCancel(row as Pipeline)">取消</el-button>
             <el-button type="info" link @click="router.push('/executions')">记录</el-button>
-            <el-dropdown trigger="click" style="margin: 0 8px" @command="(cmd: string) => handleMaintain(row as Pipeline, cmd)">
-              <el-button type="warning" link>维护</el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="dry-run">预检 (dry-run)</el-dropdown-item>
-                  <el-dropdown-item command="unlock">解锁 (--unlock)</el-dropdown-item>
-                  <el-dropdown-item command="delete-temp-output">清理临时文件</el-dropdown-item>
-                  <el-dropdown-item command="touch" divided>触碰时间戳 (--touch)</el-dropdown-item>
-                  <el-dropdown-item command="cleanup-metadata">清理元数据…</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-button type="warning" link style="margin: 0 8px" @click="openMaintain(row as Pipeline)">维护</el-button>
             <el-button type="danger" link @click="handleDelete(row as Pipeline)">删除</el-button>
           </template>
         </el-table-column>
@@ -445,10 +434,33 @@
       </div>
     </el-card>
 
-    <!-- 维护操作输出(2026-11-24 方案二) -->
-    <el-dialog v-model="maintainVisible" title="维护操作输出" width="720px" top="6vh">
-      <div style="font-size: 12px; color: #909399; margin-bottom: 8px;">{{ maintainTitle }}</div>
-      <pre :style="{ background: '#f5f7fa', borderRadius: '4px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', maxHeight: '55vh', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0' }">{{ maintainOutput }}</pre>
+    <!-- 分析维护(2026-11-25 表单化:操作与参数可见可改) -->
+    <el-dialog v-model="maintainVisible" title="分析维护" width="760px" top="6vh">
+      <div v-if="maintainRow">
+        <div style="font-weight: 600; margin-bottom: 8px;">{{ maintainRow.name }}</div>
+        <el-form label-width="110px">
+          <el-form-item label="操作">
+            <el-select v-model="maintainMode" style="width: 100%">
+              <el-option value="dry-run" label="预检 (dry-run,只读)" />
+              <el-option value="unlock" label="解锁 (--unlock)" />
+              <el-option value="delete-temp-output" label="清理临时文件 (--delete-temp-output)" />
+              <el-option value="touch" label="触碰时间戳 (--touch,可能导致下游重跑)" />
+              <el-option value="cleanup-metadata" label="清理元数据 (--cleanup-metadata)" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="maintainMode === 'cleanup-metadata'" label="文件路径">
+            <el-input v-model="maintainExtra" placeholder="相对输出目录,空格分隔;后端按白名单校验" />
+          </el-form-item>
+          <div class="exec-hint">即时执行不产生执行记录(审计照记);运行中执行存在时维护会被拒绝。强制重跑规则请走「执行」弹窗的"强制重跑规则"(run.py --forcerun,真实执行链路)。</div>
+        </el-form>
+        <div style="text-align: right; margin-top: 8px;">
+          <el-button type="primary" :loading="maintainRunning" @click="runMaintain">执行</el-button>
+        </div>
+      </div>
+      <template v-if="maintainOutput">
+        <div style="font-size: 12px; color: #909399; margin: 12px 0 8px;">{{ maintainTitle }}</div>
+        <pre :style="{ background: '#f5f7fa', borderRadius: '4px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', maxHeight: '45vh', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0' }">{{ maintainOutput }}</pre>
+      </template>
     </el-dialog>
 
     <!-- 分析结果文件浏览 -->
@@ -711,6 +723,10 @@
           </el-form-item>
           <el-form-item v-if="!inputParamRows.length" label="执行参数">
             <span class="exec-hint">无需执行时参数</span>
+          </el-form-item>
+          <el-form-item label="强制重跑规则">
+            <el-input v-model="executeForcerun" placeholder="可选,空格分隔;规则名或文件路径(如 DR_DNA_bwaMem2_alignment)" />
+            <div class="exec-hint">留空=正常增量执行;填写=本次运行强制重跑指定规则并停在该处(run.py --forcerun)</div>
           </el-form-item>
         </el-form>
       </div>
@@ -1148,12 +1164,27 @@ const addCustomParam = () => customParams.value.push({ path: '', override: '' })
 const latestExecutions = ref<Record<number, Execution>>({})
 let execPollTimer: ReturnType<typeof setInterval> | null = null
 
-// --- 维护操作(2026-11-24 方案二):dry-run 预检 / unlock 解锁 / 清理不完整输出 ---
+// --- 维护操作(2026-11-25 表单化):操作/参数在弹窗内可见可改 ---
 const maintainVisible = ref(false)
 const maintainTitle = ref('')
 const maintainOutput = ref('')
+const maintainRow = ref<Pipeline | null>(null)
+const maintainMode = ref('dry-run')
+const maintainExtra = ref('')
+const maintainRunning = ref(false)
 
-const handleMaintain = async (row: Pipeline, mode: string) => {
+const openMaintain = (row: Pipeline) => {
+  maintainRow.value = row
+  maintainMode.value = 'dry-run'
+  maintainExtra.value = ''
+  maintainOutput.value = ''
+  maintainTitle.value = ''
+  maintainVisible.value = true
+}
+
+const runMaintain = async () => {
+  if (!maintainRow.value) return
+  const mode = maintainMode.value
   const titles: Record<string, string> = {
     'dry-run': '预检 (snakemake --dry-run,只读)',
     'unlock': '解锁 (snakemake --unlock)',
@@ -1162,27 +1193,14 @@ const handleMaintain = async (row: Pipeline, mode: string) => {
     'cleanup-metadata': '清理元数据 (--cleanup-metadata)'
   }
   const confirms: Record<string, string> = {
-    'unlock': `将对分析"${row.name}"执行解锁(--unlock)。确认执行?`,
-    'delete-temp-output': `将清理分析"${row.name}"输出目录中不再需要的临时文件。确认执行?`,
-    'touch': `将触碰分析"${row.name}"输出文件的时间戳(--touch,可能导致下游重跑)。确认执行?`,
-    'cleanup-metadata': `将清理分析"${row.name}"指定文件的 snakemake 元数据。确认执行?`
+    'unlock': `将对分析"${maintainRow.value.name}"执行解锁(--unlock)。确认执行?`,
+    'delete-temp-output': `将清理分析"${maintainRow.value.name}"输出目录中不再需要的临时文件。确认执行?`,
+    'touch': `将触碰分析"${maintainRow.value.name}"输出文件的时间戳(--touch,可能导致下游重跑)。确认执行?`,
+    'cleanup-metadata': `将清理分析"${maintainRow.value.name}"指定文件的 snakemake 元数据。确认执行?`
   }
-  // 需要参数的维护操作先取输入(文件路径,后端按白名单校验)
-  let extra = ''
-  if (mode === 'cleanup-metadata') {
-    try {
-      const { value } = await ElMessageBox.prompt(
-        '输入要清理元数据的文件路径(相对输出目录,空格分隔):',
-        titles[mode] || mode,
-        {
-          inputPattern: /^[A-Za-z0-9._/\-\s]+$/,
-          inputErrorMessage: '含非法字符',
-          confirmButtonText: '下一步',
-          cancelButtonText: '取消'
-        }
-      )
-      extra = (value || '').trim()
-    } catch { return }
+  if (mode === 'cleanup-metadata' && !maintainExtra.value.trim()) {
+    ElMessage.warning('请填写文件路径')
+    return
   }
   if (confirms[mode]) {
     try {
@@ -1190,11 +1208,11 @@ const handleMaintain = async (row: Pipeline, mode: string) => {
         { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' })
     } catch { return }
   }
+  maintainRunning.value = true
   maintainTitle.value = titles[mode] || mode
   maintainOutput.value = '执行中…'
-  maintainVisible.value = true
   try {
-    const out = await maintainPipeline(row.id!, mode, extra)
+    const out = await maintainPipeline(maintainRow.value.id!, mode, maintainExtra.value.trim())
     maintainOutput.value = typeof out === 'string' && out.trim() ? out : '(无输出)'
     ElMessage.success('维护操作完成')
     loadAnalyses()
@@ -1202,6 +1220,8 @@ const handleMaintain = async (row: Pipeline, mode: string) => {
   } catch (e) {
     maintainOutput.value = '执行失败: ' + (e instanceof Error ? e.message : String(e))
     ElMessage.error('维护操作失败')
+  } finally {
+    maintainRunning.value = false
   }
 }
 
@@ -1232,6 +1252,7 @@ const executeDialogVisible = ref(false)
 const executeLoading = ref(false)
 const executingPipeline = ref<Pipeline | null>(null)
 const inputParamRows = ref<{ key: string; value: string }[]>([])
+const executeForcerun = ref('')
 const metaFileSuggestions = ref<string[]>([])
 
 const handleExecute = async (row: Pipeline) => {
@@ -1273,6 +1294,10 @@ const confirmExecute = async () => {
   try {
     const paramsMap: Record<string, string> = {}
     for (const p of inputParamRows.value) paramsMap[p.key] = p.value.trim()
+    // 运行参数(2026-11-25):--forcerun 保留键进 inputParams,记录可见;
+    // 后端逐 token 白名单校验后以 run.py 原生参数拼接
+    const forcerun = executeForcerun.value.trim()
+    if (forcerun) paramsMap._forcerun = forcerun
     const execution = await executePipeline(executingPipeline.value.id, {
       projectId: executingPipeline.value.projectId,
       inputParams: JSON.stringify(paramsMap)
