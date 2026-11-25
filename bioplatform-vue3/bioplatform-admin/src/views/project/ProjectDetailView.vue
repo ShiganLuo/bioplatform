@@ -725,7 +725,7 @@
             <span class="exec-hint">无需执行时参数</span>
           </el-form-item>
           <el-form-item label="强制重跑规则">
-            <el-input v-model="executeForcerun" placeholder="可选,空格分隔;规则名或文件路径(如 DR_DNA_bwaMem2_alignment)" />
+            <el-input v-model="executeForcerun" placeholder="可选,空格分隔;规则短名(不带工作流前缀,如 scanpy_qc)或 /path/to/file" />
             <div class="exec-hint">留空=正常增量执行;填写=本次运行强制重跑指定规则并停在该处(run.py --forcerun)</div>
           </el-form-item>
         </el-form>
