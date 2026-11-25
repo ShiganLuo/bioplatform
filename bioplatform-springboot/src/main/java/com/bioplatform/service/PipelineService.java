@@ -36,4 +36,7 @@ public interface PipelineService {
     PageResult<Pipeline> listAnalysesByProject(Long projectId, int pageNum, int pageSize);
 
     PipelineExecution executePipeline(Long pipelineId, Long projectId, String inputParams, Long userId);
+
+    /** 维护操作(2026-11-24 方案二):dry-run/unlock/delete-incomplete,返回输出文本 */
+    String maintainPipeline(Long pipelineId, String mode);
 }

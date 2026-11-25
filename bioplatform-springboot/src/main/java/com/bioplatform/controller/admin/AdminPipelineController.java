@@ -127,4 +127,17 @@ public class AdminPipelineController {
         PipelineExecution execution = pipelineService.executePipeline(id, projectId, inputParams, userId);
         return ApiResponse.success(execution);
     }
+
+    /**
+     * 分析维护操作(2026-11-24 方案二):dry-run 预检 / unlock 解锁 / delete-incomplete
+     * 清理不完整输出。即时执行返回输出文本,不建执行记录(本注解即审计)。
+     */
+    @PostMapping("/{id}/maintain")
+    @PreAuthorize("hasAuthority('pipeline:run')")
+    @OperLog(module = "流水线管理", operation = "分析维护")
+    public ApiResponse<String> maintain(@PathVariable Long id,
+                                        @RequestBody Map<String, String> params) {
+        String mode = params == null ? null : params.get("mode");
+        return ApiResponse.success(pipelineService.maintainPipeline(id, mode));
+    }
 }

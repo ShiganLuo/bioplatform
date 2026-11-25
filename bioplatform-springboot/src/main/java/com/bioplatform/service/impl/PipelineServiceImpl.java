@@ -213,4 +213,44 @@ public class PipelineServiceImpl implements PipelineService {
 
         return execution;
     }
+
+    @Override
+    public String maintainPipeline(Long pipelineId, String mode) {
+        if (mode == null || mode.isBlank()) {
+            throw new IllegalArgumentException("缺少维护操作类型(mode)");
+        }
+        Pipeline pipeline = pipelineMapper.selectById(pipelineId);
+        if (pipeline == null) {
+            throw new IllegalArgumentException("流水线不存在");
+        }
+        // 运行中禁止维护:--unlock 会拆活锁,dry-run 也会撞锁(2026-11-24 方案二)
+        PipelineExecution q = new PipelineExecution();
+        q.setPipelineId(pipelineId);
+        for (PipelineExecution e : pipelineExecutionMapper.selectAll(q)) {
+            if (!pipelineId.equals(e.getPipelineId())) {
+                continue;
+            }
+            if ("RUNNING".equals(e.getStatus()) || "PENDING".equals(e.getStatus())) {
+                throw new IllegalArgumentException(
+                        "该分析有运行中的执行记录(#" + e.getId() + "),维护操作已拒绝");
+            }
+        }
+        WorkflowTemplate template = workflowTemplateMapper.selectById(pipeline.getTemplateId());
+        if (template == null) {
+            throw new IllegalArgumentException("模板不存在");
+        }
+        if (!"pipeline".equals(template.getType()) && !"dry-run".equals(mode)) {
+            throw new IllegalArgumentException("模块型模板仅支持预检(dry-run)");
+        }
+        try {
+            String out = taskDispatcher.runMaintenance(pipeline, template, mode);
+            return out == null ? ""
+                    : (out.length() > 100_000 ? "…(输出过长已截断)\n" + out.substring(out.length() - 100_000) : out);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("维护操作失败: pipelineId={}, mode={}, error={}", pipelineId, mode, e.getMessage());
+            throw new IllegalArgumentException("维护操作失败: " + e.getMessage());
+        }
+    }
 }

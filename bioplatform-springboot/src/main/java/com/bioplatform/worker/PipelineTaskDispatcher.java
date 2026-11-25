@@ -204,10 +204,47 @@ public class PipelineTaskDispatcher {
      * backend 终态补发 repairOmicsOwnership)。
      */
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
-        String outputDirRel = String.valueOf(execution.getPipelineId());
+        // 方案一(2026-11-24):--snakemake-args --rerun-incomplete——半成品输出自动重跑,
+        // 根除 IncompleteFilesException 秒败类问题(仅 run.py;run_module.py 无透传)
+        return assembleOmicsRun(template, pipeline, String.valueOf(execution.getPipelineId()),
+                execution.getProjectId() + "/stage_exec_" + execution.getId(),
+                execution.getId(), execution.getId(), null, "--rerun-incomplete", true);
+    }
+
+    /**
+     * 维护操作(2026-11-24 方案二):预检 dry-run / 解锁 unlock / 清理不完整输出
+     * delete-incomplete。即时同步执行(≤5 分钟),输出直接返回给调用方,不建执行
+     * 记录(审计走 Controller @OperLog);输出不落 task_output(经 worker 捕获流返回)。
+     * 仅 pipeline 型(run.py)模板支持全部模式;task 型(run_module.py)仅支持 dry-run。
+     */
+    public String runMaintenance(Pipeline pipeline, WorkflowTemplate template, String mode) throws Exception {
+        String modeFlags;
+        String smkTail;
+        switch (mode) {
+            case "dry-run" -> {
+                modeFlags = "--dry-run";
+                smkTail = "--rerun-incomplete";
+            }
+            case "unlock" -> {
+                modeFlags = "--unlock";
+                smkTail = null;
+            }
+            case "delete-incomplete" -> {
+                modeFlags = null;
+                smkTail = "--delete-incomplete --rerun-incomplete";
+            }
+            default -> throw new IllegalArgumentException("未知维护操作: " + mode);
+        }
+        return assembleOmicsRun(template, pipeline, String.valueOf(pipeline.getId()),
+                pipeline.getProjectId() + "/stage_maintain_" + pipeline.getId(),
+                null, null, modeFlags, smkTail, false);
+    }
+
+    private String assembleOmicsRun(WorkflowTemplate template, Pipeline pipeline, String outputDirRel,
+            String stageRel, Long logExecId, Long callbackExecId, String modeFlags, String smkTail,
+            boolean redirectLog) throws Exception {
         String outRoot = resolveOutputRoot();
         String absOutStr = outRoot + "/" + outputDirRel;
-        String stageRel = execution.getProjectId() + "/stage_exec_" + execution.getId();
         Files.createDirectories(Paths.get(sharedPath, stageRel));
         String stageHost = dataRoot + "/" + stageRel;
 
@@ -241,6 +278,13 @@ public class PipelineTaskDispatcher {
                 run.append(' ').append(e.getKey())
                         .append("=\"").append(escDq(String.valueOf(e.getValue()))).append('"');
             }
+            if (modeFlags != null) {
+                run.append(' ').append(modeFlags);
+            }
+            if (smkTail != null) {
+                // REMAINDER 语义:--snakemake-args 必须在所有 run.py 参数之后
+                run.append(" --snakemake-args ").append(smkTail);
+            }
         } else {
             // 模块:模板默认配置 + 参数覆盖 + meta 样本分组 合并落盘,run_module.py --config 引用
             ObjectNode cfg = (ObjectNode) mergedConfig(template, overrides);
@@ -258,6 +302,11 @@ public class PipelineTaskDispatcher {
                 for (String s : samples) {
                     run.append(" \"").append(escDq(s)).append('"');
                 }
+            }
+            // run_module.py 无 --snakemake-args 透传,smkTail 故意不拼;
+            // modeFlags(--dry-run 等)是 run_module.py 原生支持的开关
+            if (modeFlags != null) {
+                run.append(' ').append(modeFlags);
             }
         }
 
@@ -284,18 +333,24 @@ public class PipelineTaskDispatcher {
                 prep.append(" \"").append(escDq(absOutStr + "/" + f)).append('"');
             }
             // 日志文件由外层重定向以 root 打开,一并移交属主(被杀场景不留 root 残留)
-            prep.append(" \"").append(escDq(logPath(absOutStr, execution.getId()))).append("\"; ");
+            if (logExecId != null) {
+                prep.append(" \"").append(escDq(logPath(absOutStr, logExecId))).append("\"; ");
+            } else {
+                prep.append("; ");
+            }
         }
 
         // 降权段:流程本体(环境变量/回调/run.py|run_module.py)
         StringBuilder flow = new StringBuilder();
         flow.append("export PATH=").append(OMICS_ENV_PATH).append(":$PATH; ");
         // 回调接口环境变量:流程框架终止/完成时回报终态(/api/public/executions/callback)
-        flow.append("export BIPLATFORM_EXEC_ID=").append(execution.getId()).append("; ");
-        flow.append("export BIPLATFORM_CALLBACK_TOKEN=\"")
-                .append(escDq(callbackTokenUtil.token(execution.getId()))).append("\"; ");
-        flow.append("export BIPLATFORM_CALLBACK_URL=\"")
-                .append(escDq(resolveCallbackUrl())).append("\"; ");
+        if (callbackExecId != null) {
+            flow.append("export BIPLATFORM_EXEC_ID=").append(callbackExecId).append("; ");
+            flow.append("export BIPLATFORM_CALLBACK_TOKEN=\"")
+                    .append(escDq(callbackTokenUtil.token(callbackExecId))).append("\"; ");
+            flow.append("export BIPLATFORM_CALLBACK_URL=\"")
+                    .append(escDq(resolveCallbackUrl())).append("\"; ");
+        }
         flow.append("cd \"").append(escDq(omicsRoot)).append("\" && ").append(run);
 
         StringBuilder inner = new StringBuilder();
@@ -330,7 +385,8 @@ public class PipelineTaskDispatcher {
         // 全程输出实时 tee 到 <输出目录>/task_output.<执行id>.log(执行监控的日志/进度来源;
         // 目录按分析复用,日志按执行独立,互不覆盖)
         String body = "mkdir -p \"" + absOutStr.replace("\"", "\\\"") + "\" && { "
-                + inner + " ; } >> \"" + logPath(absOutStr, execution.getId()) + "\" 2>&1";
+                + inner + " ; }"
+                + (redirectLog ? " >> \"" + logPath(absOutStr, logExecId) + "\" 2>&1" : "");
         return "nsenter -t 1 -m -u -i -p -n --preserve-credentials /bin/bash -c '"
                 + body.replace("'", "'\"'\"'") + "'";
     }

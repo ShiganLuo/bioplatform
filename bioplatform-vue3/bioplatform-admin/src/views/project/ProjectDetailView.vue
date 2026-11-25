@@ -415,6 +415,16 @@
             <el-button type="success" link @click="handleExecute(row as Pipeline)">执行</el-button>
             <el-button v-if="isRunning(row as Pipeline)" type="danger" link @click="handleCancel(row as Pipeline)">取消</el-button>
             <el-button type="info" link @click="router.push('/executions')">记录</el-button>
+            <el-dropdown trigger="click" style="margin: 0 8px" @command="(cmd: string) => handleMaintain(row as Pipeline, cmd)">
+              <el-button type="warning" link>维护</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="dry-run">预检 (dry-run)</el-dropdown-item>
+                  <el-dropdown-item command="unlock">解锁 (--unlock)</el-dropdown-item>
+                  <el-dropdown-item command="delete-incomplete" divided>清理不完整输出</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-button type="danger" link @click="handleDelete(row as Pipeline)">删除</el-button>
           </template>
         </el-table-column>
@@ -432,6 +442,12 @@
         />
       </div>
     </el-card>
+
+    <!-- 维护操作输出(2026-11-24 方案二) -->
+    <el-dialog v-model="maintainVisible" title="维护操作输出" width="720px" top="6vh">
+      <div style="font-size: 12px; color: #909399; margin-bottom: 8px;">{{ maintainTitle }}</div>
+      <pre :style="{ background: '#f5f7fa', borderRadius: '4px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', maxHeight: '55vh', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0' }">{{ maintainOutput }}</pre>
+    </el-dialog>
 
     <!-- 分析结果文件浏览 -->
     <el-card class="table-card">
@@ -776,7 +792,7 @@ import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
 import { listTemplates, getTemplate, getMetaTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate, MetaTemplate } from '@/api/templateApi'
-import { executePipeline, updatePipeline } from '@/api/pipelineApi'
+import { executePipeline, updatePipeline, maintainPipeline } from '@/api/pipelineApi'
 import { listExecutions, cancelExecution } from '@/api/executionApi'
 import type { Execution } from '@/api/executionApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -1129,6 +1145,43 @@ const addCustomParam = () => customParams.value.push({ path: '', override: '' })
 // --- 执行:状态列/执行对话框/取消 ---
 const latestExecutions = ref<Record<number, Execution>>({})
 let execPollTimer: ReturnType<typeof setInterval> | null = null
+
+// --- 维护操作(2026-11-24 方案二):dry-run 预检 / unlock 解锁 / 清理不完整输出 ---
+const maintainVisible = ref(false)
+const maintainTitle = ref('')
+const maintainOutput = ref('')
+
+const handleMaintain = async (row: Pipeline, mode: string) => {
+  const titles: Record<string, string> = {
+    'dry-run': '预检 (snakemake --dry-run,只读)',
+    'unlock': '解锁 (snakemake --unlock)',
+    'delete-incomplete': '清理不完整输出 (--delete-incomplete,删除文件)'
+  }
+  if (mode !== 'dry-run') {
+    try {
+      await ElMessageBox.confirm(
+        mode === 'delete-incomplete'
+          ? `将删除分析"${row.name}"输出目录中被标记为不完整的文件,不可恢复。确认执行?`
+          : `将对分析"${row.name}"执行解锁(--unlock)。确认执行?`,
+        '维护操作确认',
+        { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' }
+      )
+    } catch { return }
+  }
+  maintainTitle.value = titles[mode] || mode
+  maintainOutput.value = '执行中…'
+  maintainVisible.value = true
+  try {
+    const out = await maintainPipeline(row.id!, mode)
+    maintainOutput.value = typeof out === 'string' && out.trim() ? out : '(无输出)'
+    ElMessage.success('维护操作完成')
+    loadAnalyses()
+    loadExecutionStatuses()
+  } catch (e) {
+    maintainOutput.value = '执行失败: ' + (e instanceof Error ? e.message : String(e))
+    ElMessage.error('维护操作失败')
+  }
+}
 
 const loadExecutionStatuses = async () => {
   // keep-alive 下切走页面 projectId 会变 NaN(route.params.id 消失),守卫掉避免每 10s 打一个 500
