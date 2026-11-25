@@ -9,6 +9,7 @@
         <result column="name" property="name"/>
         <result column="meta_mode" property="metaMode"/>
         <result column="meta_content" property="metaContent"/>
+        <result column="comparison_json" property="comparisonJson"/>
         <result column="description" property="description"/>
         <result column="created_by" property="createdBy"/>
         <result column="created_at" property="createdAt"/>
@@ -16,13 +17,13 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        `id`, `project_id`, `name`, `meta_mode`, `meta_content`,
+        `id`, `project_id`, `name`, `meta_mode`, `meta_content`, `comparison_json`,
         `description`, `created_by`, `created_at`, `updated_at`
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `sample_meta` (`project_id`, `name`, `meta_mode`, `meta_content`, `description`, `created_by`)
-        VALUES (#{projectId}, #{name}, #{metaMode}, #{metaContent}, #{description}, #{createdBy})
+        INSERT INTO `sample_meta` (`project_id`, `name`, `meta_mode`, `meta_content`, `comparison_json`, `description`, `created_by`)
+        VALUES (#{projectId}, #{name}, #{metaMode}, #{metaContent}, #{comparisonJson}, #{description}, #{createdBy})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -41,7 +42,7 @@
     <update id="updateById">
         UPDATE `sample_meta`
         SET `name` = #{name}, `meta_mode` = #{metaMode}, `meta_content` = #{metaContent},
-            `description` = #{description}
+            `comparison_json` = #{comparisonJson}, `description` = #{description}
         WHERE `id` = #{id}
     </update>
 

@@ -189,9 +189,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleEditMeta(row)">编辑</el-button>
+            <el-button type="warning" link size="small" @click="openDesign(row as SampleMeta)">实验设计</el-button>
             <el-button type="danger" link size="small" @click="handleDeleteMeta(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -434,7 +435,56 @@
       </div>
     </el-card>
 
-    <!-- 分析维护(2026-11-25 表单化:操作与参数可见可改) -->
+    <!-- 实验设计关系(2026-11-25):样本信息的 comparison 编辑,产出 Omics --comparison JSON -->
+    <el-dialog v-model="designVisible" title="实验设计关系" width="920px" top="5vh">
+      <div class="exec-hint" style="margin-bottom: 10px">
+        定义对比关系(对照/实验样本分组),保存后可作为流程执行的 --comparison 参数;
+        样本名取自该样本信息的 Meta TSV(sample_id 列)。组名可留空。
+      </div>
+      <el-table :data="designRows" size="small" border>
+        <el-table-column label="对比名称" width="180">
+          <template #default="{ row }">
+            <el-input v-model="row.comparison_id" placeholder="如 WT_vs_KO" />
+          </template>
+        </el-table-column>
+        <el-table-column label="对照组名(可选)" width="140">
+          <template #default="{ row }">
+            <el-input v-model="row.control_group_name" placeholder="可留空" />
+          </template>
+        </el-table-column>
+        <el-table-column label="实验组名(可选)" width="140">
+          <template #default="{ row }">
+            <el-input v-model="row.experiment_group_name" placeholder="可留空" />
+          </template>
+        </el-table-column>
+        <el-table-column label="对照样本" min-width="180">
+          <template #default="{ row }">
+            <el-select v-model="row.control_samples" multiple filterable style="width: 100%" placeholder="选择样本">
+              <el-option v-for="s in designSampleNames" :key="s" :label="s" :value="s" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="实验样本" min-width="180">
+          <template #default="{ row }">
+            <el-select v-model="row.experiment_samples" multiple filterable style="width: 100%" placeholder="选择样本">
+              <el-option v-for="s in designSampleNames" :key="s" :label="s" :value="s" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="70">
+          <template #default="{ $index }">
+            <el-button type="danger" link size="small" @click="designRows.splice($index, 1)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-button size="small" style="margin-top: 10px" @click="addDesignRow">+ 添加对比</el-button>
+      <template #footer>
+        <el-button @click="designVisible = false">取消</el-button>
+        <el-button type="primary" :loading="designSaving" @click="saveDesign">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 维护操作输出(2026-11-25 表单化:操作与参数可见可改) -->
     <el-dialog v-model="maintainVisible" title="分析维护" width="760px" top="6vh">
       <div v-if="maintainRow">
         <div style="font-weight: 600; margin-bottom: 8px;">{{ maintainRow.name }}</div>
@@ -1159,6 +1209,96 @@ const builtExtraParams = computed(() => {
 })
 
 const addCustomParam = () => customParams.value.push({ path: '', override: '' })
+
+// --- 实验设计关系(2026-11-25):样本信息的 comparison 编辑(Omics --comparison JSON) ---
+interface DesignRow {
+  comparison_id: string
+  control_group_name: string
+  experiment_group_name: string
+  control_samples: string[]
+  experiment_samples: string[]
+}
+const designVisible = ref(false)
+const designSaving = ref(false)
+const designMeta = ref<SampleMeta | null>(null)
+const designRows = ref<DesignRow[]>([])
+const designSampleNames = ref<string[]>([])
+
+const parseSampleNames = (content: string): string[] => {
+  if (!content) return []
+  const lines = content.trim().split('\n')
+  if (lines.length < 2) return []
+  const header = lines[0].split('\t')
+  let idx = header.findIndex(h => h.trim().toLowerCase() === 'sample_id')
+  if (idx < 0) idx = 0
+  const names: string[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const v = (lines[i].split('\t')[idx] || '').trim()
+    if (v) names.push(v)
+  }
+  return names
+}
+
+const openDesign = (row: SampleMeta) => {
+  designMeta.value = row
+  designSampleNames.value = parseSampleNames(row.metaContent)
+  try {
+    const parsed = row.comparisonJson ? JSON.parse(row.comparisonJson) : []
+    designRows.value = (Array.isArray(parsed) ? parsed : []).map((c: Record<string, unknown>) => ({
+      comparison_id: String(c.comparison_id || ''),
+      control_group_name: String(c.control_group_name || ''),
+      experiment_group_name: String(c.experiment_group_name || ''),
+      control_samples: Array.isArray(c.control_samples) ? [...(c.control_samples as string[])] : [],
+      experiment_samples: Array.isArray(c.experiment_samples) ? [...(c.experiment_samples as string[])] : []
+    }))
+  } catch {
+    designRows.value = []
+  }
+  designVisible.value = true
+}
+
+const addDesignRow = () => {
+  designRows.value.push({ comparison_id: '', control_group_name: '', experiment_group_name: '', control_samples: [], experiment_samples: [] })
+}
+
+const saveDesign = async () => {
+  if (!designMeta.value) return
+  const ids = new Set<string>()
+  const known = new Set(designSampleNames.value)
+  for (const r of designRows.value) {
+    const cid = r.comparison_id.trim()
+    if (!cid) { ElMessage.warning('对比名称不能为空'); return }
+    if (ids.has(cid)) { ElMessage.warning(`对比名称重复: ${cid}`); return }
+    ids.add(cid)
+    if (!r.control_samples.length || !r.experiment_samples.length) {
+      ElMessage.warning(`[${cid}] 对照样本与实验样本各至少 1 个`); return
+    }
+    for (const s of [...r.control_samples, ...r.experiment_samples]) {
+      if (!known.has(s)) { ElMessage.warning(`[${cid}] 样本 ${s} 不在该样本信息中`); return }
+    }
+  }
+  designSaving.value = true
+  try {
+    const payload = designRows.value.map(r => {
+      const item: Record<string, unknown> = {
+        comparison_id: r.comparison_id.trim(),
+        control_samples: r.control_samples,
+        experiment_samples: r.experiment_samples
+      }
+      if (r.control_group_name.trim()) item.control_group_name = r.control_group_name.trim()
+      if (r.experiment_group_name.trim()) item.experiment_group_name = r.experiment_group_name.trim()
+      return item
+    })
+    await updateSampleMeta({ ...designMeta.value, comparisonJson: payload.length ? JSON.stringify(payload) : undefined })
+    ElMessage.success('实验设计关系已保存')
+    designVisible.value = false
+    loadMetaList()
+  } catch (e) {
+    ElMessage.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
+  } finally {
+    designSaving.value = false
+  }
+}
 
 // --- 执行:状态列/执行对话框/取消 ---
 const latestExecutions = ref<Record<number, Execution>>({})

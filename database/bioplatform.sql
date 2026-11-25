@@ -119,6 +119,7 @@ CREATE TABLE `sample_meta` (
     `name`         VARCHAR(128) NOT NULL COMMENT 'meta名称，如 RNA-seq WT vs KO',
     `meta_mode`    VARCHAR(32)  NOT NULL DEFAULT 'fastq' COMMENT '模式: fastq/pacbio/ms/scrnaseq',
     `meta_content` TEXT         NOT NULL COMMENT 'TSV内容',
+    `comparison_json` TEXT      DEFAULT NULL COMMENT '实验设计关系JSON(Omics --comparison 列表形态)',
     `description`  VARCHAR(512) DEFAULT NULL,
     `created_by`   BIGINT       DEFAULT NULL,
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
