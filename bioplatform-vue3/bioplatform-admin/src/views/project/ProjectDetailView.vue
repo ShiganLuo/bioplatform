@@ -421,7 +421,7 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="dry-run">预检 (dry-run)</el-dropdown-item>
                   <el-dropdown-item command="unlock">解锁 (--unlock)</el-dropdown-item>
-                  <el-dropdown-item command="delete-incomplete" divided>清理不完整输出</el-dropdown-item>
+                  <el-dropdown-item command="delete-temp-output" divided>清理临时文件</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -1155,13 +1155,13 @@ const handleMaintain = async (row: Pipeline, mode: string) => {
   const titles: Record<string, string> = {
     'dry-run': '预检 (snakemake --dry-run,只读)',
     'unlock': '解锁 (snakemake --unlock)',
-    'delete-incomplete': '清理不完整输出 (--delete-incomplete,删除文件)'
+    'delete-temp-output': '清理临时文件 (--delete-temp-output)'
   }
   if (mode !== 'dry-run') {
     try {
       await ElMessageBox.confirm(
-        mode === 'delete-incomplete'
-          ? `将删除分析"${row.name}"输出目录中被标记为不完整的文件,不可恢复。确认执行?`
+        mode === 'delete-temp-output'
+          ? `将清理分析"${row.name}"输出目录中不再需要的临时文件。确认执行?`
           : `将对分析"${row.name}"执行解锁(--unlock)。确认执行?`,
         '维护操作确认',
         { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' }

@@ -229,27 +229,53 @@ public class PipelineTaskDispatcher {
                 modeFlags = "--unlock";
                 smkTail = null;
             }
-            case "delete-incomplete" -> {
+            case "delete-temp-output" -> {
                 modeFlags = null;
-                smkTail = "--delete-incomplete --rerun-incomplete";
+                // snakemake 9.x 已无 --delete-incomplete(不完整由 --rerun-incomplete 自愈,
+                // 即方案一);清理类开关实存:--delete-temp-output/--delete-all-output(不暴露)
+                smkTail = "--delete-temp-output";
             }
             default -> throw new IllegalArgumentException("未知维护操作: " + mode);
         }
         String body = assembleOmicsRun(template, pipeline, String.valueOf(pipeline.getId()),
                 pipeline.getProjectId() + "/stage_maintain_" + pipeline.getId(),
                 null, null, modeFlags, smkTail, false);
-        // 即时执行(2026-11-24):executeShellSync 自带 nsenter 外壳——只传裸 body;
-        // 输出经 worker 捕获流返回(维护命令不落 task_output)
+        // 输出落 <输出目录>/maintain.log 由 backend 直读:worker shell 通道有 10KB 输出帽
+        // (executeShellSync),预检报告会被截断(2026-11-24 e2e 实踩)。命令以 root 外壳
+        // 重定向开文件,尾句 chown --reference 兜底属主。
+        String absOut = resolveOutputRoot() + "/" + pipeline.getId();
+        String cmd = body + " > \"" + absOut + "/maintain.log\" 2>&1";
+        // executeShellSync 自带 nsenter 外壳——只传裸 body;
         WorkerRegistry.WorkerInfo worker = selectWorker();
         if (worker == null) {
             throw new IllegalStateException("当前无可用计算节点");
         }
-        Map<String, Object> r = workerClient.executeShell(worker.getUrl(), body, 300, null);
-        String out = r.get("output") == null ? "" : String.valueOf(r.get("output"));
+        Map<String, Object> r = workerClient.executeShell(worker.getUrl(), cmd, 300, null);
+        String out = readMaintainLog(absOut);
+        if (out == null || out.isBlank()) {
+            out = r.get("output") == null ? "" : String.valueOf(r.get("output"));
+        }
+        // 非零退出不当失败返回:预检/清理类操作的非零可能是"有工作要做"等语义,
+        // 报告本身才是交付物;退出码附在尾行
         if (!Boolean.TRUE.equals(r.get("success"))) {
-            throw new IllegalStateException("命令退出码 " + r.get("exit_code") + ":\n" + out);
+            out = out + "\n[命令退出码 " + r.get("exit_code") + "]";
         }
         return out;
+    }
+
+    /** 维护输出日志直读(backend 经 /host RO 挂载;绕开 worker 通道 10KB 输出帽) */
+    private String readMaintainLog(String absOut) {
+        try {
+            java.nio.file.Path f = com.bioplatform.common.util.HostPathUtil
+                    .resolveExisting(absOut + "/maintain.log");
+            if (f == null) {
+                return null;
+            }
+            String text = java.nio.file.Files.readString(f);
+            return text.length() > 200_000 ? "…(输出过长已截断)\n" + text.substring(text.length() - 200_000) : text;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String assembleOmicsRun(WorkflowTemplate template, Pipeline pipeline, String outputDirRel,
