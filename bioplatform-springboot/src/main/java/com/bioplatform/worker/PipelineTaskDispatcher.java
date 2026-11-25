@@ -206,9 +206,9 @@ public class PipelineTaskDispatcher {
     private String buildOmicsCommand(WorkflowTemplate template, Pipeline pipeline, PipelineExecution execution) throws Exception {
         // 方案一(2026-11-24):--snakemake-args --rerun-incomplete——半成品输出自动重跑,
         // 根除 IncompleteFilesException 秒败类问题(仅 run.py;run_module.py 无透传)
-        return assembleOmicsRun(template, pipeline, String.valueOf(execution.getPipelineId()),
+        return nsenterWrap(assembleOmicsRun(template, pipeline, String.valueOf(execution.getPipelineId()),
                 execution.getProjectId() + "/stage_exec_" + execution.getId(),
-                execution.getId(), execution.getId(), null, "--rerun-incomplete", true);
+                execution.getId(), execution.getId(), null, "--rerun-incomplete", true));
     }
 
     /**
@@ -235,9 +235,21 @@ public class PipelineTaskDispatcher {
             }
             default -> throw new IllegalArgumentException("未知维护操作: " + mode);
         }
-        return assembleOmicsRun(template, pipeline, String.valueOf(pipeline.getId()),
+        String body = assembleOmicsRun(template, pipeline, String.valueOf(pipeline.getId()),
                 pipeline.getProjectId() + "/stage_maintain_" + pipeline.getId(),
                 null, null, modeFlags, smkTail, false);
+        // 即时执行(2026-11-24):executeShellSync 自带 nsenter 外壳——只传裸 body;
+        // 输出经 worker 捕获流返回(维护命令不落 task_output)
+        WorkerRegistry.WorkerInfo worker = selectWorker();
+        if (worker == null) {
+            throw new IllegalStateException("当前无可用计算节点");
+        }
+        Map<String, Object> r = workerClient.executeShell(worker.getUrl(), body, 300, null);
+        String out = r.get("output") == null ? "" : String.valueOf(r.get("output"));
+        if (!Boolean.TRUE.equals(r.get("success"))) {
+            throw new IllegalStateException("命令退出码 " + r.get("exit_code") + ":\n" + out);
+        }
+        return out;
     }
 
     private String assembleOmicsRun(WorkflowTemplate template, Pipeline pipeline, String outputDirRel,
@@ -387,6 +399,12 @@ public class PipelineTaskDispatcher {
         String body = "mkdir -p \"" + absOutStr.replace("\"", "\\\"") + "\" && { "
                 + inner + " ; }"
                 + (redirectLog ? " >> \"" + logPath(absOutStr, logExecId) + "\" 2>&1" : "");
+        return body;
+    }
+
+    /** nsenter 外壳(任务提交路径用)。注意 worker 的 executeShellSync 自带 nsenter,
+     *  经 shell 通道执行的命令只能传裸 body,不能重复包裹 */
+    private String nsenterWrap(String body) {
         return "nsenter -t 1 -m -u -i -p -n --preserve-credentials /bin/bash -c '"
                 + body.replace("'", "'\"'\"'") + "'";
     }
