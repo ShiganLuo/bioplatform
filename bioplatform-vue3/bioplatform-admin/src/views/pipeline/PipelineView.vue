@@ -51,9 +51,11 @@
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
         <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column label="所属项目" width="120">
+        <el-table-column label="代表项目" width="120">
           <template #default="{ row }">
-            <span v-if="getProjectName(row.projectId)">{{ getProjectName(row.projectId) }}</span>
+            <el-link v-if="row.projectId && getProjectName(row.projectId)" type="primary" :underline="false" @click="goProject(row.projectId)">
+              {{ getProjectName(row.projectId) }}
+            </el-link>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
@@ -153,7 +155,7 @@
           <el-form-item label="流程名称">
             <el-input v-model="formData.name" placeholder="请输入流程名称" />
           </el-form-item>
-          <el-form-item label="所属项目">
+          <el-form-item label="代表项目">
             <el-select v-model="formData.projectId" placeholder="请选择项目（可选）" clearable style="width: 100%">
               <el-option v-for="p in projectList" :key="p.id" :label="p.name" :value="p.id" />
             </el-select>
@@ -198,7 +200,7 @@
         <el-form-item label="流程名称">
           <el-input v-model="editData.name" />
         </el-form-item>
-        <el-form-item label="所属项目">
+        <el-form-item label="代表项目">
           <el-select v-model="editData.projectId" placeholder="请选择项目（可选）" clearable style="width: 100%">
             <el-option v-for="p in projectList" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
@@ -248,7 +250,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Monitor, Connection } from '@element-plus/icons-vue'
 import { listPipelines, createPipeline, updatePipeline, deletePipeline, executePipeline, getPipeline } from '@/api/pipelineApi'
@@ -260,6 +262,13 @@ import type { Project } from '@/api/projectApi'
 
 const loading = ref(false)
 const route = useRoute()
+const router = useRouter()
+
+// 跳转项目详情(2026-11-25):项目详情走读校验;列内名称仅对可访问项目解析,
+// 不可访问显示"-"且不给链接(不泄漏存在性)
+const goProject = (projectId: number) => {
+  router.push(`/projects/${projectId}`)
+}
 const submitLoading = ref(false)
 const executeLoading = ref(false)
 const templateLoading = ref(false)
