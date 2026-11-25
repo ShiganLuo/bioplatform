@@ -212,31 +212,55 @@ public class PipelineTaskDispatcher {
     }
 
     /**
-     * 维护操作(2026-11-24 方案二):预检 dry-run / 解锁 unlock / 清理不完整输出
-     * delete-incomplete。即时同步执行(≤5 分钟),输出直接返回给调用方,不建执行
-     * 记录(审计走 Controller @OperLog);输出不落 task_output(经 worker 捕获流返回)。
-     * 仅 pipeline 型(run.py)模板支持全部模式;task 型(run_module.py)仅支持 dry-run。
+     * 维护操作(2026-11-24 方案二):预检 dry-run / 解锁 unlock / 清理临时文件
+     * delete-temp-output / 触碰时间戳 touch / 清理元数据 cleanup-metadata(需 extra=文件路径)。
+     * 只收"终态型"操作(snakemake 执行即退出);--forcerun 会真跑工作流、属执行语义,
+     * 故意不进维护通道(2026-11-25 安全复核撤下)。即时同步执行(≤5 分钟),
+     * 输出经 <输出目录>/maintain.log 直读返回,不建执行记录(审计走 Controller @OperLog)。
+     * 开关按模板型别映射:run.py 原生 --dry-run/--unlock/--touch;
+     * run_module.py 仅原生 --dry-run/--list-rules,其余经 --snakemake-args 透传
+     * (两脚本均有 REMAINDER 透传,2026-11-25 复核)。
      */
-    public String runMaintenance(Pipeline pipeline, WorkflowTemplate template, String mode) throws Exception {
-        String modeFlags;
-        String smkTail;
+    public String runMaintenance(Pipeline pipeline, WorkflowTemplate template, String mode, String extra) throws Exception {
+        boolean pipelineType = "pipeline".equals(template.getType());
+        String nativeFlags;
+        StringBuilder smk = new StringBuilder();
         switch (mode) {
             case "dry-run" -> {
-                modeFlags = "--dry-run";
-                smkTail = "--rerun-incomplete";
+                nativeFlags = "--dry-run";
+                smk.append("--rerun-incomplete");
             }
             case "unlock" -> {
-                modeFlags = "--unlock";
-                smkTail = null;
+                nativeFlags = pipelineType ? "--unlock" : null;
+                if (!pipelineType) smk.append("--unlock");
             }
             case "delete-temp-output" -> {
-                modeFlags = null;
-                // snakemake 9.x 已无 --delete-incomplete(不完整由 --rerun-incomplete 自愈,
-                // 即方案一);清理类开关实存:--delete-temp-output/--delete-all-output(不暴露)
-                smkTail = "--delete-temp-output";
+                nativeFlags = null;
+                smk.append("--delete-temp-output");
+            }
+            case "touch" -> {
+                nativeFlags = pipelineType ? "--touch" : null;
+                if (!pipelineType) smk.append("--touch");
+            }
+            case "cleanup-metadata" -> {
+                String[] files = extra == null || extra.isBlank() ? new String[0] : extra.trim().split("\\s+");
+                if (files.length == 0) {
+                    throw new IllegalArgumentException("cleanup-metadata 需要文件路径(extra)");
+                }
+                StringBuilder fs = new StringBuilder();
+                for (String f : files) {
+                    if (!SAFE_META_FILE.matcher(f).matches()) {
+                        throw new IllegalArgumentException("文件路径不安全: " + f);
+                    }
+                    fs.append(' ').append(f);
+                }
+                nativeFlags = null;
+                smk.append("--cleanup-metadata").append(fs);
             }
             default -> throw new IllegalArgumentException("未知维护操作: " + mode);
         }
+        String modeFlags = nativeFlags;
+        String smkTail = smk.length() == 0 ? null : smk.toString();
         String body = assembleOmicsRun(template, pipeline, String.valueOf(pipeline.getId()),
                 pipeline.getProjectId() + "/stage_maintain_" + pipeline.getId(),
                 null, null, modeFlags, smkTail, false);
@@ -341,10 +365,14 @@ public class PipelineTaskDispatcher {
                     run.append(" \"").append(escDq(s)).append('"');
                 }
             }
-            // run_module.py 无 --snakemake-args 透传,smkTail 故意不拼;
-            // modeFlags(--dry-run 等)是 run_module.py 原生支持的开关
+            // run_module.py 无原生维护开关,但 --snakemake-args REMAINDER 透传齐备
+            // (2026-11-25 复核:cmd += args.snakemake_args)——modeFlags 仅原生开关,
+            // smkTail 两型一致透传
             if (modeFlags != null) {
                 run.append(' ').append(modeFlags);
+            }
+            if (smkTail != null) {
+                run.append(" --snakemake-args ").append(smkTail);
             }
         }
 
@@ -562,6 +590,10 @@ public class PipelineTaskDispatcher {
     /** 参数 key 安全字符集(dot-notation CLI 参数名,防命令注入,2026-11-24) */
     private static final java.util.regex.Pattern SAFE_PARAM_KEY =
             java.util.regex.Pattern.compile("^[A-Za-z0-9_][A-Za-z0-9_.\\-]*$");
+
+    /** 维护操作文件路径字符集(cleanup-metadata 的 extra,防命令注入) */
+    private static final java.util.regex.Pattern SAFE_META_FILE =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9._/\\-]+$");
 
     /** 双引号内转义(外层整体再以单引号包裹给 bash -c) */
     private String escDq(String s) {

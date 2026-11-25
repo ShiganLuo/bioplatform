@@ -138,6 +138,7 @@ public class AdminPipelineController {
     public ApiResponse<String> maintain(@PathVariable Long id,
                                         @RequestBody Map<String, String> params) {
         String mode = params == null ? null : params.get("mode");
-        return ApiResponse.success(pipelineService.maintainPipeline(id, mode));
+        String extra = params == null ? null : params.get("extra");
+        return ApiResponse.success(pipelineService.maintainPipeline(id, mode, extra));
     }
 }

@@ -37,6 +37,6 @@ public interface PipelineService {
 
     PipelineExecution executePipeline(Long pipelineId, Long projectId, String inputParams, Long userId);
 
-    /** 维护操作(2026-11-24 方案二):dry-run/unlock/delete-incomplete,返回输出文本 */
-    String maintainPipeline(Long pipelineId, String mode);
+    /** 维护操作(2026-11-24 方案二):dry-run/unlock/delete-temp-output/touch/forcerun/cleanup-metadata,返回输出文本 */
+    String maintainPipeline(Long pipelineId, String mode, String extra);
 }

@@ -421,7 +421,9 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="dry-run">预检 (dry-run)</el-dropdown-item>
                   <el-dropdown-item command="unlock">解锁 (--unlock)</el-dropdown-item>
-                  <el-dropdown-item command="delete-temp-output" divided>清理临时文件</el-dropdown-item>
+                  <el-dropdown-item command="delete-temp-output">清理临时文件</el-dropdown-item>
+                  <el-dropdown-item command="touch" divided>触碰时间戳 (--touch)</el-dropdown-item>
+                  <el-dropdown-item command="cleanup-metadata">清理元数据…</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -1155,24 +1157,44 @@ const handleMaintain = async (row: Pipeline, mode: string) => {
   const titles: Record<string, string> = {
     'dry-run': '预检 (snakemake --dry-run,只读)',
     'unlock': '解锁 (snakemake --unlock)',
-    'delete-temp-output': '清理临时文件 (--delete-temp-output)'
+    'delete-temp-output': '清理临时文件 (--delete-temp-output)',
+    'touch': '触碰时间戳 (--touch)',
+    'cleanup-metadata': '清理元数据 (--cleanup-metadata)'
   }
-  if (mode !== 'dry-run') {
+  const confirms: Record<string, string> = {
+    'unlock': `将对分析"${row.name}"执行解锁(--unlock)。确认执行?`,
+    'delete-temp-output': `将清理分析"${row.name}"输出目录中不再需要的临时文件。确认执行?`,
+    'touch': `将触碰分析"${row.name}"输出文件的时间戳(--touch,可能导致下游重跑)。确认执行?`,
+    'cleanup-metadata': `将清理分析"${row.name}"指定文件的 snakemake 元数据。确认执行?`
+  }
+  // 需要参数的维护操作先取输入(文件路径,后端按白名单校验)
+  let extra = ''
+  if (mode === 'cleanup-metadata') {
     try {
-      await ElMessageBox.confirm(
-        mode === 'delete-temp-output'
-          ? `将清理分析"${row.name}"输出目录中不再需要的临时文件。确认执行?`
-          : `将对分析"${row.name}"执行解锁(--unlock)。确认执行?`,
-        '维护操作确认',
-        { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' }
+      const { value } = await ElMessageBox.prompt(
+        '输入要清理元数据的文件路径(相对输出目录,空格分隔):',
+        titles[mode] || mode,
+        {
+          inputPattern: /^[A-Za-z0-9._/\-\s]+$/,
+          inputErrorMessage: '含非法字符',
+          confirmButtonText: '下一步',
+          cancelButtonText: '取消'
+        }
       )
+      extra = (value || '').trim()
+    } catch { return }
+  }
+  if (confirms[mode]) {
+    try {
+      await ElMessageBox.confirm(confirms[mode], '维护操作确认',
+        { type: 'warning', confirmButtonText: '执行', cancelButtonText: '取消' })
     } catch { return }
   }
   maintainTitle.value = titles[mode] || mode
   maintainOutput.value = '执行中…'
   maintainVisible.value = true
   try {
-    const out = await maintainPipeline(row.id!, mode)
+    const out = await maintainPipeline(row.id!, mode, extra)
     maintainOutput.value = typeof out === 'string' && out.trim() ? out : '(无输出)'
     ElMessage.success('维护操作完成')
     loadAnalyses()

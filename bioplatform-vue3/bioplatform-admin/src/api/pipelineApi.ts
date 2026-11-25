@@ -58,7 +58,7 @@ export function executePipeline(id: number, params?: Record<string, any>) {
   return http.post(`/api/admin/pipelines/${id}/execute`, params)
 }
 
-/** 分析维护(2026-11-24):dry-run 预检 / unlock 解锁 / delete-incomplete 清理不完整输出,返回输出文本 */
-export function maintainPipeline(id: number, mode: string) {
-  return http.post<string>(`/api/admin/pipelines/${id}/maintain`, { mode })
+/** 分析维护(2026-11-24):dry-run/unlock/delete-temp-output/touch/forcerun/cleanup-metadata;extra=规则名或文件路径 */
+export function maintainPipeline(id: number, mode: string, extra?: string) {
+  return http.post<string>(`/api/admin/pipelines/${id}/maintain`, { mode, extra: extra || '' })
 }

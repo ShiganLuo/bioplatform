@@ -215,7 +215,7 @@ public class PipelineServiceImpl implements PipelineService {
     }
 
     @Override
-    public String maintainPipeline(Long pipelineId, String mode) {
+    public String maintainPipeline(Long pipelineId, String mode, String extra) {
         if (mode == null || mode.isBlank()) {
             throw new IllegalArgumentException("缺少维护操作类型(mode)");
         }
@@ -239,13 +239,10 @@ public class PipelineServiceImpl implements PipelineService {
         if (template == null) {
             throw new IllegalArgumentException("模板不存在");
         }
-        if (!"pipeline".equals(template.getType()) && !"dry-run".equals(mode)) {
-            throw new IllegalArgumentException("模块型模板仅支持预检(dry-run)");
-        }
         try {
-            String out = taskDispatcher.runMaintenance(pipeline, template, mode);
+            String out = taskDispatcher.runMaintenance(pipeline, template, mode, extra);
             return out == null ? ""
-                    : (out.length() > 100_000 ? "…(输出过长已截断)\n" + out.substring(out.length() - 100_000) : out);
+                    : (out.length() > 200_000 ? "…(输出过长已截断)\n" + out.substring(out.length() - 200_000) : out);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
