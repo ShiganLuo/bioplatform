@@ -30,13 +30,17 @@ public final class OmicsRuleNames {
             Map.entry("cutadapt_paired", "trimming_Paired"),
             Map.entry("cutadapt_single", "trimming_Single"));
 
-    /** 文件名带 contrast 前缀(<contrast>.<suffix>)的按后缀映射 */
+    /** 文件名带 contrast 前缀(<contrast>.<suffix>)的按后缀映射。
+     *  .TEcount/.TElocal: 2026-11-26 用户拆开 polygenomes DESeq2 两条规则的
+     *  benchmark 路径后的新命名({contrast}.TEcount/.TElocal),钉到真规则名。 */
     private static final Map<String, String> SUFFIX_ALIASES = Map.ofEntries(
             Map.entry(".go_kegg", "function_go_kegg"),
             Map.entry(".gsea", "function_gsea"),
             Map.entry(".manhattan", "DESeq2_TElocal_manhattan"),
             Map.entry(".locus_box", "DESeq2_TElocal_locus_boxplot"),
-            Map.entry(".subfamily_bar", "DESeq2_TElocal_subfamily_bar"));
+            Map.entry(".subfamily_bar", "DESeq2_TElocal_subfamily_bar"),
+            Map.entry(".TEcount", "DESeq2_TEcount"),
+            Map.entry(".TElocal", "DESeq2_TElocal"));
 
     /** PE/SE 两条规则共用同一 benchmark 文件名:(paired, single) */
     private static final Map<String, String[]> LAYOUT_ALIASES = Map.of(
@@ -69,7 +73,28 @@ public final class OmicsRuleNames {
                 return e.getValue();
             }
         }
+        // 对比名文件名(<contrast>,如 2iL_vs_SL):主干是 comparison_id 不是规则名。
+        // 规则取 log/group/<seg>/ 的模块段(如 DESeq2)——裸对比文件由 DESeq2_TEcount/
+        // DESeq2_TElocal 共写同一 benchmark 路径(.smk 声明撞名),无法从文件区分,
+        // 家族名是诚实标注;calibrate_resources.py resolve_rule 同构同步。
+        if (base.contains("_vs_")) {
+            String seg = groupRuleFromPath(fullPath);
+            if (seg != null) {
+                return seg;
+            }
+        }
         return base;
+    }
+
+    /** Omics log 布局 log/group/<seg>/... 的模块/规则段;无该结构返回 null */
+    private static String groupRuleFromPath(String fullPath) {
+        String[] parts = fullPath.replace('\\', '/').split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if ("group".equals(parts[i]) && i + 1 < parts.length - 1) {
+                return parts[i + 1];
+            }
+        }
+        return null;
     }
 
     /** raw.json → {sampleId: "paired"/"single"};读不到返回空表 */
