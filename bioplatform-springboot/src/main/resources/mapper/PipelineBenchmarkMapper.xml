@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bioplatform.mapper.PipelineBenchmarkMapper">
+
+    <resultMap id="BaseResultMap" type="com.bioplatform.entity.PipelineBenchmark">
+        <id column="id" property="id"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="pipeline_id" property="pipelineId"/>
+        <result column="workflow" property="workflow"/>
+        <result column="rule_name" property="ruleName"/>
+        <result column="sample" property="sample"/>
+        <result column="genome" property="genome"/>
+        <result column="attempt" property="attempt"/>
+        <result column="censored" property="censored"/>
+        <result column="seconds" property="seconds"/>
+        <result column="max_rss_mb" property="maxRssMb"/>
+        <result column="max_vms_mb" property="maxVmsMb"/>
+        <result column="max_uss_mb" property="maxUssMb"/>
+        <result column="max_pss_mb" property="maxPssMb"/>
+        <result column="io_in" property="ioIn"/>
+        <result column="io_out" property="ioOut"/>
+        <result column="mean_load" property="meanLoad"/>
+        <result column="cpu_time" property="cpuTime"/>
+        <result column="benchmark_path" property="benchmarkPath"/>
+        <result column="workflow_version" property="workflowVersion"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="execution_started_at" property="executionStartedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        `id`, `execution_id`, `pipeline_id`, `workflow`, `rule_name`,
+        `sample`, `genome`, `attempt`, `censored`,
+        `seconds`, `max_rss_mb`, `max_vms_mb`, `max_uss_mb`, `max_pss_mb`,
+        `io_in`, `io_out`, `mean_load`, `cpu_time`,
+        `benchmark_path`, `workflow_version`, `created_at`
+    </sql>
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO `pipeline_benchmarks`
+            (`execution_id`, `pipeline_id`, `workflow`, `rule_name`, `sample`, `genome`,
+             `attempt`, `censored`, `seconds`, `max_rss_mb`, `max_vms_mb`, `max_uss_mb`,
+             `max_pss_mb`, `io_in`, `io_out`, `mean_load`, `cpu_time`,
+             `benchmark_path`, `workflow_version`)
+        VALUES
+            (#{executionId}, #{pipelineId}, #{workflow}, #{ruleName}, #{sample}, #{genome},
+             #{attempt}, #{censored}, #{seconds}, #{maxRssMb}, #{maxVmsMb}, #{maxUssMb},
+             #{maxPssMb}, #{ioIn}, #{ioOut}, #{meanLoad}, #{cpuTime},
+             #{benchmarkPath}, #{workflowVersion})
+    </insert>
+
+    <select id="selectByExecutionId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_benchmarks`
+        WHERE `execution_id` = #{executionId}
+        ORDER BY `id` ASC
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_benchmarks`
+        <where>
+            <if test="pipelineId != null">AND `pipeline_id` = #{pipelineId}</if>
+            <if test="workflow != null and workflow != ''">AND `workflow` = #{workflow}</if>
+            <if test="ruleName != null and ruleName != ''">AND `rule_name` = #{ruleName}</if>
+            <if test="executionId != null">AND `execution_id` = #{executionId}</if>
+            <if test="version != null and version != ''">AND `workflow_version` = #{version}</if>
+        </where>
+        ORDER BY `id` DESC
+    </select>
+
+    <select id="selectTrend" resultMap="BaseResultMap">
+        SELECT b.`id`, b.`execution_id`, b.`pipeline_id`, b.`workflow`, b.`rule_name`,
+               b.`sample`, b.`genome`, b.`attempt`, b.`censored`,
+               b.`seconds`, b.`max_rss_mb`, b.`max_vms_mb`, b.`max_uss_mb`, b.`max_pss_mb`,
+               b.`io_in`, b.`io_out`, b.`mean_load`, b.`cpu_time`,
+               b.`benchmark_path`, b.`workflow_version`, b.`created_at`,
+               e.`started_at` AS `execution_started_at`
+        FROM `pipeline_benchmarks` b
+        JOIN `pipeline_executions` e ON e.`id` = b.`execution_id`
+        <where>
+            <if test="pipelineId != null">AND b.`pipeline_id` = #{pipelineId}</if>
+            <if test="ruleName != null and ruleName != ''">AND b.`rule_name` = #{ruleName}</if>
+        </where>
+        ORDER BY e.`started_at` ASC, b.`id` ASC
+    </select>
+
+    <select id="countPointsByVersion" resultType="map">
+        SELECT `workflow_version` AS version, COUNT(*) AS points, COUNT(DISTINCT `execution_id`) AS execs
+        FROM `pipeline_benchmarks`
+        WHERE `pipeline_id` = #{pipelineId}
+        GROUP BY `workflow_version`
+    </select>
+
+    <!-- 校准导出:版本纯净(只取版本来源为 git 的执行),unknown/inferred 不进校准聚合 -->
+    <select id="selectCalibrationRows" resultMap="BaseResultMap">
+        SELECT b.`id`, b.`execution_id`, b.`pipeline_id`, b.`workflow`, b.`rule_name`,
+               b.`sample`, b.`genome`, b.`attempt`, b.`censored`,
+               b.`seconds`, b.`max_rss_mb`, b.`max_vms_mb`, b.`max_uss_mb`, b.`max_pss_mb`,
+               b.`io_in`, b.`io_out`, b.`mean_load`, b.`cpu_time`,
+               b.`benchmark_path`, b.`workflow_version`, b.`created_at`
+        FROM `pipeline_benchmarks` b
+        JOIN `pipeline_executions` e ON e.`id` = b.`execution_id`
+        WHERE b.`pipeline_id` = #{pipelineId}
+          AND e.`version_source` = 'git'
+          AND b.`workflow_version` = #{version}
+          <if test="workflow != null and workflow != ''">AND b.`workflow` = #{workflow}</if>
+        ORDER BY b.`rule_name` ASC, b.`id` ASC
+    </select>
+
+</mapper>

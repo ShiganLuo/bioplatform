@@ -496,6 +496,7 @@
               <el-option value="delete-temp-output" label="清理临时文件 (--delete-temp-output)" />
               <el-option value="touch" label="触碰时间戳 (--touch,可能导致下游重跑)" />
               <el-option value="cleanup-metadata" label="清理元数据 (--cleanup-metadata)" />
+              <el-option value="resource-calibrate" label="资源校准 (benchmark→建议表→护栏写回)" />
             </el-select>
           </el-form-item>
           <el-form-item v-if="maintainMode === 'cleanup-metadata'" label="文件路径">
@@ -510,6 +511,26 @@
       <template v-if="maintainOutput">
         <div style="font-size: 12px; color: #909399; margin: 12px 0 8px;">{{ maintainTitle }}</div>
         <pre :style="{ background: '#f5f7fa', borderRadius: '4px', padding: '12px', fontFamily: 'monospace', fontSize: '12px', maxHeight: '45vh', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0' }">{{ maintainOutput }}</pre>
+      </template>
+
+      <!-- 资源校准建议表(2026-11-26 两段式:预览→确认写回) -->
+      <template v-if="calibRows.length > 0">
+        <div style="font-size: 12px; color: #909399; margin: 12px 0 8px;">
+          校准建议(版本 {{ (calibVersion || '').substring(0, 8) }},历史 {{ calibHistoryRows }} 行;护栏:n≥3、±30% 限幅、取整、删失下界)
+        </div>
+        <el-table :data="calibRows" size="small" border max-height="300">
+          <el-table-column prop="rule" label="规则" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="nOk" label="n" width="55" align="center" />
+          <el-table-column prop="nCensored" label="删失" width="55" align="center" />
+          <el-table-column prop="observedP90Mb" label="实测 p90 (MB)" width="115" align="right" />
+          <el-table-column prop="suggestMb" label="建议值 (MB)" width="105" align="right" />
+          <el-table-column prop="prevDeclaredMb" label="现声明值" width="85" align="right" />
+          <el-table-column prop="deltaPct" label="delta" width="75" align="right" />
+          <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip />
+        </el-table>
+        <div style="text-align: right; margin-top: 10px;">
+          <el-button type="success" :loading="calibApplying" @click="applyCalibration">应用写回 config</el-button>
+        </div>
       </template>
     </el-dialog>
 
@@ -860,7 +881,7 @@ import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
 import { listTemplates, getTemplate, getMetaTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate, MetaTemplate } from '@/api/templateApi'
-import { executePipeline, updatePipeline, maintainPipeline } from '@/api/pipelineApi'
+import { executePipeline, updatePipeline, maintainPipeline, calibratePipeline } from '@/api/pipelineApi'
 import { listExecutions, cancelExecution } from '@/api/executionApi'
 import type { Execution } from '@/api/executionApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
@@ -1317,18 +1338,97 @@ const maintainMode = ref('dry-run')
 const maintainExtra = ref('')
 const maintainRunning = ref(false)
 
+// --- 资源校准两段式(2026-11-26):预览建议表 → 确认写回 ---
+interface CalibRow {
+  rule: string
+  nOk: number
+  nCensored: number
+  observedP90Mb: string
+  suggestMb: string
+  prevDeclaredMb: number | null
+  deltaPct: string
+  note: string
+}
+const calibRows = ref<CalibRow[]>([])
+const calibVersion = ref('')
+const calibHistoryRows = ref(0)
+const calibApplying = ref(false)
+
 const openMaintain = (row: Pipeline) => {
   maintainRow.value = row
   maintainMode.value = 'dry-run'
   maintainExtra.value = ''
   maintainOutput.value = ''
   maintainTitle.value = ''
+  calibRows.value = []
+  calibVersion.value = ''
+  calibHistoryRows.value = 0
   maintainVisible.value = true
+}
+
+const runCalibrationPreview = async () => {
+  if (!maintainRow.value) return
+  maintainRunning.value = true
+  maintainTitle.value = '资源校准(预览)'
+  maintainOutput.value = '正在导出版本纯净历史并计算建议…'
+  calibRows.value = []
+  try {
+    const res = await calibratePipeline(maintainRow.value.id!, false, false)
+    calibRows.value = res.rows || []
+    calibVersion.value = res.version || ''
+    calibHistoryRows.value = res.historyRows || 0
+    maintainOutput.value = res.log || '(无输出)'
+    ElMessage.success('校准预览完成')
+  } catch (e: any) {
+    maintainOutput.value = '校准预览失败: ' + (e?.message || e)
+  } finally {
+    maintainRunning.value = false
+  }
+}
+
+const applyCalibration = async () => {
+  if (!maintainRow.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将按护栏把建议值写回 Omics config(版本 ${calibVersion.value.substring(0, 8)})。确认写回?`,
+      '资源校准写回', { type: 'warning', confirmButtonText: '写回', cancelButtonText: '取消' })
+  } catch { return }
+  calibApplying.value = true
+  try {
+    const res = await calibratePipeline(maintainRow.value.id!, true, false)
+    calibRows.value = res.rows || []
+    maintainOutput.value = (res.log || '') + '\n\n' + (res.diff || '')
+    ElMessage.success('写回完成(改动已留痕,git 可回滚)')
+  } catch (e: any) {
+    const msg = String(e?.message || e)
+    if (msg.includes('force') || msg.includes('未提交')) {
+      try {
+        await ElMessageBox.confirm('Omics 工作区有未提交改动,写回会与手头编辑混在一起。仍要继续吗?', '带脏写回确认',
+          { type: 'warning', confirmButtonText: '继续写回', cancelButtonText: '取消' })
+      } catch { calibApplying.value = false; return }
+      try {
+        const res = await calibratePipeline(maintainRow.value.id!, true, true)
+        calibRows.value = res.rows || []
+        maintainOutput.value = (res.log || '') + '\n\n' + (res.diff || '')
+        ElMessage.success('写回完成(改动已留痕,git 可回滚)')
+      } catch (e2: any) {
+        maintainOutput.value = '写回失败: ' + (e2?.message || e2)
+      }
+    } else {
+      maintainOutput.value = '写回失败: ' + msg
+    }
+  } finally {
+    calibApplying.value = false
+  }
 }
 
 const runMaintain = async () => {
   if (!maintainRow.value) return
   const mode = maintainMode.value
+  if (mode === 'resource-calibrate') {
+    await runCalibrationPreview()
+    return
+  }
   const titles: Record<string, string> = {
     'dry-run': '预检 (snakemake --dry-run,只读)',
     'unlock': '解锁 (snakemake --unlock)',

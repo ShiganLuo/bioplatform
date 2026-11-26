@@ -13,6 +13,7 @@
         <result column="command_template" property="commandTemplate"/>
         <result column="schema_json" property="schemaJson"/>
         <result column="snakemake_path" property="snakemakePath"/>
+        <result column="workflow_version" property="workflowVersion"/>
         <result column="icon" property="icon"/>
         <result column="sort_order" property="sortOrder"/>
         <result column="enabled" property="enabled"/>
@@ -23,7 +24,7 @@
     <sql id="Base_Column_List">
         `id`, `name`, `description`, `type`, `category`,
         `config_template`, `schema_json`, `snakemake_path`,
-        `command_template`,
+        `workflow_version`, `command_template`,
         `icon`, `sort_order`, `enabled`, `created_at`, `updated_at`
     </sql>
 
@@ -31,11 +32,11 @@
         INSERT INTO `workflow_templates`
             (`name`, `description`, `type`, `category`,
              `config_template`, `command_template`, `schema_json`, `snakemake_path`,
-             `icon`, `sort_order`, `enabled`)
+             `workflow_version`, `icon`, `sort_order`, `enabled`)
         VALUES
             (#{name}, #{description}, #{type}, #{category},
              #{configTemplate}, #{commandTemplate}, #{schemaJson}, #{snakemakePath},
-             #{icon}, #{sortOrder}, #{enabled})
+             #{workflowVersion}, #{icon}, #{sortOrder}, #{enabled})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -75,6 +76,7 @@
             <if test="commandTemplate != null">`command_template` = #{commandTemplate},</if>
             <if test="schemaJson != null">`schema_json` = #{schemaJson},</if>
             <if test="snakemakePath != null">`snakemake_path` = #{snakemakePath},</if>
+            <if test="workflowVersion != null">`workflow_version` = #{workflowVersion},</if>
             <if test="icon != null">`icon` = #{icon},</if>
             <if test="sortOrder != null">`sort_order` = #{sortOrder},</if>
             <if test="enabled != null">`enabled` = #{enabled},</if>

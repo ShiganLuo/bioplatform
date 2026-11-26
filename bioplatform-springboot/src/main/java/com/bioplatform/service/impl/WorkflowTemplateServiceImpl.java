@@ -148,6 +148,12 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     public int importFromOmics(String omicsDir) {
         Path root = resolvePath(omicsDir);
 
+        // 导入时的 Omics 版本(2026-11-26):模板配置与规则实现随仓库演进,
+        // 记录导入 commit 供追溯;解析失败留 null
+        Path verRoot = Files.isRegularFile(root) ? findOmicsRoot(root.getParent()) : findOmicsRoot(root);
+        String importVersion = com.bioplatform.common.util.OmicsVersionUtil.resolveHead(
+                (verRoot != null ? verRoot : root).toString());
+
         // 单个模块 json 文件（如 .../modules/msi/msi.json）
         if (Files.isRegularFile(root)) {
             String fileName = root.getFileName().toString();
@@ -160,7 +166,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
             }
             Path scanRoot = guessModuleScanRoot(root, base);
             try {
-                return importModuleFile(root, scanRoot, findOmicsRoot(root.getParent()));
+                return importModuleFile(root, scanRoot, findOmicsRoot(root.getParent()), importVersion);
             } catch (IOException e) {
                 throw new RuntimeException("读取模块 json 失败: " + e.getMessage(), e);
             }
@@ -176,13 +182,13 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
         Path omicsRoot = findOmicsRoot(root);
 
         if (Files.isDirectory(configDir)) {
-            count += importConfigDir(root, configDir);
+            count += importConfigDir(root, configDir, importVersion);
         }
         if (Files.isDirectory(modulesDir)) {
-            count += importModuleDir(modulesDir, omicsRoot != null ? omicsRoot : root);
+            count += importModuleDir(modulesDir, omicsRoot != null ? omicsRoot : root, importVersion);
         } else if (!Files.isDirectory(configDir)) {
-            // 传入的本身是模块目录（可含变体子目录），递归解析其中的 xxx.json + xxx.schema.json
-            count += importModuleDir(root, omicsRoot != null ? omicsRoot : root.getParent());
+            // 传入的本身是模块目录（可含变体子目录），递归解析其中的 xxx.json + 同名 xxx.schema.json
+            count += importModuleDir(root, omicsRoot != null ? omicsRoot : root.getParent(), importVersion);
         }
 
         if (count == 0) {
@@ -194,7 +200,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     /**
      * 导入 Omics 仓库 config/ 目录下的工作流配置（原有行为）
      */
-    private int importConfigDir(Path omicsDir, Path configDir) {
+    private int importConfigDir(Path omicsDir, Path configDir, String importVersion) {
         int count = 0;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(configDir, "*.json")) {
             for (Path jsonFile : stream) {
@@ -229,7 +235,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
                     }
 
                     upsertTemplate(workflowName, "从 Omics 仓库导入: " + workflowName, type,
-                            guessCategory(workflowName), configJson, schemaJson, snakemakePath);
+                            guessCategory(workflowName), configJson, schemaJson, snakemakePath, importVersion);
                     count++;
                     log.info("导入模板: {} (type={})", workflowName, type);
                 } catch (Exception e) {
@@ -245,7 +251,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     /**
      * 递归导入模块目录下的 xxx.json + xxx.schema.json 对（支持变体子目录，如 polygenomes/、tumor-only/）
      */
-    private int importModuleDir(Path scanRoot, Path omicsRoot) {
+    private int importModuleDir(Path scanRoot, Path omicsRoot, String importVersion) {
         int count = 0;
         List<Path> jsonFiles;
         try (Stream<Path> walk = Files.walk(scanRoot)) {
@@ -271,7 +277,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
                 continue;
             }
             try {
-                count += importModuleFile(jsonFile, scanRoot, omicsRoot);
+                count += importModuleFile(jsonFile, scanRoot, omicsRoot, importVersion);
             } catch (Exception e) {
                 log.error("导入模块 {} 失败，跳过: {}", jsonFile, e.getMessage(), e);
             }
@@ -282,7 +288,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     /**
      * 导入单个模块 json（xxx.json + 同目录 xxx.schema.json + xxx.smk）
      */
-    private int importModuleFile(Path jsonFile, Path scanRoot, Path omicsRoot) throws IOException {
+    private int importModuleFile(Path jsonFile, Path scanRoot, Path omicsRoot, String importVersion) throws IOException {
         if (scanRoot != null && !jsonFile.startsWith(scanRoot)) {
             scanRoot = jsonFile.getParent(); // 防御：scanRoot 与文件位置不符时退回父目录，避免 ../ 变体名
         }
@@ -326,7 +332,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
                 ? scanRoot.relativize(jsonFile).toString().replace('\\', '/')
                 : jsonFile.toString();
         upsertTemplate(name, "从 Omics 仓库导入: " + relDesc, "task",
-                guessCategory(base), configJson, schemaJson, snakemakePath);
+                guessCategory(base), configJson, schemaJson, snakemakePath, importVersion);
         log.info("导入模块模板: {} (snakemakePath={})", name, snakemakePath);
         return 1;
     }
@@ -335,7 +341,8 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
      * 同名模板存在则更新配置，否则新建
      */
     private void upsertTemplate(String name, String description, String type, String category,
-                                String configJson, String schemaJson, String snakemakePath) {
+                                String configJson, String schemaJson, String snakemakePath,
+                                String workflowVersion) {
         WorkflowTemplate existing = new WorkflowTemplate();
         existing.setName(name);
         List<WorkflowTemplate> dupes = templateMapper.selectAll(existing);
@@ -346,6 +353,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
             dup.setSchemaJson(schemaJson);
             dup.setSnakemakePath(snakemakePath);
             dup.setType(type);
+            dup.setWorkflowVersion(workflowVersion);
             templateMapper.updateById(dup);
         } else {
             WorkflowTemplate template = new WorkflowTemplate();
@@ -356,6 +364,7 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
             template.setConfigTemplate(configJson);
             template.setSchemaJson(schemaJson);
             template.setSnakemakePath(snakemakePath);
+            template.setWorkflowVersion(workflowVersion);
             template.setSortOrder(0);
             template.setEnabled(true);
             templateMapper.insert(template);

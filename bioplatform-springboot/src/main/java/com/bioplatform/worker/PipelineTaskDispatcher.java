@@ -112,6 +112,19 @@ public class PipelineTaskDispatcher {
             }
         }
 
+        // 流程版本(2026-11-26 方案一):Omics 桥接执行派发时采集仓库 HEAD commit,
+        // 执行级事实一执行一版本;benchmark/校准全链按此版本分层。失败记 unknown。
+        if (omicsBridge) {
+            try {
+                String ver = com.bioplatform.common.util.OmicsVersionUtil.resolveHead(omicsRoot);
+                execution.setWorkflowVersion(ver);
+                execution.setVersionSource(ver != null ? "git" : "unknown");
+            } catch (Exception e) {
+                execution.setVersionSource("unknown");
+                log.warn("流程版本采集失败(执行继续): executionId={}, error={}", execution.getId(), e.getMessage());
+            }
+        }
+
         CommandRenderer.RenderedCommand rendered;
         try {
             rendered = commandRenderer.render(template, pipeline, execution);
@@ -179,6 +192,9 @@ public class PipelineTaskDispatcher {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.bioplatform.common.util.ExecCallbackTokenUtil callbackTokenUtil;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private BenchmarkHarvester benchmarkHarvester;
 
     /** 执行回调地址(流程框架回报终态用):系统配置 execution.callbackUrl,宿主机侧默认本机后端 */
     private String resolveCallbackUrl() {
@@ -849,6 +865,7 @@ public class PipelineTaskDispatcher {
         executionMapper.updateById(execution);
         log.info("任务已取消: executionId={}", executionId);
         repairOmicsOwnership(execution);
+        harvestBenchmarks(execution);
         return true;
     }
 
@@ -873,6 +890,7 @@ public class PipelineTaskDispatcher {
         exec.setFinishedAt(LocalDateTime.now());
         exec.setHeartbeatAt(LocalDateTime.now());
         executionMapper.updateById(exec);
+        harvestBenchmarks(exec);
     }
 
     private void fail(PipelineExecution exec, String reason) {
@@ -883,6 +901,16 @@ public class PipelineTaskDispatcher {
         executionMapper.updateById(exec);
         log.warn("执行失败: executionId={}, reason={}", exec.getId(), reason);
         repairOmicsOwnership(exec);
+        harvestBenchmarks(exec);
+    }
+
+    /**
+     * 终态 benchmark 收割(方案一,异步幂等):成功/失败/取消/判死全分支收口到
+     * touch/fail/cancelExecution 三处,回调终态在 PublicExecutionCallbackController
+     * 另行调用。失败跑也采(删失数据)。
+     */
+    public void harvestBenchmarks(PipelineExecution exec) {
+        new Thread(() -> benchmarkHarvester.harvestWindow(exec), "bench-harvest-" + exec.getId()).start();
     }
 
     /**

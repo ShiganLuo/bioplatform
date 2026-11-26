@@ -143,6 +143,7 @@ CREATE TABLE `workflow_templates` (
     `command_template` TEXT          DEFAULT NULL COMMENT '命令模板,含 {{placeholder}} 占位符,渲染后交 Worker 执行',
     `schema_json`      JSON          NOT NULL COMMENT '表单 schema（来自 Omics/config/*.schema.json）',
     `snakemake_path`   VARCHAR(255)  NOT NULL COMMENT '相对于 Omics 仓库的 .smk 路径',
+    `workflow_version` VARCHAR(40)   DEFAULT NULL COMMENT '导入时 Omics 仓库 git commit',
     `icon`             VARCHAR(64)   DEFAULT NULL,
     `sort_order`       INT           DEFAULT 0,
     `enabled`          TINYINT(1)    NOT NULL DEFAULT 1,
@@ -200,6 +201,8 @@ CREATE TABLE `pipeline_executions` (
     `worker_url`   VARCHAR(256) DEFAULT NULL COMMENT '执行该任务的Worker URL',
     `task_id`      VARCHAR(64)  DEFAULT NULL COMMENT 'Worker端任务ID(落库供调度线程对账)',
     `executor`     VARCHAR(16)  DEFAULT NULL COMMENT '执行器: local / remote',
+    `workflow_version` VARCHAR(40) DEFAULT NULL COMMENT 'Omics 仓库 git commit(派发时采集)',
+    `version_source`   VARCHAR(16) DEFAULT NULL COMMENT 'git=派发采集 / inferred=历史推断 / unknown',
     `heartbeat_at` DATETIME(6)  DEFAULT NULL COMMENT '最近一次状态心跳',
     `started_at`   DATETIME(6)  DEFAULT NULL,
     `finished_at`  DATETIME(6)  DEFAULT NULL,
@@ -211,10 +214,47 @@ CREATE TABLE `pipeline_executions` (
     INDEX `idx_pe_user` (`user_id`),
     INDEX `idx_pe_status` (`status`),
     INDEX `idx_pe_created` (`created_at`),
+    INDEX `idx_pe_workflow_version` (`workflow_version`),
     CONSTRAINT `fk_pe_pipeline` FOREIGN KEY (`pipeline_id`) REFERENCES `pipelines` (`id`),
     CONSTRAINT `fk_pe_project`  FOREIGN KEY (`project_id`)  REFERENCES `projects` (`id`),
     CONSTRAINT `fk_pe_user`     FOREIGN KEY (`user_id`)     REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Pipeline execution records';
+
+-- ============================================================
+-- 9.1 pipeline_benchmarks
+-- ============================================================
+DROP TABLE IF EXISTS `pipeline_benchmarks`;
+CREATE TABLE `pipeline_benchmarks` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `execution_id`     BIGINT        NOT NULL,
+    `pipeline_id`      BIGINT        NOT NULL,
+    `workflow`         VARCHAR(64)   DEFAULT NULL COMMENT '输出目录一级子目录(工作流名)',
+    `rule_name`        VARCHAR(128)  NOT NULL COMMENT '规则名(config 资源键空间,含别名映射)',
+    `sample`           VARCHAR(128)  DEFAULT NULL COMMENT '样本(路径解析,可空)',
+    `genome`           VARCHAR(64)   DEFAULT NULL COMMENT '基因组(路径解析,可空)',
+    `attempt`          INT           NOT NULL DEFAULT 1 COMMENT '文件内行序',
+    `censored`         TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'OOM 删失(.OOM 标记,与 calibrate_resources.py 同口径)',
+    `seconds`          DOUBLE        DEFAULT NULL,
+    `max_rss_mb`       DOUBLE        DEFAULT NULL,
+    `max_vms_mb`       DOUBLE        DEFAULT NULL,
+    `max_uss_mb`       DOUBLE        DEFAULT NULL,
+    `max_pss_mb`       DOUBLE        DEFAULT NULL,
+    `io_in`            DOUBLE        DEFAULT NULL,
+    `io_out`           DOUBLE        DEFAULT NULL,
+    `mean_load`        DOUBLE        DEFAULT NULL,
+    `cpu_time`         DOUBLE        DEFAULT NULL,
+    `benchmark_path`   VARCHAR(512)  NOT NULL COMMENT '相对输出目录的 benchmark 文件路径',
+    `workflow_version` VARCHAR(40)   DEFAULT NULL COMMENT '冗余自执行记录,便于按版本聚合/隔离校准',
+    `created_at`       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_pb_exec_path_attempt` (`execution_id`, `benchmark_path`, `attempt`),
+    INDEX `idx_pb_execution` (`execution_id`),
+    INDEX `idx_pb_pipeline` (`pipeline_id`),
+    INDEX `idx_pb_rule` (`rule_name`),
+    INDEX `idx_pb_version` (`workflow_version`),
+    CONSTRAINT `fk_pb_execution` FOREIGN KEY (`execution_id`) REFERENCES `pipeline_executions` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_pb_pipeline`  FOREIGN KEY (`pipeline_id`)  REFERENCES `pipelines` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='snakemake benchmark 性能明细';
 
 -- ============================================================
 -- 9. data_files

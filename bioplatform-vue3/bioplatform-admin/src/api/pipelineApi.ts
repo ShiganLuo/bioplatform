@@ -64,3 +64,8 @@ export function executePipeline(id: number, params?: Record<string, any>) {
 export function maintainPipeline(id: number, mode: string, extra?: string) {
   return http.post<string>(`/api/admin/pipelines/${id}/maintain`, { mode, extra: extra || '' })
 }
+
+/** 资源校准两段式(2026-11-26):apply=false 预览建议表,true 护栏写回 config;force=确认混入未提交改动 */
+export function calibratePipeline(id: number, apply = false, force = false) {
+  return http.post<any>(`/api/admin/pipelines/${id}/calibrate`, { apply, force })
+}

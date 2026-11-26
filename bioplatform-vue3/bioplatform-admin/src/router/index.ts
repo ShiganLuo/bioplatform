@@ -52,6 +52,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '执行监控', icon: 'Monitor' }
       },
       {
+        path: 'performance',
+        name: 'Performance',
+        component: () => import('@/views/performance/PerformanceView.vue'),
+        meta: { title: '性能分析', icon: 'TrendCharts', permissions: ['execution:list'] }
+      },
+      {
         path: 'data',
         name: 'Data',
         component: () => import('@/views/data/DataView.vue'),

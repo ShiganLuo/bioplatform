@@ -34,6 +34,11 @@
           <template #title>执行监控</template>
         </el-menu-item>
 
+        <el-menu-item v-if="userStore.hasPermission('execution:list')" index="/performance">
+          <el-icon><TrendCharts /></el-icon>
+          <template #title>性能分析</template>
+        </el-menu-item>
+
         <el-menu-item v-if="userStore.hasPermission('data:list')" index="/data">
           <el-icon><Document /></el-icon>
           <template #title>数据管理</template>

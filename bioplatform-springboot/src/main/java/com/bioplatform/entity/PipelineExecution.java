@@ -39,6 +39,12 @@ public class PipelineExecution {
     /** Worker 端任务 ID（落库，backend 重启后可继续对账） */
     private String taskId;
 
+    /** Omics 仓库 git commit(派发时采集);执行级事实,一执行一版本 */
+    private String workflowVersion;
+
+    /** 版本来源: git=派发采集 / inferred=历史推断 / unknown */
+    private String versionSource;
+
     /** 执行器类型：local / remote */
     private String executor;
 

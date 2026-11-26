@@ -25,6 +25,8 @@ public class WorkflowTemplate {
     private String schemaJson;
     /** 相对于 Omics 仓库的 .smk 路径 */
     private String snakemakePath;
+    /** 导入时 Omics 仓库 git commit */
+    private String workflowVersion;
     private String icon;
     private Integer sortOrder;
     private Boolean enabled;

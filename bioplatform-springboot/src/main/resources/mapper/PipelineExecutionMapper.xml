@@ -16,6 +16,8 @@
         <result column="worker_url" property="workerUrl"/>
         <result column="task_id" property="taskId"/>
         <result column="executor" property="executor"/>
+        <result column="workflow_version" property="workflowVersion"/>
+        <result column="version_source" property="versionSource"/>
         <result column="heartbeat_at" property="heartbeatAt"/>
         <result column="started_at" property="startedAt"/>
         <result column="finished_at" property="finishedAt"/>
@@ -27,7 +29,7 @@
         `id`, `pipeline_id`, `project_id`, `user_id`, `status`,
         `input_params`, `output_path`, `error_log`,
         `worker_id`, `worker_url`,
-        `task_id`, `executor`, `heartbeat_at`,
+        `task_id`, `executor`, `workflow_version`, `version_source`, `heartbeat_at`,
         `started_at`, `finished_at`, `created_at`, `updated_at`
     </sql>
 
@@ -36,10 +38,10 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipeline_executions` (`pipeline_id`, `project_id`, `user_id`, `status`,
                                           `input_params`, `output_path`, `worker_id`, `worker_url`,
-                                          `task_id`, `executor`, `heartbeat_at`)
+                                          `task_id`, `executor`, `workflow_version`, `version_source`, `heartbeat_at`)
         VALUES (#{pipelineId}, #{projectId}, #{userId}, #{status},
                 #{inputParams}, #{outputPath}, #{workerId}, #{workerUrl},
-                #{taskId}, #{executor}, #{heartbeatAt})
+                #{taskId}, #{executor}, #{workflowVersion}, #{versionSource}, #{heartbeatAt})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -80,6 +82,8 @@
             <if test="workerUrl != null">`worker_url` = #{workerUrl},</if>
             <if test="taskId != null">`task_id` = #{taskId},</if>
             <if test="executor != null">`executor` = #{executor},</if>
+            <if test="workflowVersion != null">`workflow_version` = #{workflowVersion},</if>
+            <if test="versionSource != null">`version_source` = #{versionSource},</if>
             <if test="heartbeatAt != null">`heartbeat_at` = #{heartbeatAt},</if>
         </set>
         WHERE `id` = #{id}
@@ -148,6 +152,29 @@
         SELECT `status`, COUNT(*) AS `count`
         FROM `pipeline_executions`
         GROUP BY `status`
+    </select>
+
+    <select id="selectTerminalByPipelineId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `pipeline_id` = #{pipelineId}
+          AND `status` IN ('SUCCESS', 'FAILED', 'CANCELLED')
+        ORDER BY `started_at` ASC
+    </select>
+
+    <select id="selectTerminalSince" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM `pipeline_executions`
+        WHERE `status` IN ('SUCCESS', 'FAILED', 'CANCELLED')
+          AND `finished_at` >= #{since}
+        ORDER BY `finished_at` ASC
+    </select>
+
+    <select id="countByVersion" resultType="map">
+        SELECT `workflow_version` AS version, COUNT(*) AS execs
+        FROM `pipeline_executions`
+        WHERE `pipeline_id` = #{pipelineId}
+        GROUP BY `workflow_version`
     </select>
 
 </mapper>

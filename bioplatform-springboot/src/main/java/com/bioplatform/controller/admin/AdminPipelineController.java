@@ -24,9 +24,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class AdminPipelineController {
 
     private final com.bioplatform.service.PipelineService pipelineService;
+    private final com.bioplatform.service.BenchmarkService benchmarkService;
 
-    public AdminPipelineController(com.bioplatform.service.PipelineService pipelineService) {
+    public AdminPipelineController(com.bioplatform.service.PipelineService pipelineService,
+                                   com.bioplatform.service.BenchmarkService benchmarkService) {
         this.pipelineService = pipelineService;
+        this.benchmarkService = benchmarkService;
     }
 
     /**
@@ -140,5 +143,20 @@ public class AdminPipelineController {
         String mode = params == null ? null : params.get("mode");
         String extra = params == null ? null : params.get("extra");
         return ApiResponse.success(pipelineService.maintainPipeline(id, mode, extra));
+    }
+
+    /**
+     * 资源校准两段式(2026-11-26 方案三A):apply=false 预览建议表,
+     * true 时护栏(n≥3/±30%/取整/删失下界)写回 Omics config。
+     * body: {apply?: bool, force?: bool}(force=确认混入未提交改动)。
+     */
+    @PostMapping("/{id}/calibrate")
+    @PreAuthorize("hasAuthority('pipeline:run')")
+    @OperLog(module = "流水线管理", operation = "资源校准")
+    public ApiResponse<com.bioplatform.dto.admin.AdminBenchmarkDTO.CalibrateResult> calibrate(
+            @PathVariable Long id, @RequestBody Map<String, Object> params) {
+        boolean apply = params != null && Boolean.TRUE.equals(params.get("apply"));
+        boolean force = params != null && Boolean.TRUE.equals(params.get("force"));
+        return ApiResponse.success(benchmarkService.calibrate(id, apply, force));
     }
 }
