@@ -78,4 +78,8 @@
         ORDER BY `updated_at` DESC
     </select>
 
+    <update id="unbindProject">
+        UPDATE `agent_conversations` SET `project_id` = NULL WHERE `project_id` = #{projectId}
+    </update>
+
 </mapper>

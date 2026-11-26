@@ -364,6 +364,12 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("用户不存在");
         }
 
+        // 用户仍拥有业务数据时不能删(外键无级联,强删会报错;也不应连带删光用户数据)
+        int refs = userMapper.countReferences(id);
+        if (refs > 0) {
+            throw new IllegalArgumentException("该用户仍拥有项目/流程/执行记录/数据文件/对话等关联数据（共 " + refs + " 条），请先转移或清理后再删除");
+        }
+
         userRoleMapper.deleteByUserId(id);
         userMapper.deleteById(id);
         log.info("删除用户: userId={}", id);

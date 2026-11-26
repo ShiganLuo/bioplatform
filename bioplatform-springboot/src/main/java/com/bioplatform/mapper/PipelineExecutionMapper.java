@@ -25,6 +25,15 @@ public interface PipelineExecutionMapper {
 
     int deleteById(@Param("id") Long id);
 
+    int deleteByPipelineId(@Param("pipelineId") Long pipelineId);
+
+    int deleteByProjectId(@Param("projectId") Long projectId);
+
+    /** 正在执行/排队中的任务数(PENDING/RUNNING) */
+    int countActiveByPipelineId(@Param("pipelineId") Long pipelineId);
+
+    int countActiveByProjectId(@Param("projectId") Long projectId);
+
     List<PipelineExecution> selectByProjectId(@Param("projectId") Long projectId, @Param("status") String status);
 
     List<PipelineExecution> selectByUserId(@Param("userId") Long userId, @Param("status") String status);

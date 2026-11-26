@@ -16,6 +16,7 @@ import com.bioplatform.worker.PipelineTaskDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -96,12 +97,21 @@ public class PipelineServiceImpl implements PipelineService {
     }
 
     @Override
+    @Transactional
     public void deletePipeline(Long id) {
         Pipeline pipeline = pipelineMapper.selectById(id);
         if (pipeline == null) {
             throw new IllegalArgumentException("流水线不存在");
         }
 
+        // 有正在执行/排队的任务时不允许删除(否则运行中任务成孤儿)
+        int active = pipelineExecutionMapper.countActiveByPipelineId(id);
+        if (active > 0) {
+            throw new IllegalArgumentException("该流程存在 " + active + " 个正在执行的任务，请先取消或等待执行完成后再删除");
+        }
+
+        // 连带删除执行记录(fk_pe_pipeline 外键无级联，不先删子行会被 MySQL 拒绝)
+        pipelineExecutionMapper.deleteByPipelineId(id);
         pipelineMapper.deleteById(id);
         log.info("删除流水线成功: pipelineId={}", id);
     }

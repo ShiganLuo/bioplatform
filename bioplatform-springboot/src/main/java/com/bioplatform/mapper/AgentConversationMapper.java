@@ -24,6 +24,9 @@ public interface AgentConversationMapper {
 
     int deleteById(@Param("id") Long id);
 
+    /** 解绑项目(项目删除时保留对话历史,只清 project_id) */
+    int unbindProject(@Param("projectId") Long projectId);
+
     List<AgentConversation> selectByUserId(@Param("userId") Long userId);
 
     List<AgentConversation> selectByProjectId(@Param("projectId") Long projectId);

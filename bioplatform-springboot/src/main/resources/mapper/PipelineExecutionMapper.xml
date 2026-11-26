@@ -89,6 +89,24 @@
         DELETE FROM `pipeline_executions` WHERE `id` = #{id}
     </delete>
 
+    <delete id="deleteByPipelineId">
+        DELETE FROM `pipeline_executions` WHERE `pipeline_id` = #{pipelineId}
+    </delete>
+
+    <delete id="deleteByProjectId">
+        DELETE FROM `pipeline_executions` WHERE `project_id` = #{projectId}
+    </delete>
+
+    <select id="countActiveByPipelineId" resultType="int">
+        SELECT COUNT(*) FROM `pipeline_executions`
+        WHERE `pipeline_id` = #{pipelineId} AND `status` IN ('PENDING', 'RUNNING')
+    </select>
+
+    <select id="countActiveByProjectId" resultType="int">
+        SELECT COUNT(*) FROM `pipeline_executions`
+        WHERE `project_id` = #{projectId} AND `status` IN ('PENDING', 'RUNNING')
+    </select>
+
     <!-- ==================== Custom Queries ==================== -->
 
     <select id="selectByProjectId" resultMap="BaseResultMap">

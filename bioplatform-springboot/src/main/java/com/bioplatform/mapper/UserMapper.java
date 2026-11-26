@@ -24,6 +24,9 @@ public interface UserMapper {
 
     int deleteById(@Param("id") Long id);
 
+    /** 该用户被业务数据(项目/流程/执行/文件/对话)引用的行数合计 */
+    int countReferences(@Param("id") Long id);
+
     User selectByUsernameOrEmail(@Param("usernameOrEmail") String usernameOrEmail);
 
     User selectByUsername(@Param("username") String username);

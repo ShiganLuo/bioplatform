@@ -89,6 +89,10 @@
         DELETE FROM `pipelines` WHERE `id` = #{id}
     </delete>
 
+    <select id="countByTemplateId" resultType="int">
+        SELECT COUNT(*) FROM `pipelines` WHERE `template_id` = #{templateId}
+    </select>
+
     <!-- ==================== Custom Queries ==================== -->
 
     <select id="selectByCategory" resultMap="BaseResultMap">

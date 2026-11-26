@@ -119,4 +119,13 @@
         </where>
     </select>
 
+    <!-- 用户被业务数据引用的行数合计(删除用户前的引用检查,避免外键报错) -->
+    <select id="countReferences" resultType="int">
+        SELECT (SELECT COUNT(*) FROM `projects` WHERE `owner_id` = #{id})
+             + (SELECT COUNT(*) FROM `pipelines` WHERE `owner_id` = #{id})
+             + (SELECT COUNT(*) FROM `pipeline_executions` WHERE `user_id` = #{id})
+             + (SELECT COUNT(*) FROM `data_files` WHERE `uploaded_by` = #{id})
+             + (SELECT COUNT(*) FROM `agent_conversations` WHERE `user_id` = #{id})
+    </select>
+
 </mapper>

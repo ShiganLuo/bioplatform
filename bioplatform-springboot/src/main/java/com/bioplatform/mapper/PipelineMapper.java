@@ -24,6 +24,9 @@ public interface PipelineMapper {
 
     int deleteById(@Param("id") Long id);
 
+    /** 引用该模板的流程数(删除模板前的引用检查) */
+    int countByTemplateId(@Param("templateId") Long templateId);
+
     List<Pipeline> selectByCategory(@Param("category") String category);
 
     List<Pipeline> selectByOwnerId(@Param("ownerId") Long ownerId);

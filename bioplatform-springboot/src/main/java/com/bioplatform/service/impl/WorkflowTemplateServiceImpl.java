@@ -7,6 +7,7 @@ import com.bioplatform.dto.admin.AdminWorkflowTemplateDTO.CreateRequest;
 import com.bioplatform.dto.admin.AdminWorkflowTemplateDTO.UpdateRequest;
 import com.bioplatform.dto.common.PageResult;
 import com.bioplatform.entity.WorkflowTemplate;
+import com.bioplatform.mapper.PipelineMapper;
 import com.bioplatform.mapper.WorkflowTemplateMapper;
 import com.bioplatform.service.WorkflowTemplateService;
 import org.slf4j.Logger;
@@ -34,9 +35,11 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
     private static final Logger log = LoggerFactory.getLogger(WorkflowTemplateServiceImpl.class);
 
     private final WorkflowTemplateMapper templateMapper;
+    private final PipelineMapper pipelineMapper;
 
-    public WorkflowTemplateServiceImpl(WorkflowTemplateMapper templateMapper) {
+    public WorkflowTemplateServiceImpl(WorkflowTemplateMapper templateMapper, PipelineMapper pipelineMapper) {
         this.templateMapper = templateMapper;
+        this.pipelineMapper = pipelineMapper;
     }
 
     @Override
@@ -86,6 +89,11 @@ public class WorkflowTemplateServiceImpl implements WorkflowTemplateService {
         WorkflowTemplate template = templateMapper.selectById(id);
         if (template == null) {
             throw new IllegalArgumentException("模板不存在");
+        }
+        // 模板被流程引用时不能删(不能连带删用户的流程;fk_pipelines_template 外键无级联)
+        int used = pipelineMapper.countByTemplateId(id);
+        if (used > 0) {
+            throw new IllegalArgumentException("该模板已被 " + used + " 条流程使用，请先删除相关流程");
         }
         templateMapper.deleteById(id);
         log.info("删除模板成功: id={}", id);
