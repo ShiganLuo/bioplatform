@@ -63,16 +63,21 @@
           </template>
         </el-table-column>
         <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip />
+        <template #empty>
+          <div class="empty-hint">该流水线暂无 benchmark 数据。<br />执行过带 benchmark 的运行后终态自动收割入库；历史运行可点「回填历史」补录。</div>
+        </template>
       </el-table>
 
-      <!-- 趋势 -->
-      <div class="trend-bar">
-        <span class="trend-title">趋势(max_rss,按执行时序,按版本分段)</span>
-        <el-select v-model="trendRule" placeholder="选择规则" style="width: 240px" @change="loadTrend">
-          <el-option v-for="r in ruleOptions" :key="r" :label="r" :value="r" />
-        </el-select>
-      </div>
-      <div ref="trendEl" class="trend-chart" />
+      <!-- 趋势(无聚合行时不渲染,不留 320px 空洞) -->
+      <template v-if="ruleOptions.length > 0">
+        <div class="trend-bar">
+          <span class="trend-title">趋势(max_rss,按执行时序,按版本分段)</span>
+          <el-select v-model="trendRule" placeholder="选择规则" style="width: 240px" @change="loadTrend">
+            <el-option v-for="r in ruleOptions" :key="r" :label="r" :value="r" />
+          </el-select>
+        </div>
+        <div ref="trendEl" class="trend-chart" />
+      </template>
 
       <!-- 明细 -->
       <el-table :data="detail" size="small" border style="width: 100%; margin-top: 8px" v-loading="detailLoading">
@@ -97,6 +102,9 @@
           <template #default="{ row }">{{ fmt(row.maxRssMb) }}</template>
         </el-table-column>
         <el-table-column prop="benchmarkPath" label="来源文件" min-width="220" show-overflow-tooltip />
+        <template #empty>
+          <div class="empty-hint">该流水线暂无 benchmark 明细。先在左上角选择执行过 benchmark 的流水线（如 DR-分析），或点「回填历史」补录。</div>
+        </template>
       </el-table>
       <el-pagination
         v-model:current-page="detailPage"
@@ -111,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
@@ -124,7 +132,9 @@ import {
 const pipelines = ref<Pipeline[]>([])
 const pipelineId = ref<number | null>(null)
 const versions = ref<VersionInfo[]>([])
-const version = ref('')
+// 默认全部版本:历史执行的 benchmark 多为旧版本,默认"当前版本"会把聚合表滤成空表
+// 而明细表不筛(口径不一致,2026-11-26 用户报"中间一段空白"实测定位)
+const version = ref('ALL')
 const summary = ref<SummaryRow[]>([])
 const loading = ref(false)
 
@@ -162,20 +172,18 @@ async function loadPipelines() {
 }
 
 async function onPipelineChange() {
-  version.value = ''
+  version.value = 'ALL'
   trendRule.value = ''
   detailPage.value = 1
+  // 回填提示是流水线级结果,切换流水线即失效——不清会误导成新选中流水线的状态
+  backfillMsg.value = ''
   await loadAll()
 }
 
 async function loadAll() {
   if (pipelineId.value == null) return
-  await Promise.all([loadVersions(), loadSummary()])
-  await nextTick()
-  if (ruleOptions.value.length > 0 && !trendRule.value) {
-    trendRule.value = ruleOptions.value[0]
-  }
-  if (trendRule.value) await loadTrend()
+  await loadVersions()
+  await loadSummary()
   await loadDetail()
 }
 
@@ -188,14 +196,20 @@ async function loadVersions() {
   }
 }
 
+/** 聚合行变化后校正趋势规则并重画(版本切换/切管线都要走,漏了图表永不初始化) */
+function syncTrendRuleAndLoad() {
+  if (!trendRule.value || !ruleOptions.value.includes(trendRule.value)) {
+    trendRule.value = ruleOptions.value[0] || ''
+  }
+  return loadTrend()
+}
+
 async function loadSummary() {
   if (pipelineId.value == null) return
   loading.value = true
   try {
     summary.value = await getSummary(pipelineId.value, undefined, version.value || undefined)
-    if (trendRule.value && !ruleOptions.value.includes(trendRule.value)) {
-      trendRule.value = ruleOptions.value[0] || ''
-    }
+    await syncTrendRuleAndLoad()
   } finally {
     loading.value = false
   }
@@ -210,6 +224,10 @@ async function loadTrend() {
 /** 版本分段:每版本一个系列(分色),版本切换处标竖线 */
 function renderTrend(rows: BenchmarkRow[]) {
   if (!trendEl.value) return
+  if (chart && !chart.getDom().isConnected) {
+    chart.dispose()
+    chart = null
+  }
   if (!chart) {
     chart = echarts.init(trendEl.value)
     window.addEventListener('resize', () => chart?.resize())
@@ -281,7 +299,7 @@ async function runBackfill() {
   backfillMsg.value = ''
   try {
     const res = await backfillBenchmarks(pipelineId.value)
-    backfillMsg.value = `回填完成:终态执行 ${res.executions} 个,版本推断 ${res.inferred} / unknown ${res.unknown},新入库 ${res.rowsInserted} 行`
+    backfillMsg.value = `回填完成(#${pipelineId.value}):终态执行 ${res.executions} 个,版本推断 ${res.inferred} / unknown ${res.unknown},新入库 ${res.rowsInserted} 行`
     ElMessage.success('回填完成')
     await loadAll()
   } catch (e: any) {
@@ -333,5 +351,11 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 320px;
   margin-top: 8px;
+}
+.empty-hint {
+  padding: 18px 12px;
+  color: #909399;
+  font-size: 13px;
+  line-height: 1.8;
 }
 </style>
