@@ -158,6 +158,19 @@ public class PipelineTaskDispatcher {
                     ? String.valueOf(execution.getPipelineId())
                     : rendered.outputDir());
             execution.setHeartbeatAt(LocalDateTime.now());
+            // 执行输入快照(2026-11-26):meta/comparison/生效配置/渲染命令按派发时刻固化,
+            // 执行详情可看全"这次执行实际用了什么"(流水线后续编辑不影响已执行记录的展示)
+            try {
+                com.fasterxml.jackson.databind.node.ObjectNode snap = MAPPER.createObjectNode();
+                snap.put("meta", pipeline.getMetaContent());
+                snap.put("comparison", pipeline.getComparisonJson());
+                Object cfg = mergedConfig(template, flattenedOverrides(pipeline));
+                snap.set("config", MAPPER.valueToTree(cfg));
+                snap.put("command", rendered.command());
+                execution.setInputSnapshot(MAPPER.writeValueAsString(snap));
+            } catch (Exception e) {
+                log.warn("输入快照采集失败(执行继续): executionId={}, error={}", execution.getId(), e.getMessage());
+            }
             executionMapper.updateById(execution);
 
             log.info("任务已调度: executionId={}, worker={}, taskId={}",

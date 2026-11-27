@@ -13,6 +13,8 @@ export interface Execution {
   endTime: string
   executor: string
   params: string
+  /** 执行输入快照 JSON({meta,comparison,config,command},派发时采集;旧记录为空) */
+  inputSnapshot?: string | null
   result: string
   errorMessage: string
   createTime: string

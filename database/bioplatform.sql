@@ -203,6 +203,7 @@ CREATE TABLE `pipeline_executions` (
     `executor`     VARCHAR(16)  DEFAULT NULL COMMENT '执行器: local / remote',
     `workflow_version` VARCHAR(40) DEFAULT NULL COMMENT 'Omics 仓库 git commit(派发时采集)',
     `version_source`   VARCHAR(16) DEFAULT NULL COMMENT 'git=派发采集 / inferred=历史推断 / unknown',
+    `input_snapshot` MEDIUMTEXT NULL COMMENT '执行输入快照 JSON({meta,comparison,config,command},派发时采集)',
     `heartbeat_at` DATETIME(6)  DEFAULT NULL COMMENT '最近一次状态心跳',
     `started_at`   DATETIME(6)  DEFAULT NULL,
     `finished_at`  DATETIME(6)  DEFAULT NULL,

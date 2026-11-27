@@ -18,6 +18,7 @@
         <result column="executor" property="executor"/>
         <result column="workflow_version" property="workflowVersion"/>
         <result column="version_source" property="versionSource"/>
+        <result column="input_snapshot" property="inputSnapshot"/>
         <result column="heartbeat_at" property="heartbeatAt"/>
         <result column="started_at" property="startedAt"/>
         <result column="finished_at" property="finishedAt"/>
@@ -29,7 +30,7 @@
         `id`, `pipeline_id`, `project_id`, `user_id`, `status`,
         `input_params`, `output_path`, `error_log`,
         `worker_id`, `worker_url`,
-        `task_id`, `executor`, `workflow_version`, `version_source`, `heartbeat_at`,
+        `task_id`, `executor`, `workflow_version`, `version_source`, `input_snapshot`, `heartbeat_at`,
         `started_at`, `finished_at`, `created_at`, `updated_at`
     </sql>
 
@@ -38,10 +39,10 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipeline_executions` (`pipeline_id`, `project_id`, `user_id`, `status`,
                                           `input_params`, `output_path`, `worker_id`, `worker_url`,
-                                          `task_id`, `executor`, `workflow_version`, `version_source`, `heartbeat_at`)
+                                          `task_id`, `executor`, `workflow_version`, `version_source`, `input_snapshot`, `heartbeat_at`)
         VALUES (#{pipelineId}, #{projectId}, #{userId}, #{status},
                 #{inputParams}, #{outputPath}, #{workerId}, #{workerUrl},
-                #{taskId}, #{executor}, #{workflowVersion}, #{versionSource}, #{heartbeatAt})
+                #{taskId}, #{executor}, #{workflowVersion}, #{versionSource}, #{inputSnapshot}, #{heartbeatAt})
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -84,6 +85,7 @@
             <if test="executor != null">`executor` = #{executor},</if>
             <if test="workflowVersion != null">`workflow_version` = #{workflowVersion},</if>
             <if test="versionSource != null">`version_source` = #{versionSource},</if>
+            <if test="inputSnapshot != null">`input_snapshot` = #{inputSnapshot},</if>
             <if test="heartbeatAt != null">`heartbeat_at` = #{heartbeatAt},</if>
         </set>
         WHERE `id` = #{id}

@@ -14,6 +14,7 @@ public record ExecutionVO(
         Long userId,
         String status,
         String params,
+        String inputSnapshot,
         String result,
         String errorMessage,
         Integer progress,

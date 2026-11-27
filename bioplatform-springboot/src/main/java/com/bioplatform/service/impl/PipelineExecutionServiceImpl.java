@@ -132,6 +132,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                 e.getId(), e.getPipelineId(), pipelineName, e.getProjectId(), projectName, e.getUserId(),
                 e.getStatus(),
                 e.getInputParams(),
+                e.getInputSnapshot(),
                 result,
                 e.getErrorLog(),
                 pi.percent(),
