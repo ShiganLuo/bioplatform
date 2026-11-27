@@ -76,6 +76,36 @@ public class SampleMetaFileServiceImpl implements SampleMetaFileService {
     }
 
     @Override
+    public java.util.List<com.bioplatform.dto.datafile.SampleMetaFileSummary> resolveSummaries(java.util.List<Long> metaIds) {
+        java.util.List<com.bioplatform.dto.datafile.SampleMetaFileSummary> out = new java.util.ArrayList<>();
+        if (metaIds == null) {
+            return out;
+        }
+        for (Long metaId : metaIds) {
+            if (metaId == null) {
+                continue;
+            }
+            try {
+                SampleMetaFilesResult r = resolveMetaFiles(metaId);
+                if (r == null) {
+                    continue;
+                }
+                int lost = 0;
+                for (com.bioplatform.dto.datafile.SampleMetaFileRef ref : r.refs()) {
+                    if (ref.fileStatus() != null && ref.fileStatus() == 0) {
+                        lost++;
+                    }
+                }
+                out.add(new com.bioplatform.dto.datafile.SampleMetaFileSummary(
+                        metaId, r.totalRefs(), r.matchedRefs(), lost, r.totalRefs() - r.matchedRefs()));
+            } catch (Exception e) {
+                log.warn("文件引用汇总失败(跳过): metaId={}, error={}", metaId, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    @Override
     public int registerMissingFiles(Long metaId, Long userId) {
         SampleMeta meta = sampleMetaMapper.selectById(metaId);
         if (meta == null) {

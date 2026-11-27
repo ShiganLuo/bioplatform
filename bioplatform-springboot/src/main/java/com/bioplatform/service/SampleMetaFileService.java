@@ -20,6 +20,14 @@ public interface SampleMetaFileService {
     SampleMetaFilesResult resolveMetaFiles(Long metaId);
 
     /**
+     * 批量汇总多个 meta 的文件引用状态(2026-11-26 主动获取:列表标签用,不再等打开明细)。
+     *
+     * @param metaIds 样本 meta ID 列表
+     * @return 逐 meta 汇总(解析失败的条目跳过)
+     */
+    java.util.List<com.bioplatform.dto.datafile.SampleMetaFileSummary> resolveSummaries(java.util.List<Long> metaIds);
+
+    /**
      * 将 meta 中未入库、但磁盘上存在的引用登记进 data_files（复用 import-local 契约）。
      *
      * @param metaId 样本 meta ID

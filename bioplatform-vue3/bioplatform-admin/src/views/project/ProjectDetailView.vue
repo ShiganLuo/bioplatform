@@ -176,16 +176,18 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
-        <el-table-column label="文件引用" width="100">
+        <el-table-column label="文件引用" width="110">
           <template #default="{ row }">
-            <el-tag
-              size="small"
-              :type="fileRefSummary(row as SampleMeta).total === 0 ? 'info' : fileRefSummary(row as SampleMeta).matched === fileRefSummary(row as SampleMeta).total ? 'success' : 'warning'"
-              style="cursor: pointer"
-              @click="openFileRefs(row as SampleMeta)"
-            >
-              {{ fileRefSummary(row as SampleMeta).total === 0 ? '-' : `${fileRefSummary(row as SampleMeta).matched}/${fileRefSummary(row as SampleMeta).total}` }}
-            </el-tag>
+            <el-tooltip :content="fileRefTip(row as SampleMeta)" placement="top">
+              <el-tag
+                size="small"
+                :type="fileRefTagType(row as SampleMeta)"
+                style="cursor: pointer"
+                @click="openFileRefs(row as SampleMeta)"
+              >
+                {{ fileRefText(row as SampleMeta) }}
+              </el-tag>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
@@ -877,7 +879,7 @@ import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFi
 import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
 import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } from '@/api/sampleMetaApi'
 import type { SampleMeta } from '@/api/sampleMetaApi'
-import { getMetaFiles, registerMissingMetaFiles } from '@/api/sampleMetaFileApi'
+import { getMetaFiles, registerMissingMetaFiles, getMetaFilesSummary } from '@/api/sampleMetaFileApi'
 import type { SampleMetaFileRef, SampleMetaFilesResult } from '@/api/sampleMetaFileApi'
 import { listTemplates, getTemplate, getMetaTemplate } from '@/api/templateApi'
 import type { WorkflowTemplate, MetaTemplate } from '@/api/templateApi'
@@ -921,8 +923,8 @@ const selectedFiles = ref<any[]>([])
 // 样本信息状态
 const metaLoading = ref(false)
 const metaList = ref<SampleMeta[]>([])
-// 文件引用汇总缓存：metaId -> { matched, total }（打开明细时刷新）
-const metaFileRefSummary = reactive<Record<number, { matched: number; total: number }>>({})
+// 文件引用汇总缓存：metaId -> { matched, total, lost }（列表加载即批量主动获取,明细打开时刷新）
+const metaFileRefSummary = reactive<Record<number, { matched: number; total: number; lost?: number }>>({})
 const fileRefsVisible = ref(false)
 const fileRefsLoading = ref(false)
 const fileRefsMetaName = ref('')
@@ -1109,8 +1111,21 @@ const loadMetaList = async () => {
   metaLoading.value = true
   try {
     metaList.value = await listSampleMeta(projectId.value) as any || []
+    await refreshFileRefSummaries()
   } catch (e) { console.error(e) }
   finally { metaLoading.value = false }
+}
+
+// 文件引用状态主动获取(2026-11-26):列表加载即批量拉取,不再等逐条打开明细
+const refreshFileRefSummaries = async () => {
+  const ids = metaList.value.map(m => m.id).filter(Boolean)
+  if (!ids.length) return
+  try {
+    const res = await getMetaFilesSummary(ids) as any[]
+    for (const s of res || []) {
+      metaFileRefSummary[s.metaId] = { matched: s.matchedRefs, total: s.totalRefs, lost: s.lostRefs }
+    }
+  } catch (e) { console.error(e) }
 }
 
 // --- 新建分析:模板搜索/类型筛选 ---
@@ -1573,6 +1588,27 @@ const fileRefSummary = (row: SampleMeta) => {
   return metaFileRefSummary[row.id] || { matched: 0, total: 0 }
 }
 
+const fileRefText = (row: SampleMeta) => {
+  const s = metaFileRefSummary[row.id]
+  return !s || s.total === 0 ? '-' : `${s.matched}/${s.total}`
+}
+
+const fileRefTagType = (row: SampleMeta): any => {
+  const s = metaFileRefSummary[row.id]
+  if (!s || s.total === 0) return 'info'
+  if (s.lost && s.lost > 0) return 'danger'
+  return s.matched === s.total ? 'success' : 'warning'
+}
+
+const fileRefTip = (row: SampleMeta) => {
+  const s = metaFileRefSummary[row.id]
+  if (!s) return '文件引用状态获取中…(点击看明细)'
+  if (s.total === 0) return '未解析到文件引用(检查 TSV 中的文件列)'
+  const lost = s.lost || 0
+  const unmatched = s.total - s.matched
+  return `已入库 ${s.matched}/${s.total}` + (unmatched ? `,${unmatched} 个未入库` : '') + (lost ? `,其中 ${lost} 个磁盘丢失` : '')
+}
+
 // 打开文件引用明细（每次进入都请求，保证与最新 meta 内容一致）
 const openFileRefs = async (row: SampleMeta) => {
   fileRefsMetaId.value = row.id
@@ -1583,7 +1619,11 @@ const openFileRefs = async (row: SampleMeta) => {
     const res = await getMetaFiles(row.id) as any
     fileRefs.value = res.refs || []
     fileRefsSummary.value = res
-    metaFileRefSummary[row.id] = { matched: res.matchedRefs || 0, total: res.totalRefs || 0 }
+    metaFileRefSummary[row.id] = {
+      matched: res.matchedRefs || 0,
+      total: res.totalRefs || 0,
+      lost: (res.refs || []).filter((r: any) => r.fileStatus === 0).length
+    }
   } catch (e) {
     ElMessage.error('解析文件引用失败')
   } finally {

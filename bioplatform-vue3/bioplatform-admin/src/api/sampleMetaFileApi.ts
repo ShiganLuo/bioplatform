@@ -28,3 +28,18 @@ export function getMetaFiles(metaId: number) {
 export function registerMissingMetaFiles(metaId: number) {
   return http.post<{ count: number }>(`/api/admin/sample-meta/${metaId}/register-missing`)
 }
+
+/** 批量文件引用状态汇总(列表标签主动获取,2026-11-26) */
+export interface SampleMetaFileSummary {
+  metaId: number
+  totalRefs: number
+  matchedRefs: number
+  /** 已入库但磁盘丢失 */
+  lostRefs: number
+  /** 未匹配到 data_files */
+  unmatchedRefs: number
+}
+
+export function getMetaFilesSummary(ids: number[]) {
+  return http.post<SampleMetaFileSummary[]>('/api/admin/sample-meta/files/summary', { ids })
+}

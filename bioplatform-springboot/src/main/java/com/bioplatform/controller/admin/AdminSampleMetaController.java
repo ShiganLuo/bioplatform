@@ -110,6 +110,30 @@ public class AdminSampleMetaController {
     }
 
     /**
+     * 批量汇总文件引用状态(2026-11-26 主动获取:样本列表标签用,不再等打开明细);
+     * 逐 meta 做项目读校验,与单条 /files 端点同口径。
+     */
+    @PostMapping("/files/summary")
+    @PreAuthorize("hasAuthority('project:sample:list')")
+    public ApiResponse<List<com.bioplatform.dto.datafile.SampleMetaFileSummary>> filesSummary(
+            @RequestBody Map<String, List<Long>> body) {
+        List<Long> ids = body == null ? null : body.get("ids");
+        if (ids == null || ids.isEmpty()) {
+            return ApiResponse.success(List.of());
+        }
+        List<Long> allowed = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            SampleMeta meta = id == null ? null : sampleMetaService.getById(id);
+            if (meta == null) {
+                continue;
+            }
+            checkProjectReadAccess(meta.getProjectId());
+            allowed.add(id);
+        }
+        return ApiResponse.success(sampleMetaFileService.resolveSummaries(allowed));
+    }
+
+    /**
      * 将 meta 中未入库、但磁盘上存在的引用登记进 data_files。
      */
     @PostMapping("/{id}/register-missing")
