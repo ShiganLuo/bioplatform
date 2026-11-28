@@ -15,6 +15,8 @@ export interface SummaryRow {
   declaredMb: number | null
   deltaPct: number | null
   note: string
+  /** 资源完整声明(threads/mem_mb/io_bandwidth_mb_s/scale),来自 config resources.<rule> */
+  declaredResource?: Record<string, unknown> | null
 }
 
 export interface VersionInfo {
@@ -58,6 +60,8 @@ export interface SuggestRow {
   prevDeclaredMb: number | null
   deltaPct: string
   note: string
+  /** 资源完整声明(threads/mem_mb/scale),来自 config resources.<rule> */
+  declaredResource?: Record<string, unknown> | null
 }
 
 export interface CalibrateResult {

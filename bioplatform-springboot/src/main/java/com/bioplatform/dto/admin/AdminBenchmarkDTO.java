@@ -18,7 +18,7 @@ public final class AdminBenchmarkDTO {
                              Double rssP50Mb, Double rssP90Mb, Double rssMaxMb,
                              Double secP50, Double secP90,
                              Double suggestMb, Object declaredMb, Double deltaPct,
-                             String note) {
+                             String note, Map<String, Object> declaredResource) {
     }
 
     /** 版本分布行 */
@@ -28,7 +28,8 @@ public final class AdminBenchmarkDTO {
     /** 校准建议行(与 calibrate_resources.py 的 resources_suggest.tsv 同构) */
     public record SuggestRow(String rule, Integer nOk, Integer nCensored,
                              String observedP90Mb, String suggestMb,
-                             Object prevDeclaredMb, String deltaPct, String note) {
+                             Object prevDeclaredMb, String deltaPct, String note,
+                             Map<String, Object> declaredResource) {
     }
 
     /** 校准结果(预览/写回两段共用) */

@@ -17,11 +17,38 @@
         <el-tooltip content="回填:扫终态执行收割 benchmark 文件并按 git log 推断历史版本(幂等)" placement="top">
           <el-icon style="margin-left: 4px"><QuestionFilled /></el-icon>
         </el-tooltip>
+        <template v-if="canCalibrate">
+          <el-button type="success" :loading="calibLoading" @click="openCalibrate">资源校准</el-button>
+          <el-tooltip content="校准:按当前版本 benchmark 历史生成 mem_mb 建议(±30% 护栏),预览确认后写回 Omics config 并留 git 痕迹(仅管理员)" placement="top">
+            <el-icon style="margin-left: 4px"><QuestionFilled /></el-icon>
+          </el-tooltip>
+        </template>
       </div>
       <div v-if="backfillMsg" class="backfill-msg">{{ backfillMsg }}</div>
 
       <!-- 规则聚合 -->
       <el-table :data="summary" v-loading="loading" size="small" style="width: 100%; margin-top: 12px" border>
+        <el-table-column type="expand" width="34">
+          <template #default="{ row }">
+            <div class="res-design">
+              <div class="res-design-title">资源完整声明(config resources.<b>{{ row.ruleName }}</b>,展开行)</div>
+              <div class="res-design-grid">
+                <div class="res-item"><span class="res-k">threads</span><span class="res-v">{{ resField(row, 'threads') }}</span></div>
+                <div class="res-item"><span class="res-k">mem_mb (基准)</span><span class="res-v">{{ resField(row, 'mem_mb') }}</span></div>
+                <div class="res-item"><span class="res-k">io_bandwidth_mb_s</span><span class="res-v">{{ resField(row, 'io_bandwidth_mb_s') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.size_metric</span><span class="res-v">{{ resField(row, 'scale.size_metric') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.ref_input_size</span><span class="res-v">{{ resField(row, 'scale.ref_input_size') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.fixed_frac</span><span class="res-v">{{ resField(row, 'scale.fixed_frac') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.min_mem_mb</span><span class="res-v">{{ resField(row, 'scale.min_mem_mb') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.max_mem_mb</span><span class="res-v">{{ resField(row, 'scale.max_mem_mb') }}</span></div>
+              </div>
+              <div class="res-design-note">
+                缩放公式(两段式):实际内存 = mem_mb × (fixed_frac + (1−fixed_frac) × 实际规模 / ref_input_size),截断于 [min_mem_mb, max_mem_mb];
+                未配 scale 的规则按固定 mem_mb 执行。size_metric 取值 fastq_mb / bam_mb / sample_count。
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="ruleName" label="规则" min-width="150" show-overflow-tooltip />
         <el-table-column label="版本" width="110">
           <template #default="{ row }">
@@ -59,6 +86,13 @@
             <span v-if="row.deltaPct != null" :style="{ color: row.deltaPct > 0 ? '#e6a23c' : '#67c23a' }">
               {{ row.deltaPct > 0 ? '+' : '' }}{{ row.deltaPct.toFixed(0) }}%
             </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="对齐状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.deltaPct != null && Math.abs(row.deltaPct) <= 5" size="small" type="success">已对齐</el-tag>
+            <el-tag v-else-if="row.deltaPct != null" size="small" type="warning">待更新</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -115,18 +149,74 @@
         @current-change="loadDetail"
       />
     </el-card>
+
+    <!-- 资源校准(仅管理员):预览建议表→应用写回 config -->
+    <el-dialog v-model="calibVisible" title="资源校准" width="880px" top="6vh">
+      <div class="backfill-msg" style="margin-bottom: 10px">
+        按<b>当前版本</b>的 benchmark 历史生成 mem_mb 建议(p90×1.3 后 ±30% 限幅,n≥3 才给值),
+        应用时经护栏写回 Omics config 并留 git diff 痕迹(可回滚)。仅管理员可操作。
+      </div>
+      <el-table :data="calibRows" size="small" border v-loading="calibLoading">
+        <el-table-column type="expand" width="34">
+          <template #default="{ row }">
+            <div class="res-design">
+              <div class="res-design-title">资源完整声明(config resources.<b>{{ row.rule }}</b>,展开行)</div>
+              <div class="res-design-grid">
+                <div class="res-item"><span class="res-k">threads</span><span class="res-v">{{ resField(row, 'threads') }}</span></div>
+                <div class="res-item"><span class="res-k">mem_mb (基准)</span><span class="res-v">{{ resField(row, 'mem_mb') }}</span></div>
+                <div class="res-item"><span class="res-k">io_bandwidth_mb_s</span><span class="res-v">{{ resField(row, 'io_bandwidth_mb_s') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.size_metric</span><span class="res-v">{{ resField(row, 'scale.size_metric') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.ref_input_size</span><span class="res-v">{{ resField(row, 'scale.ref_input_size') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.fixed_frac</span><span class="res-v">{{ resField(row, 'scale.fixed_frac') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.min_mem_mb</span><span class="res-v">{{ resField(row, 'scale.min_mem_mb') }}</span></div>
+                <div class="res-item"><span class="res-k">scale.max_mem_mb</span><span class="res-v">{{ resField(row, 'scale.max_mem_mb') }}</span></div>
+              </div>
+              <div class="res-design-note">
+                缩放公式(两段式):实际内存 = mem_mb × (fixed_frac + (1−fixed_frac) × 实际规模 / ref_input_size),截断于 [min_mem_mb, max_mem_mb];
+                未配 scale 的规则按固定 mem_mb 执行。size_metric 取值 fastq_mb / bam_mb / sample_count。
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="rule" label="规则" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="nOk" label="n" width="55" align="center" />
+        <el-table-column prop="nCensored" label="删失" width="55" align="center" />
+        <el-table-column label="观测 p90 (MB)" width="120" align="right">
+          <template #default="{ row }">{{ row.observedP90Mb }}</template>
+        </el-table-column>
+        <el-table-column label="建议 mem_mb" width="110" align="right">
+          <template #default="{ row }"><b>{{ row.suggestMb }}</b></template>
+        </el-table-column>
+        <el-table-column label="现声明值" width="95" align="right">
+          <template #default="{ row }">{{ row.prevDeclaredMb != null ? row.prevDeclaredMb : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="delta" width="80" align="right">
+          <template #default="{ row }">{{ row.deltaPct ? (Number(row.deltaPct) > 0 ? '+' : '') + Number(row.deltaPct).toFixed(0) + '%' : '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="note" label="备注" min-width="130" show-overflow-tooltip />
+        <template #empty>
+          <div class="empty-hint">没有可校准的规则(需当前版本 ≥3 个有效数据点的 benchmark 历史;历史多为旧版本时可先在 Omics 仓库切回对应版本再校准)。</div>
+        </template>
+      </el-table>
+      <div v-if="calibMsg" class="backfill-msg" style="margin-top: 8px">{{ calibMsg }}</div>
+      <template #footer>
+        <el-button @click="calibVisible = false">关闭</el-button>
+        <el-button type="success" :loading="calibApplying" :disabled="!calibRows.length" @click="applyCalibration">应用写回 config</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { useUserStore } from '@/stores/user'
 import { listPipelines, type Pipeline } from '@/api/pipelineApi'
 import {
-  getSummary, getVersions, getBenchmarkList, getTrend, backfillBenchmarks,
-  type SummaryRow, type VersionInfo, type BenchmarkRow
+  getSummary, getVersions, getBenchmarkList, getTrend, backfillBenchmarks, calibrateResources,
+  type SummaryRow, type VersionInfo, type BenchmarkRow, type SuggestRow
 } from '@/api/benchmarkApi'
 
 const pipelines = ref<Pipeline[]>([])
@@ -149,6 +239,83 @@ const detailTotal = ref(0)
 
 const backfilling = ref(false)
 const backfillMsg = ref('')
+const userStore = useUserStore()
+const canCalibrate = computed(() => userStore.hasPermission('pipeline:calibrate'))
+const calibVisible = ref(false)
+const calibLoading = ref(false)
+const calibApplying = ref(false)
+const calibRows = ref<SuggestRow[]>([])
+const calibMsg = ref('')
+const calibVersion = ref('')
+
+// 展开行:取资源声明字段(支持 scale.xxx 深层路径)
+const resField = (row: any, path: string): string => {
+  const r = row?.declaredResource
+  if (!r) return '-'
+  let v: any = r
+  for (const k of path.split('.')) {
+    if (v == null || typeof v !== 'object') return '-'
+    v = v[k]
+  }
+  return v === null || v === undefined ? '-' : String(v)
+}
+
+const openCalibrate = async () => {
+  if (!pipelineId.value) { ElMessage.warning('请先选择流水线'); return }
+  calibVisible.value = true
+  calibMsg.value = ''
+  calibRows.value = []
+  calibLoading.value = true
+  try {
+    const res = await calibrateResources(pipelineId.value, false, false)
+    calibRows.value = res.rows || []
+    calibVersion.value = res.version || ''
+    calibMsg.value = `版本 ${calibVersion.value.substring(0, 8)} · 历史 ${res.historyRows} 行`
+  } catch (e: any) {
+    calibMsg.value = '校准预览失败: ' + (e?.message || e)
+  } finally {
+    calibLoading.value = false
+  }
+}
+
+const applyCalibration = async () => {
+  const pid = pipelineId.value
+  if (!pid) return
+  try {
+    await ElMessageBox.confirm(
+      `将按护栏把建议值写回 Omics config(版本 ${calibVersion.value.substring(0, 8)}),mem_mb 以外的声明(threads/scale)不动。确认写回?`,
+      '资源校准写回', { type: 'warning', confirmButtonText: '写回', cancelButtonText: '取消' })
+  } catch { return }
+  calibApplying.value = true
+  try {
+    const res = await calibrateResources(pid, true, false)
+    calibRows.value = res.rows || []
+    calibMsg.value = '写回完成(改动已留痕,git 可回滚)\n' + (res.diff || '')
+    ElMessage.success('写回完成')
+    loadSummary()
+  } catch (e: any) {
+    const msg = String(e?.message || e)
+    if (msg.includes('force') || msg.includes('未提交')) {
+      try {
+        await ElMessageBox.confirm('Omics 工作区有未提交改动,写回会与手头编辑混在一起。仍要继续吗?', '带脏写回确认',
+          { type: 'warning', confirmButtonText: '继续写回', cancelButtonText: '取消' })
+      } catch { calibApplying.value = false; return }
+      try {
+        const res = await calibrateResources(pid, true, true)
+        calibRows.value = res.rows || []
+        calibMsg.value = '写回完成(改动已留痕,git 可回滚)\n' + (res.diff || '')
+        ElMessage.success('写回完成')
+        loadSummary()
+      } catch (e2: any) {
+        calibMsg.value = '写回失败: ' + (e2?.message || e2)
+      }
+    } else {
+      calibMsg.value = '写回失败: ' + msg
+    }
+  } finally {
+    calibApplying.value = false
+  }
+}
 
 const ruleOptions = computed(() => summary.value.map(r => r.ruleName))
 
@@ -357,5 +524,47 @@ onBeforeUnmount(() => {
   color: #909399;
   font-size: 13px;
   line-height: 1.8;
+}
+
+/* 资源完整声明展开行 */
+.res-design {
+  padding: 8px 16px;
+  background: #fafcff;
+}
+.res-design-title {
+  font-size: 12.5px;
+  color: #606266;
+  margin-bottom: 6px;
+}
+.res-design-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.res-item {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+}
+.res-k {
+  padding: 2px 8px;
+  color: #909399;
+  background: #f5f7fa;
+  border-right: 1px solid #e4e7ed;
+}
+.res-v {
+  padding: 2px 10px;
+  color: #303133;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.res-design-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #909399;
+  line-height: 1.7;
 }
 </style>

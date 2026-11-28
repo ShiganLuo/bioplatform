@@ -91,7 +91,7 @@ public class AdminPipelineController {
                 new AdminPipelineCreateRequest(request.name(), request.type(), request.templateId(),
                         request.projectId(), request.metaContent(), request.metaType(), request.extraParams(),
                         request.description(), request.category(),
-                        request.configJson(), request.dockerImage(), request.timeout(), request.comparisonJson()));
+                        request.configJson(), request.dockerImage(), request.timeout(), request.designJson()));
         return ApiResponse.success();
     }
 
@@ -151,7 +151,7 @@ public class AdminPipelineController {
      * body: {apply?: bool, force?: bool}(force=确认混入未提交改动)。
      */
     @PostMapping("/{id}/calibrate")
-    @PreAuthorize("hasAuthority('pipeline:run')")
+    @PreAuthorize("hasAuthority('pipeline:calibrate')")
     @OperLog(module = "流水线管理", operation = "资源校准")
     public ApiResponse<com.bioplatform.dto.admin.AdminBenchmarkDTO.CalibrateResult> calibrate(
             @PathVariable Long id, @RequestBody Map<String, Object> params) {

@@ -87,7 +87,7 @@ public class BenchmarkServiceImpl implements BenchmarkService {
         List<PipelineBenchmark> rows = benchmarkMapper.selectList(
                 pipelineId, blankToNull(workflow), null, null,
                 "ALL".equals(resolved) ? null : resolved);
-        Map<String, Double> declared = declaredValues(pipelineId);
+        Map<String, Map<String, Object>> declared = declaredBlocks(pipelineId);
         // 按 (规则 × 版本) 聚合
         Map<String, List<PipelineBenchmark>> groups = new LinkedHashMap<>();
         for (PipelineBenchmark b : rows) {
@@ -137,7 +137,11 @@ public class BenchmarkServiceImpl implements BenchmarkService {
                 suggest = null;
                 note = "数据点不足(n<3),不出建议";
             }
-            Double declaredMb = declared.get(first.getRuleName());
+            Map<String, Object> declBlock = declared.get(first.getRuleName());
+            Double declaredMb = null;
+            if (declBlock != null && declBlock.get("mem_mb") instanceof Number nb) {
+                declaredMb = nb.doubleValue();
+            }
             // 与 calibrate_resources.py 同口径:单次调整 ±30% 限幅(damped),
             // delta 按限幅后值算(标准2:与 resources_suggest.tsv 一致)
             if (suggest != null && declaredMb != null && declaredMb > 0) {
@@ -156,7 +160,7 @@ public class BenchmarkServiceImpl implements BenchmarkService {
                     max == Double.NEGATIVE_INFINITY ? null : max,
                     secs.isEmpty() ? null : percentile(secs, 0.50),
                     secs.isEmpty() ? null : percentile(secs, 0.90),
-                    suggest, declaredMb, delta, note));
+                    suggest, declaredMb, delta, note, declBlock));
         }
         out.sort((a, b) -> {
             double av = a.rssP90Mb() == null ? 0 : a.rssP90Mb();
@@ -309,7 +313,7 @@ public class BenchmarkServiceImpl implements BenchmarkService {
                 outLog = r.get("output") == null ? "" : String.valueOf(r.get("output"));
             }
 
-            List<SuggestRow> suggestRows = parseSuggest(absOut);
+            List<SuggestRow> suggestRows = parseSuggest(absOut, declaredBlocks(pipelineId));
             if (apply) {
                 String post = gitConfigDiff(configRel);
                 diff = "===== 写回前 =====\n" + diff + "\n===== 写回后 =====\n" + post;
@@ -334,9 +338,10 @@ public class BenchmarkServiceImpl implements BenchmarkService {
         return version.trim();
     }
 
-    /** 模板 config 的当前声明值 resources.<rule>.mem_mb */
-    private Map<String, Double> declaredValues(Long pipelineId) {
-        Map<String, Double> out = new LinkedHashMap<>();
+    /** 模板 config 的当前资源声明 resources.<rule> 整块(threads/mem_mb/scale...) */
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> declaredBlocks(Long pipelineId) {
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
         Pipeline pipeline = pipelineMapper.selectById(pipelineId);
         if (pipeline == null || pipeline.getTemplateId() == null) {
             return out;
@@ -347,12 +352,8 @@ public class BenchmarkServiceImpl implements BenchmarkService {
         }
         try {
             JsonNode res = MAPPER.readTree(template.getConfigTemplate()).path("resources");
-            res.fields().forEachRemaining(e -> {
-                JsonNode mem = e.getValue().path("mem_mb");
-                if (mem.isNumber()) {
-                    out.put(e.getKey(), mem.asDouble());
-                }
-            });
+            res.fields().forEachRemaining(e ->
+                    out.put(e.getKey(), MAPPER.convertValue(e.getValue(), Map.class)));
         } catch (Exception ignored) {
             // 配置解析失败不出声明值列
         }
@@ -397,7 +398,7 @@ public class BenchmarkServiceImpl implements BenchmarkService {
         throw new IllegalArgumentException("无法从 snakemakePath 推断 config 文件: " + smk);
     }
 
-    private List<SuggestRow> parseSuggest(String absOut) {
+    private List<SuggestRow> parseSuggest(String absOut, Map<String, Map<String, Object>> declared) {
         List<SuggestRow> out = new ArrayList<>();
         try {
             Path f = HostPathUtil.resolveExisting(absOut + "/resources_suggest.tsv");
@@ -413,7 +414,7 @@ public class BenchmarkServiceImpl implements BenchmarkService {
                 out.add(new SuggestRow(c[0], parseInt(c[1]), parseInt(c[2]),
                         c[3], c[4],
                         c[5].isBlank() ? null : (c[5].contains(".") ? Double.parseDouble(c[5]) : Integer.parseInt(c[5])),
-                        c[6], c[7]));
+                        c[6], c[7], declared.get(c[0])));
             }
         } catch (Exception e) {
             log.warn("resources_suggest.tsv 解析失败: {}", e.getMessage());
