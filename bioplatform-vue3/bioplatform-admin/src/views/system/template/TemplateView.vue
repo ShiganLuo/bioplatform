@@ -176,11 +176,16 @@
         <el-divider content-position="left">
           默认配置 JSON
           <el-button size="small" style="margin-left: 12px" @click="formatConfig">格式化</el-button>
+          <el-button size="small" style="margin-left: 6px" @click="configTreeMode = !configTreeMode">
+            {{ configTreeMode ? '原文编辑' : '树形折叠' }}
+          </el-button>
         </el-divider>
         <el-form-item prop="configTemplate" class="no-label">
           <div class="json-editor-area">
             <div v-if="configJsonError" class="json-error">{{ configJsonError }}</div>
+            <JsonTreeFold v-if="configTreeMode" :model-value="formData.configTemplate" />
             <el-input
+              v-else
               v-model="formData.configTemplate"
               type="textarea"
               :rows="14"
@@ -195,11 +200,16 @@
         <el-divider content-position="left">
           Schema JSON
           <el-button size="small" style="margin-left: 12px" @click="formatSchema">格式化</el-button>
+          <el-button size="small" style="margin-left: 6px" @click="schemaTreeMode = !schemaTreeMode">
+            {{ schemaTreeMode ? '原文编辑' : '树形折叠' }}
+          </el-button>
         </el-divider>
         <el-form-item prop="schemaJson" class="no-label">
           <div class="json-editor-area">
             <div v-if="schemaJsonError" class="json-error">{{ schemaJsonError }}</div>
+            <JsonTreeFold v-if="schemaTreeMode" :model-value="formData.schemaJson" />
             <el-input
+              v-else
               v-model="formData.schemaJson"
               type="textarea"
               :rows="14"
@@ -241,6 +251,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
+import JsonTreeFold from '@/components/JsonTreeFold.vue'
 import {
   listTemplates, createTemplate, updateTemplate, deleteTemplate, importTemplates
 } from '@/api/templateApi'
@@ -271,6 +282,8 @@ const schemaJsonError = ref('')
 const searchForm = reactive({ name: '', type: '', category: '' })
 const pagination = reactive({ page: 1, size: 10, total: 0 })
 
+const configTreeMode = ref(false)
+const schemaTreeMode = ref(false)
 const formData = reactive({
   id: 0,
   name: '',

@@ -59,6 +59,19 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
+        <el-table-column label="执行版本" width="120">
+          <template #default="{ row }">
+            <el-tooltip :content="versionTip(row)" placement="top">
+              <el-tag v-if="row.latestWorkflowVersion" size="small" :type="row.latestVersionSource === 'git' ? 'success' : 'info'">
+                {{ row.latestWorkflowVersion.slice(0, 8) }}{{ row.latestVersionSource === 'git' ? '' : '*' }}
+              </el-tag>
+              <el-tag v-else-if="row.templateWorkflowVersion" size="small" type="info" effect="plain">
+                {{ row.templateWorkflowVersion.slice(0, 8) }}·导入
+              </el-tag>
+              <span v-else>-</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
@@ -172,11 +185,16 @@
             <el-button size="small" style="margin-left: 12px" @click="formatJson">
               格式化
             </el-button>
+            <el-button size="small" style="margin-left: 6px" @click="jsonTreeMode = !jsonTreeMode">
+              {{ jsonTreeMode ? '原文编辑' : '树形折叠' }}
+            </el-button>
           </el-divider>
 
           <div class="json-editor-wrapper">
             <div v-if="jsonError" class="json-error">{{ jsonError }}</div>
+            <JsonTreeFold v-if="jsonTreeMode" :model-value="jsonText" />
             <el-input
+              v-else
               v-model="jsonText"
               type="textarea"
               :rows="24"
@@ -211,10 +229,15 @@
         <el-divider content-position="left">
           配置 JSON
           <el-button size="small" style="margin-left: 12px" @click="formatEditJson">格式化</el-button>
+          <el-button size="small" style="margin-left: 6px" @click="editJsonTreeMode = !editJsonTreeMode">
+            {{ editJsonTreeMode ? '原文编辑' : '树形折叠' }}
+          </el-button>
         </el-divider>
         <div class="json-editor-wrapper">
           <div v-if="editJsonError" class="json-error">{{ editJsonError }}</div>
+          <JsonTreeFold v-if="editJsonTreeMode" :model-value="editJsonText" />
           <el-input
+            v-else
             v-model="editJsonText"
             type="textarea"
             :rows="20"
@@ -253,6 +276,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Monitor, Connection } from '@element-plus/icons-vue'
+import JsonTreeFold from '@/components/JsonTreeFold.vue'
 import { listPipelines, createPipeline, updatePipeline, deletePipeline, executePipeline, getPipeline } from '@/api/pipelineApi'
 import type { Pipeline } from '@/api/pipelineApi'
 import { listTemplates, getTemplate } from '@/api/templateApi'
@@ -285,11 +309,25 @@ const selectedType = ref('')
 const selectedTemplateId = ref<number | undefined>(undefined)
 
 // JSON editor state (create)
+const versionTip = (row: any) => {
+  const parts: string[] = []
+  if (row.latestWorkflowVersion) {
+    const src = row.latestVersionSource === 'git' ? '派发采集' : row.latestVersionSource === 'inferred' ? '历史推断' : '未知'
+    parts.push(`最近执行版本: ${row.latestWorkflowVersion}（来源:${src}）`)
+  } else {
+    parts.push('尚无执行记录')
+  }
+  if (row.templateWorkflowVersion) parts.push(`模板导入版本: ${row.templateWorkflowVersion}`)
+  return parts.join('\n')
+}
+
 const jsonText = ref('')
+const jsonTreeMode = ref(false)
 const jsonError = ref('')
 
 // JSON editor state (edit)
 const editJsonText = ref('')
+const editJsonTreeMode = ref(false)
 const editJsonError = ref('')
 
 const searchForm = reactive({ name: '', type: '', category: '' })
