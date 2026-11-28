@@ -131,10 +131,10 @@
       <template v-if="detailSnapshot">
         <el-divider v-if="detailSnapshot.meta">样本 Meta</el-divider>
         <el-input v-if="detailSnapshot.meta" :model-value="detailSnapshot.meta" type="textarea" :rows="5" readonly />
-        <el-divider v-if="detailSnapshot.comparison">实验设计 comparison</el-divider>
-        <el-input v-if="detailSnapshot.comparison" :model-value="prettyJson(detailSnapshot.comparison)" type="textarea" :rows="4" readonly />
+        <el-divider v-if="detailSnapshot.design">实验设计 design</el-divider>
+        <JsonTreeFold v-if="detailSnapshot.design" :model-value="prettyJson(detailSnapshot.design)" max-height="260px" />
         <el-divider>生效配置（模板配置 + 参数覆盖合并）</el-divider>
-        <el-input :model-value="prettyJson(detailSnapshot.config)" type="textarea" :rows="5" readonly />
+        <JsonTreeFold :model-value="prettyJson(detailSnapshot.config)" max-height="320px" />
         <el-divider>生效命令</el-divider>
         <el-input :model-value="detailSnapshot.command" type="textarea" :rows="4" readonly />
       </template>
@@ -176,6 +176,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import JsonTreeFold from '@/components/JsonTreeFold.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { listExecutions, getExecution, cancelExecution, deleteExecution } from '@/api/executionApi'
@@ -190,7 +191,7 @@ const detailDialogVisible = ref(false)
 const detailData = ref<Execution>({} as Execution)
 
 // 执行输入快照(2026-11-26):派发时固化的 meta/comparison/生效配置/渲染命令
-const detailSnapshot = computed<{ meta?: string | null; comparison?: string | null; config?: unknown; command?: string | null } | null>(() => {
+const detailSnapshot = computed<{ meta?: string | null; design?: string | null; config?: unknown; command?: string | null } | null>(() => {
   const raw = (detailData.value as any)?.inputSnapshot
   if (!raw) return null
   try { return JSON.parse(raw) } catch { return null }

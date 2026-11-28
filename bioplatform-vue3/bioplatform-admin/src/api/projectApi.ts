@@ -28,6 +28,8 @@ export interface CreateAnalysisRequest {
   name?: string
   metaContent: string
   metaType: string
+  /** 实验设计 design JSON(run.py --design) */
+  designJson?: string
   extraParams?: string
   description?: string
 }
@@ -40,6 +42,8 @@ export interface Pipeline {
   projectId: number
   metaContent: string
   metaType: string
+  /** 实验设计 design JSON(run.py --design) */
+  designJson?: string
   extraParams: string
   description: string
   category: string
@@ -48,6 +52,11 @@ export interface Pipeline {
   ownerId: number
   createdAt: string
   updatedAt: string
+  /** 最近一次执行的流程版本(Omics commit;非表字段,列表批量回填) */
+  latestWorkflowVersion?: string | null
+  latestVersionSource?: string | null
+  /** 模板导入时的 Omics 版本 */
+  templateWorkflowVersion?: string | null
 }
 
 export interface PageResult<T> {

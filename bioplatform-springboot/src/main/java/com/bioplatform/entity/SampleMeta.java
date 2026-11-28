@@ -14,10 +14,9 @@ public class SampleMeta {
     private String metaMode;
     private String metaContent;
 
-    /** 实验设计关系 JSON(2026-11-25):comparison 列表,Omics --comparison 文件同构
-     *  [{comparison_id, control_group_name?, experiment_group_name?,
-     *    control_samples[], experiment_samples[]}] */
-    private String comparisonJson;
+    /** 实验设计 design JSON(2026-11-26 换代,run.py --design 唯一入口):
+     *  {tissue: {groups:{组名:[样本]}, comparisons:{对比名:{groups,ref?,coding?}}, tests?}} */
+    private String designJson;
 
     private String description;
     private Long createdBy;

@@ -42,7 +42,7 @@ public final class AdminPipelineDTO {
             String configJson,
             String dockerImage,
             Integer timeout,
-            String comparisonJson
+            String designJson
     ) {
     }
 
@@ -63,7 +63,7 @@ public final class AdminPipelineDTO {
             String configJson,
             String dockerImage,
             Integer timeout,
-            String comparisonJson
+            String designJson
     ) {
     }
 
@@ -77,7 +77,7 @@ public final class AdminPipelineDTO {
             String metaType,
             String extraParams,
             String description,
-            String comparisonJson
+            String designJson
     ) {
     }
 }

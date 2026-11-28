@@ -158,12 +158,12 @@ public class PipelineTaskDispatcher {
                     ? String.valueOf(execution.getPipelineId())
                     : rendered.outputDir());
             execution.setHeartbeatAt(LocalDateTime.now());
-            // 执行输入快照(2026-11-26):meta/comparison/生效配置/渲染命令按派发时刻固化,
+            // 执行输入快照(2026-11-26):meta/design/生效配置/渲染命令按派发时刻固化,
             // 执行详情可看全"这次执行实际用了什么"(流水线后续编辑不影响已执行记录的展示)
             try {
                 com.fasterxml.jackson.databind.node.ObjectNode snap = MAPPER.createObjectNode();
                 snap.put("meta", pipeline.getMetaContent());
-                snap.put("comparison", pipeline.getComparisonJson());
+                snap.put("design", pipeline.getDesignJson());
                 Object cfg = mergedConfig(template, flattenedOverrides(pipeline));
                 snap.set("config", MAPPER.valueToTree(cfg));
                 snap.put("command", rendered.command());
@@ -389,13 +389,13 @@ public class PipelineTaskDispatcher {
                 copyFiles.add("meta.tsv");
                 metaArg = "\"" + escDq(absOutStr + "/meta.tsv") + "\"";
             }
-            // 实验设计关系(2026-11-25):样本信息"填入"带入的 comparison_json 落
-            // comparison.json,经 run.py --comparison 消费(跳过 meta design 列,
+            // 实验设计关系(2026-11-25):样本信息"填入"带入的 design_json 落
+            // design.json,经 run.py --design 消费(跳过 meta design 列,
             // group_pairs 由该文件生成);task 型(run_module)无此参数,不拼
-            String comparisonJson = pipeline.getComparisonJson();
-            if (comparisonJson != null && !comparisonJson.isBlank()) {
-                Files.writeString(Paths.get(sharedPath, stageRel, "comparison.json"), comparisonJson);
-                copyFiles.add("comparison.json");
+            String designJson = pipeline.getDesignJson();
+            if (designJson != null && !designJson.isBlank()) {
+                Files.writeString(Paths.get(sharedPath, stageRel, "design.json"), designJson);
+                copyFiles.add("design.json");
             }
             run.append("python3 run.py -w \"").append(escDq(template.getName()))
                     .append("\" -m ").append(metaArg)
@@ -403,8 +403,8 @@ public class PipelineTaskDispatcher {
                     // 降权后日志不能落仓库根(默认 workflow.log 在 cwd=Omics 根,root 遗留文件会 EACCES);
                     // 定向到输出目录,与 task_output 日志同处(2026-11-24 e2e 实踩)
                     .append(" --log \"").append(escDq(absOutStr + "/workflow.log")).append('"');
-            if (comparisonJson != null && !comparisonJson.isBlank()) {
-                run.append(" --comparison \"").append(escDq(absOutStr + "/comparison.json")).append('"');
+            if (designJson != null && !designJson.isBlank()) {
+                run.append(" --design \"").append(escDq(absOutStr + "/design.json")).append('"');
             }
             // 参数覆盖(dot-notation)以 run.py 的点号 CLI 参数合并进模板配置
             for (Map.Entry<String, Object> e : overrides.entrySet()) {

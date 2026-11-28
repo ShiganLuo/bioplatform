@@ -6,8 +6,8 @@ export interface SampleMeta {
   name: string
   metaMode: string
   metaContent: string
-  /** 实验设计关系 JSON(Omics --comparison 列表形态),可空 */
-  comparisonJson?: string
+  /** 实验设计 design JSON(run.py --design 唯一入口,2026-11-26 换代),可空 */
+  designJson?: string
   description: string
   createdBy: number
   createdAt: string

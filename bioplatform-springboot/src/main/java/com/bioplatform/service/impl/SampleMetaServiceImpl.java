@@ -18,7 +18,7 @@ public class SampleMetaServiceImpl implements SampleMetaService {
 
     @Override
     public SampleMeta create(SampleMeta sampleMeta) {
-        validateComparisonJson(sampleMeta.getComparisonJson());
+        validateDesignJson(sampleMeta.getDesignJson(), sampleMeta.getMetaContent());
         sampleMetaMapper.insert(sampleMeta);
         return sampleMeta;
     }
@@ -35,7 +35,7 @@ public class SampleMetaServiceImpl implements SampleMetaService {
 
     @Override
     public void update(SampleMeta sampleMeta) {
-        validateComparisonJson(sampleMeta.getComparisonJson());
+        validateDesignJson(sampleMeta.getDesignJson(), sampleMeta.getMetaContent());
         sampleMetaMapper.updateById(sampleMeta);
     }
 
@@ -44,8 +44,8 @@ public class SampleMetaServiceImpl implements SampleMetaService {
         sampleMetaMapper.deleteById(id);
     }
 
-    /** 实验设计关系 JSON 校验(统一口径见 ComparisonJsonUtil) */
-    private void validateComparisonJson(String json) {
-        com.bioplatform.common.util.ComparisonJsonUtil.validate(json);
+    /** 实验设计 design JSON 校验(meta TSV 提供时全量,统一口径见 DesignJsonUtil) */
+    private void validateDesignJson(String json, String metaTsv) {
+        com.bioplatform.common.util.DesignJsonUtil.validate(json, metaTsv);
     }
 }

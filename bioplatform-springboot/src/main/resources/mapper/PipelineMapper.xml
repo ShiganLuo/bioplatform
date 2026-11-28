@@ -10,7 +10,7 @@
         <result column="template_id" property="templateId"/>
         <result column="project_id" property="projectId"/>
         <result column="meta_content" property="metaContent"/>
-        <result column="comparison_json" property="comparisonJson"/>
+        <result column="design_json" property="designJson"/>
         <result column="meta_type" property="metaType"/>
         <result column="extra_params" property="extraParams"/>
         <result column="description" property="description"/>
@@ -25,7 +25,7 @@
 
     <sql id="Base_Column_List">
         `id`, `name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
-        `comparison_json`, `description`, `category`, `config_json`,
+        `design_json`, `description`, `category`, `config_json`,
         `docker_image`, `timeout`, `owner_id`, `created_at`, `updated_at`
     </sql>
 
@@ -33,10 +33,10 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `pipelines` (`name`, `type`, `template_id`, `project_id`, `meta_content`, `meta_type`, `extra_params`,
-                                 `comparison_json`, `description`, `category`, `config_json`,
+                                 `design_json`, `description`, `category`, `config_json`,
                                  `docker_image`, `timeout`, `owner_id`)
         VALUES (#{name}, #{type}, #{templateId}, #{projectId}, #{metaContent}, #{metaType}, #{extraParams},
-                #{comparisonJson}, #{description}, #{category}, #{configJson},
+                #{designJson}, #{description}, #{category}, #{configJson},
                 #{dockerImage}, #{timeout}, #{ownerId})
     </insert>
 
@@ -80,12 +80,30 @@
             <if test="metaType != null">`meta_type` = #{metaType},</if>
             <if test="extraParams != null">`extra_params` = #{extraParams},</if>
             <!-- 对比实验设计:空串=清空,null=不动(动态集语义) -->
-            <if test="comparisonJson != null">`comparison_json` = #{comparisonJson},</if>
+            <if test="designJson != null">`design_json` = #{designJson},</if>
         </set>
         WHERE `id` = #{id}
     </update>
 
-    <delete id="deleteById">
+    <!-- 列表版本回填(2026-11-26):每流水线最近一次执行的版本 -->
+<select id="selectLatestExecVersions" resultType="map">
+    SELECT pe.`pipeline_id` AS pipelineId, pe.`workflow_version` AS workflowVersion, pe.`version_source` AS versionSource
+    FROM `pipeline_executions` pe
+    JOIN (SELECT `pipeline_id`, MAX(`id`) AS mid FROM `pipeline_executions`
+          WHERE `pipeline_id` IN
+          <foreach collection="ids" item="it" open="(" separator="," close=")">#{it}</foreach>
+          GROUP BY `pipeline_id`) t ON pe.`id` = t.mid
+</select>
+
+<!-- 列表版本回填:模板导入版本 -->
+<select id="selectTemplateVersions" resultType="map">
+    SELECT t.`id` AS templateId, t.`workflow_version` AS workflowVersion
+    FROM `workflow_templates` t
+    WHERE t.`id` IN
+    <foreach collection="ids" item="it" open="(" separator="," close=")">#{it}</foreach>
+</select>
+
+<delete id="deleteById">
         DELETE FROM `pipelines` WHERE `id` = #{id}
     </delete>
 

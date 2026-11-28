@@ -45,7 +45,7 @@ public class PipelineExecution {
     /** 版本来源: git=派发采集 / inferred=历史推断 / unknown */
     private String versionSource;
 
-    /** 执行输入快照 JSON({meta,comparison,config,command},派发时采集) */
+    /** 执行输入快照 JSON({meta,design,config,command},派发时采集) */
     private String inputSnapshot;
 
     /** 执行器类型：local / remote */

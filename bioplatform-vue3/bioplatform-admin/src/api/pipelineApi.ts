@@ -8,7 +8,7 @@ export interface Pipeline {
   projectId: number
   metaContent: string
   /** 实验设计关系 JSON(Omics --comparison 列表形态),随样本信息"填入"带入 */
-  comparisonJson?: string
+  designJson?: string
   metaType: string
   extraParams: string
   description: string
@@ -19,6 +19,11 @@ export interface Pipeline {
   ownerId: number
   createdAt: string
   updatedAt: string
+  /** 最近一次执行的流程版本(Omics commit;非表字段,列表批量回填) */
+  latestWorkflowVersion?: string | null
+  latestVersionSource?: string | null
+  /** 模板导入时的 Omics 版本 */
+  templateWorkflowVersion?: string | null
 }
 
 export interface PipelineQuery {

@@ -56,8 +56,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType());
         pipeline.setExtraParams(request.extraParams());
-        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
-        pipeline.setComparisonJson(request.comparisonJson());
+        com.bioplatform.common.util.DesignJsonUtil.validate(request.designJson(), request.metaContent());
+        pipeline.setDesignJson(request.designJson());
         pipeline.setDescription(request.description());
         pipeline.setCategory(request.category());
         pipeline.setConfigJson(request.configJson());
@@ -84,8 +84,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType());
         pipeline.setExtraParams(request.extraParams());
-        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
-        pipeline.setComparisonJson(request.comparisonJson());
+        com.bioplatform.common.util.DesignJsonUtil.validate(request.designJson(), request.metaContent());
+        pipeline.setDesignJson(request.designJson());
         pipeline.setDescription(request.description());
         pipeline.setCategory(request.category());
         pipeline.setConfigJson(request.configJson());
@@ -121,6 +121,38 @@ public class PipelineServiceImpl implements PipelineService {
         return pipelineMapper.selectById(id);
     }
 
+    /** 列表版本回填(2026-11-26):最近执行版本 + 模板导入版本,批量查询回填非表字段 */
+    private void fillVersionInfo(List<Pipeline> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        java.util.Map<Long, String[]> execVer = new java.util.HashMap<>();
+        List<Long> pids = list.stream().map(Pipeline::getId).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toList());
+        if (!pids.isEmpty()) {
+            for (java.util.Map<String, Object> row : pipelineMapper.selectLatestExecVersions(pids)) {
+                execVer.put(((Number) row.get("pipelineId")).longValue(),
+                        new String[]{(String) row.get("workflowVersion"), (String) row.get("versionSource")});
+            }
+        }
+        java.util.Map<Long, String> tplVer = new java.util.HashMap<>();
+        List<Long> tids = list.stream().map(Pipeline::getTemplateId).filter(java.util.Objects::nonNull)
+                .distinct().collect(java.util.stream.Collectors.toList());
+        if (!tids.isEmpty()) {
+            for (java.util.Map<String, Object> row : pipelineMapper.selectTemplateVersions(tids)) {
+                tplVer.put(((Number) row.get("templateId")).longValue(), (String) row.get("workflowVersion"));
+            }
+        }
+        for (Pipeline p : list) {
+            String[] ev = execVer.get(p.getId());
+            if (ev != null) {
+                p.setLatestWorkflowVersion(ev[0]);
+                p.setLatestVersionSource(ev[1]);
+            }
+            p.setTemplateWorkflowVersion(tplVer.get(p.getTemplateId()));
+        }
+    }
+
     @Override
     public PageResult<Pipeline> listPipelines(String category, int pageNum, int pageSize) {
         PageHelper.startPage(pageNum, pageSize);
@@ -128,6 +160,7 @@ public class PipelineServiceImpl implements PipelineService {
         Pipeline pipelineParam = new Pipeline();
         pipelineParam.setCategory(category);
         List<Pipeline> pipelines = pipelineMapper.selectAll(pipelineParam);
+        fillVersionInfo(pipelines);
         PageInfo<Pipeline> pageInfo = new PageInfo<>(pipelines);
 
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, pipelines);
@@ -137,6 +170,7 @@ public class PipelineServiceImpl implements PipelineService {
     public PageResult<Pipeline> listPipelinesByOwner(Long userId, String category, int pageNum, int pageSize) {
         PageHelper.startPage(pageNum, pageSize);
         List<Pipeline> pipelines = pipelineMapper.selectByOwnerId(userId);
+        fillVersionInfo(pipelines);
         PageInfo<Pipeline> pageInfo = new PageInfo<>(pipelines);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, pipelines);
     }
@@ -161,8 +195,8 @@ public class PipelineServiceImpl implements PipelineService {
         pipeline.setMetaContent(request.metaContent());
         pipeline.setMetaType(request.metaType() != null ? request.metaType() : "text");
         pipeline.setExtraParams(request.extraParams());
-        com.bioplatform.common.util.ComparisonJsonUtil.validate(request.comparisonJson());
-        pipeline.setComparisonJson(request.comparisonJson());
+        com.bioplatform.common.util.DesignJsonUtil.validate(request.designJson(), request.metaContent());
+        pipeline.setDesignJson(request.designJson());
         pipeline.setDescription(request.description() != null ? request.description()
                 : "从项目创建: " + tpl.getName());
         pipeline.setCategory(tpl.getCategory());
@@ -181,6 +215,7 @@ public class PipelineServiceImpl implements PipelineService {
         Pipeline param = new Pipeline();
         param.setProjectId(projectId);
         List<Pipeline> list = pipelineMapper.selectAll(param);
+        fillVersionInfo(list);
         PageInfo<Pipeline> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), pageNum, pageSize, list);
     }

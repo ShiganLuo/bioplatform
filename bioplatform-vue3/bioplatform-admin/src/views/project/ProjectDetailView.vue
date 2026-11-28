@@ -395,6 +395,19 @@
         </el-table-column>
         <el-table-column prop="category" label="分类" width="120" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
+        <el-table-column label="执行版本" width="120">
+          <template #default="{ row }">
+            <el-tooltip :content="versionTip(row)" placement="top">
+              <el-tag v-if="row.latestWorkflowVersion" size="small" :type="row.latestVersionSource === 'git' ? 'success' : 'info'">
+                {{ row.latestWorkflowVersion.slice(0, 8) }}{{ row.latestVersionSource === 'git' ? '' : '*' }}
+              </el-tag>
+              <el-tag v-else-if="row.templateWorkflowVersion" size="small" type="info" effect="plain">
+                {{ row.templateWorkflowVersion.slice(0, 8) }}·导入
+              </el-tag>
+              <span v-else>-</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="执行状态" width="150">
           <template #default="{ row }">
             <template v-if="latestExecutions[(row as Pipeline).id]">
@@ -437,52 +450,184 @@
       </div>
     </el-card>
 
-    <!-- 实验设计关系(2026-11-25):样本信息的 comparison 编辑,产出 Omics --comparison JSON -->
-    <el-dialog v-model="designVisible" title="实验设计关系" width="920px" top="5vh">
+    <!-- 实验设计(2026-11-26 换代):design JSON 编辑,run.py --design 唯一入口 -->
+    <el-dialog v-model="designVisible" title="实验设计" width="980px" top="4vh">
       <div class="exec-hint" style="margin-bottom: 10px">
-        定义对比关系(对照/实验样本分组),保存后可作为流程执行的 --comparison 参数;
-        样本名取自该样本信息的 Meta TSV(sample_id 列)。组名可留空。
+        按组织(scope)定义组与对比:组=样本集合,对比=组序列 × 编码方案,派生对比名自动为"参照组名_vs_检验组名"。
+        样本取自该 Meta TSV,tissue 列决定 scope(无 tissue 列即单 scope UNKNOWN);对比名参与输出命名。
       </div>
-      <el-table :data="designRows" size="small" border>
-        <el-table-column label="对比名称" width="180">
-          <template #default="{ row }">
-            <el-input v-model="row.comparison_id" placeholder="如 WT_vs_KO" />
-          </template>
-        </el-table-column>
-        <el-table-column label="对照组名(可选)" width="140">
-          <template #default="{ row }">
-            <el-input v-model="row.control_group_name" placeholder="可留空" />
-          </template>
-        </el-table-column>
-        <el-table-column label="实验组名(可选)" width="140">
-          <template #default="{ row }">
-            <el-input v-model="row.experiment_group_name" placeholder="可留空" />
-          </template>
-        </el-table-column>
-        <el-table-column label="对照样本" min-width="180">
-          <template #default="{ row }">
-            <el-select v-model="row.control_samples" multiple filterable style="width: 100%" placeholder="选择样本">
-              <el-option v-for="s in designSampleNames" :key="s" :label="s" :value="s" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="实验样本" min-width="180">
-          <template #default="{ row }">
-            <el-select v-model="row.experiment_samples" multiple filterable style="width: 100%" placeholder="选择样本">
-              <el-option v-for="s in designSampleNames" :key="s" :label="s" :value="s" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="70">
-          <template #default="{ $index }">
-            <el-button type="danger" link size="small" @click="designRows.splice($index, 1)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-button size="small" style="margin-top: 10px" @click="addDesignRow">+ 添加对比</el-button>
+      <el-radio-group v-model="designEditMode" size="small" style="margin-bottom: 10px" @change="onDesignModeChange">
+        <el-radio-button label="form">表单编辑</el-radio-button>
+        <el-radio-button label="json">JSON 粘贴</el-radio-button>
+      </el-radio-group>
+
+      <template v-if="designEditMode === 'form'">
+      <el-tabs v-model="designActiveScope">
+        <el-tab-pane v-for="sc in designScopes" :key="sc.scope" :label="sc.scope" :name="sc.scope">
+          <!-- 组注册表 -->
+          <div class="design-sub-title">组注册表(组内样本同组织、同 data_type)</div>
+          <el-table :data="sc.groups" size="small" border>
+            <el-table-column label="组名" width="180">
+              <template #default="{ row }">
+                <el-input v-model="row.name" placeholder="如 DMSO_P6" />
+              </template>
+            </el-table-column>
+            <el-table-column label="样本" min-width="340">
+              <template #default="{ row }">
+                <el-select v-model="row.samples" multiple filterable style="width: 100%" placeholder="选择样本">
+                  <el-option
+                    v-for="s in samplesOfScope(sc.scope)"
+                    :key="s.id"
+                    :label="s.id + (s.dataType ? ' · ' + s.dataType : '')"
+                    :value="s.id"
+                  />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="{ $index }">
+                <el-button type="danger" link size="small" @click="sc.groups.splice($index, 1)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-button size="small" style="margin-top: 8px" @click="sc.groups.push({ name: '', samples: [] })">+ 添加组</el-button>
+          <el-button size="small" style="margin-top: 8px; margin-left: 6px" @click="seedGroupsFromMeta(sc as DesignScopeRow)">
+            从 meta 的 group 列导入组
+          </el-button>
+
+          <!-- 对比定义 -->
+          <div class="design-sub-title" style="margin-top: 14px">对比定义(组序列顺序即生物学顺序:consecutive/helmert 依赖顺序,vs_ref 缺省取首个为基线)</div>
+          <el-table :data="sc.comparisons" size="small" border>
+            <el-table-column label="对比名(参与输出命名)" width="175">
+              <template #default="{ row }">
+                <el-input v-model="row.name" placeholder="如 vs_baseline" />
+              </template>
+            </el-table-column>
+            <el-table-column label="组序列(顺序=生物学顺序)" min-width="250">
+              <template #default="{ row }">
+                <div class="design-seq">
+                  <div v-for="(g, gi) in row.groups" :key="g" class="design-seq-row">
+                    <span class="design-seq-no">{{ gi + 1 }}</span>
+                    <span class="design-seq-name">{{ g }}</span>
+                    <span class="design-seq-ops">
+                      <el-tooltip content="上移" placement="top">
+                        <el-button link size="small" :disabled="gi === 0" @click="moveDesignGroup(row as DesignCompRow, gi, -1)">
+                          <el-icon><Top /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="下移" placement="top">
+                        <el-button link size="small" :disabled="gi === row.groups.length - 1" @click="moveDesignGroup(row as DesignCompRow, gi, 1)">
+                          <el-icon><Bottom /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="移出序列" placement="top">
+                        <el-button link size="small" type="danger" @click="row.groups.splice(gi, 1)">
+                          <el-icon><Close /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                    </span>
+                  </div>
+                  <div v-if="!row.groups.length" class="design-seq-empty">尚未选组,从下方"添加组"按顺序加入</div>
+                </div>
+                <el-dropdown trigger="click" style="margin-top: 6px" @command="(cmd: string) => addDesignGroup(row as DesignCompRow, cmd)">
+                  <el-button size="small" type="primary">
+                    + 添加组<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-for="g in availableGroupsFor(sc, row as DesignCompRow)" :key="g" :command="g">
+                        {{ g }}
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="!availableGroupsFor(sc, row as DesignCompRow).length" disabled>
+                        该 scope 的组已全部加入
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </template>
+            </el-table-column>
+            <el-table-column label="coding" width="150">
+              <template #default="{ row }">
+                <el-select v-model="row.coding" style="width: 100%">
+                  <el-option label="consecutive(相邻两两)" value="consecutive" />
+                  <el-option label="vs_ref(对基线)" value="vs_ref" />
+                  <el-option label="all_pairs(全两两)" value="all_pairs" />
+                  <el-option label="helmert(对此前均值)" value="helmert" />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column label="ref(基线)" width="130">
+              <template #default="{ row }">
+                <el-select v-if="row.coding === 'vs_ref'" v-model="row.ref" style="width: 100%" placeholder="缺省首组">
+                  <el-option v-for="g in row.groups" :key="g" :label="g" :value="g" />
+                </el-select>
+                <span v-else style="color: #c0c4cc">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="派生对比" min-width="185">
+              <template #default="{ row }">
+                <el-tag
+                  v-for="d in derivedFor(sc, row as DesignCompRow)"
+                  :key="d.name"
+                  :type="d.conflict ? 'danger' : 'primary'"
+                  size="small"
+                  effect="plain"
+                  style="margin: 1px 4px 1px 0"
+                >{{ d.name }}</el-tag>
+                <span v-if="!derivedFor(sc, row as DesignCompRow).length" style="color: #c0c4cc">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="60">
+              <template #default="{ $index }">
+                <el-button type="danger" link size="small" @click="sc.comparisons.splice($index, 1)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-button size="small" style="margin-top: 8px" @click="sc.comparisons.push({ name: '', groups: [], ref: '', coding: 'consecutive' })">+ 添加对比</el-button>
+
+          <!-- tests -->
+          <div class="design-sub-title" style="margin-top: 14px">检验(tests)</div>
+          <el-checkbox-group v-model="sc.tests">
+            <el-checkbox label="pairwise">pairwise(已消费)</el-checkbox>
+            <el-checkbox label="omnibus">omnibus(保留声明)</el-checkbox>
+            <el-checkbox label="trend">trend(保留声明)</el-checkbox>
+          </el-checkbox-group>
+        </el-tab-pane>
+      </el-tabs>
+
+      <!-- 实时校验 -->
+      <div v-if="designWarns.length" class="exec-hint" style="margin-top: 12px">
+        <div v-for="m in designWarns" :key="m">ℹ {{ m }}</div>
+      </div>
+      <div v-if="designIssues.length" class="json-error" style="margin-top: 12px">
+        <div v-for="m in designIssues" :key="m">⚠ {{ m }}</div>
+      </div>
+
+      <el-divider>JSON 原文(只读预览)</el-divider>
+      <JsonTreeFold :model-value="designJsonPreview" max-height="220px" />
+      </template>
+
+      <!-- JSON 粘贴模式:原文直存,_ 注释键原样保留 -->
+      <template v-else>
+        <div class="exec-hint" style="margin-bottom: 8px">
+          直接粘贴或编辑 design JSON(与 run.py --design 文件同构;<b>_ 开头键为注释</b>,保存时原文原样保留)。
+          切回"表单编辑"会按此 JSON 重新装载;保存前按同一套规则校验。
+        </div>
+        <div style="margin-bottom: 6px">
+          <el-button size="small" @click="formatDesignJsonText">格式化</el-button>
+          <el-button size="small" @click="validateDesignJsonText">校验</el-button>
+        </div>
+        <el-input v-model="designJsonText" type="textarea" :rows="18"
+          style="font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px" />
+        <div v-if="designJsonMsg" :class="designJsonOk ? 'exec-hint' : 'json-error'" style="margin-top: 8px">
+          {{ designJsonMsg }}
+        </div>
+      </template>
+
       <template #footer>
         <el-button @click="designVisible = false">取消</el-button>
-        <el-button type="primary" :loading="designSaving" @click="saveDesign">保存</el-button>
+        <el-button type="primary" :loading="designSaving"
+          :disabled="designEditMode === 'form' && designIssues.length > 0" @click="saveDesign">保存</el-button>
       </template>
     </el-dialog>
 
@@ -498,7 +643,7 @@
               <el-option value="delete-temp-output" label="清理临时文件 (--delete-temp-output)" />
               <el-option value="touch" label="触碰时间戳 (--touch,可能导致下游重跑)" />
               <el-option value="cleanup-metadata" label="清理元数据 (--cleanup-metadata)" />
-              <el-option value="resource-calibrate" label="资源校准 (benchmark→建议表→护栏写回)" />
+              <el-option v-if="canCalibrate" value="resource-calibrate" label="资源校准 (benchmark→建议表→护栏写回)" />
             </el-select>
           </el-form-item>
           <el-form-item v-if="maintainMode === 'cleanup-metadata'" label="文件路径">
@@ -874,7 +1019,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import 'element-plus/theme-chalk/el-message.css'
-import { Plus, Upload, FolderOpened, Document, Download, Folder, Close } from '@element-plus/icons-vue'
+import { Plus, Upload, FolderOpened, Document, Download, Folder, Close, Top, Bottom, ArrowDown } from '@element-plus/icons-vue'
 import { getProject, createAnalysis, listAnalyses, exportExcel, exportPpt, getFileTree, batchDownload, downloadAll, listProjects, updateProject, unbindParent } from '@/api/projectApi'
 import type { Project, Pipeline, FileTreeNode } from '@/api/projectApi'
 import { listSampleMeta, createSampleMeta, updateSampleMeta, deleteSampleMeta } from '@/api/sampleMetaApi'
@@ -889,6 +1034,8 @@ import type { Execution } from '@/api/executionApi'
 import { listFiles, uploadFile, deleteFile, importLocalFiles } from '@/api/dataFileApi'
 import type { DataFile } from '@/api/dataFileApi'
 import FileEditDialog from '@/components/FileEditDialog.vue'
+import JsonTreeFold from '@/components/JsonTreeFold.vue'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const fileEditRef = ref<InstanceType<typeof FileEditDialog> | null>(null)
@@ -947,10 +1094,11 @@ const importTsvName = ref('')
 const importedFileName = ref('')
 
 const META_MODE_COLUMNS: Record<string, string[]> = {
-  fastq: ['sample_id', 'design', 'fastq_1', 'fastq_2', 'group', 'organism'],
-  pacbio: ['sample_id', 'design', 'bam', 'pbi', 'group', 'organism'],
-  ms: ['sample_id', 'ms_file', 'organism'],
-  scrnaseq: ['sample_id', 'fastq_dir', 'sample_prefix', 'design', 'group', 'organism'],
+  // tissue=实验设计 scope 来源(2026-11-26);data_type 供设计校验(组内同 data_type),可留空
+  fastq: ['sample_id', 'design', 'fastq_1', 'fastq_2', 'group', 'organism', 'tissue', 'data_type'],
+  pacbio: ['sample_id', 'design', 'bam', 'pbi', 'group', 'organism', 'tissue', 'data_type'],
+  ms: ['sample_id', 'ms_file', 'organism', 'tissue', 'data_type'],
+  scrnaseq: ['sample_id', 'fastq_dir', 'sample_prefix', 'design', 'group', 'organism', 'tissue', 'data_type'],
 }
 
 const project = reactive<Project>({
@@ -969,7 +1117,7 @@ const selectedTemplateName = ref('')
 const analysisName = ref('')
 const metaType = ref('text')
 const metaContent = ref('')
-const comparisonJson = ref('')
+const designJson = ref('')
 const analysisDescription = ref('')
 const extraParamsText = ref('')
 const extraParamsError = ref('')
@@ -1153,8 +1301,8 @@ const fillFromSampleMeta = (sm: SampleMeta) => {
   metaType.value = sm.metaMode === 'path' ? 'path' : 'text'
   metaContent.value = sm.metaContent || ''
   // 实验设计关系随 meta 一并带入(2026-11-25),执行时落 comparison.json 传 --comparison
-  comparisonJson.value = sm.comparisonJson || ''
-  const n = comparisonJson.value ? (JSON.parse(comparisonJson.value) as unknown[]).length : 0
+  designJson.value = sm.designJson || ''
+  const n = countDesignComparisons(designJson.value)
   ElMessage.success(`已填入「${sm.name}」` + (n ? `,含 ${n} 个实验对比` : ''))
 }
 
@@ -1250,87 +1398,370 @@ const builtExtraParams = computed(() => {
 
 const addCustomParam = () => customParams.value.push({ path: '', override: '' })
 
-// --- 实验设计关系(2026-11-25):样本信息的 comparison 编辑(Omics --comparison JSON) ---
-interface DesignRow {
-  comparison_id: string
-  control_group_name: string
-  experiment_group_name: string
-  control_samples: string[]
-  experiment_samples: string[]
-}
+// --- 实验设计(2026-11-26 换代):design JSON 编辑(run.py --design 唯一入口) ---
+interface DesignGroupRow { name: string; samples: string[] }
+interface DesignCompRow { name: string; groups: string[]; ref: string; coding: string }
+interface DesignScopeRow { scope: string; groups: DesignGroupRow[]; comparisons: DesignCompRow[]; tests: string[] }
+interface DesignSampleRow { id: string; tissue: string; dataType: string; group: string }
+
+const userStore = useUserStore()
+const canCalibrate = computed(() => userStore.hasPermission('pipeline:calibrate'))
 const designVisible = ref(false)
 const designSaving = ref(false)
 const designMeta = ref<SampleMeta | null>(null)
-const designRows = ref<DesignRow[]>([])
-const designSampleNames = ref<string[]>([])
+const designScopes = ref<DesignScopeRow[]>([])
+const designActiveScope = ref('')
+const designSamples = ref<DesignSampleRow[]>([])
 
-const parseSampleNames = (content: string): string[] => {
+// 统计 design JSON 的对比条目数(跨 scope;兼容旧数组格式)
+const countDesignComparisons = (json: string): number => {
+  if (!json) return 0
+  try {
+    const obj = JSON.parse(json)
+    if (Array.isArray(obj)) return obj.length
+    let n = 0
+    for (const block of Object.values(obj || {})) {
+      if (block && typeof block === 'object') n += Object.keys((block as any).comparisons || {}).length
+    }
+    return n
+  } catch { return 0 }
+}
+
+// 解析 Meta TSV 的 sample_id/tissue/data_type 三列(tissue 缺省 UNKNOWN)
+const parseSampleRows = (content: string): DesignSampleRow[] => {
   if (!content) return []
   const lines = content.trim().split('\n')
   if (lines.length < 2) return []
-  const header = lines[0].split('\t')
-  let idx = header.findIndex(h => h.trim().toLowerCase() === 'sample_id')
-  if (idx < 0) idx = 0
-  const names: string[] = []
+  const header = lines[0].split('\t').map(h => h.trim().toLowerCase())
+  let iSid = header.indexOf('sample_id')
+  if (iSid < 0) iSid = 0
+  const iTissue = header.indexOf('tissue')
+  const iGroup = header.indexOf('group')
+  const iDt = header.indexOf('data_type')
+  const rows: DesignSampleRow[] = []
   for (let i = 1; i < lines.length; i++) {
-    const v = (lines[i].split('\t')[idx] || '').trim()
-    if (v) names.push(v)
+    const cells = lines[i].split('\t')
+    const id = (cells[iSid] || '').trim()
+    if (!id) continue
+    rows.push({
+      id,
+      tissue: iTissue >= 0 ? ((cells[iTissue] || '').trim() || 'UNKNOWN') : 'UNKNOWN',
+      dataType: iDt >= 0 ? (cells[iDt] || '').trim().toUpperCase() : '',
+      group: iGroup >= 0 ? (cells[iGroup] || '').trim() : ''
+    })
   }
-  return names
+  return rows
+}
+
+const samplesOfScope = (scope: string) => designSamples.value.filter(s => s.tissue === scope)
+
+// 派生两两对(与 Omics MetaUtil.build_design_model_pairs 逐条一致):
+// consecutive 相邻两两(前者参照)/vs_ref 其余各组对 ref(缺省首组)/all_pairs 全两两/
+// helmert 第 k 组对此前 k-1 组均值(参照侧名固定 prev_mean)
+const derivePairs = (names: string[], coding: string, ref: string): [string, string][] => {
+  const pairs: [string, string][] = []
+  if (coding === 'vs_ref') {
+    const r = ref || names[0]
+    for (const n of names) if (n !== r) pairs.push([r, n])
+  } else if (coding === 'all_pairs') {
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) pairs.push([names[i], names[j]])
+    }
+  } else if (coding === 'helmert') {
+    for (let k = 1; k < names.length; k++) pairs.push(['prev_mean', names[k]])
+  } else {
+    for (let i = 0; i < names.length - 1; i++) pairs.push([names[i], names[i + 1]])
+  }
+  return pairs
+}
+
+// 派生名 → 归属集合(跨条目撞名检测,镜像"派生对比名不可跨条目重复")
+const derivedNameOwners = computed(() => {
+  const map = new Map<string, Set<string>>()
+  for (const sc of designScopes.value) {
+    for (const c of sc.comparisons) {
+      if (!c.name.trim() || c.groups.length < 2) continue
+      const key = `${sc.scope}/${c.name.trim()}`
+      for (const [a, b] of derivePairs(c.groups, c.coding, c.ref)) {
+        const dname = `${a}_vs_${b}`
+        if (!map.has(dname)) map.set(dname, new Set())
+        map.get(dname)!.add(key)
+      }
+    }
+  }
+  return map
+})
+
+// 派生预览 chips(conflict=跨条目撞名)
+const derivedFor = (sc: DesignScopeRow, row: DesignCompRow): { name: string; conflict: boolean }[] => {
+  if (!row.name.trim() || row.groups.length < 2) return []
+  return derivePairs(row.groups, row.coding, row.ref).map(([a, b]) => {
+    const dname = `${a}_vs_${b}`
+    return { name: dname, conflict: (derivedNameOwners.value.get(dname)?.size || 0) > 1 }
+  })
+}
+
+// 该对比还可追加的组(scope 内已注册且未选)
+const availableGroupsFor = (sc: DesignScopeRow, row: DesignCompRow): string[] =>
+  sc.groups.filter((g: DesignGroupRow) => g.name.trim() && !(row.groups as string[]).includes(g.name.trim()))
+    .map((g: DesignGroupRow) => g.name.trim())
+
+const addDesignGroup = (row: DesignCompRow, name: string) => {
+  if (name && !(row.groups as string[]).includes(name)) row.groups.push(name)
+}
+
+const moveDesignGroup = (row: DesignCompRow, idx: number, delta: number) => {
+  const j = idx + delta
+  if (j < 0 || j >= row.groups.length) return
+  const arr = row.groups
+  ;[arr[idx], arr[j]] = [arr[j], arr[idx]]
+}
+
+// 实时校验(阻断;与 DesignJsonUtil 同严)
+const designIssues = computed(() => {
+  const issues: string[] = []
+  for (const sc of designScopes.value) {
+    const nameSet = new Map<string, DesignGroupRow>()
+    for (const g of sc.groups) {
+      const n = g.name.trim()
+      if (!n) {
+        if (g.samples.length) issues.push(`[${sc.scope}] 有组未命名`)
+        continue
+      }
+      if (nameSet.has(n)) issues.push(`[${sc.scope}] 组名重复: ${n}`)
+      nameSet.set(n, g)
+      if (!g.samples.length) issues.push(`[${sc.scope}] 组 ${n} 样本为空`)
+      if (new Set(g.samples).size !== g.samples.length) issues.push(`[${sc.scope}] 组 ${n} 样本重复`)
+      const dts = new Set(g.samples
+        .map(id => designSamples.value.find(s => s.id === id)?.dataType)
+        .filter(Boolean))
+      if (dts.size > 1) issues.push(`[${sc.scope}] 组 ${n} 样本跨多个 data_type: ${[...dts].join(', ')}`)
+    }
+    for (const c of sc.comparisons) {
+      const cn = c.name.trim() || '(未命名)'
+      if (!c.name.trim()) issues.push(`[${sc.scope}] 有对比未命名`)
+      if (c.groups.length < 2) { issues.push(`[${sc.scope}] 对比 ${cn} 需选 ≥2 个组`); continue }
+      if (new Set(c.groups).size !== c.groups.length) issues.push(`[${sc.scope}] 对比 ${cn} 组序列有重复`)
+      for (const gn of c.groups) {
+        if (!nameSet.has(gn)) issues.push(`[${sc.scope}] 对比 ${cn} 引用未注册的组 ${gn}`)
+      }
+      if (c.coding === 'vs_ref' && c.ref && !c.groups.includes(c.ref)) {
+        issues.push(`[${sc.scope}] 对比 ${cn} 的 ref ${c.ref} 不在组序列中`)
+      }
+      const seen = new Map<string, string>()
+      for (const gn of c.groups) {
+        const g = nameSet.get(gn)
+        if (!g) continue
+        for (const s of g.samples) {
+          if (seen.has(s) && seen.get(s) !== gn) {
+            issues.push(`[${sc.scope}] 对比 ${cn} 样本 ${s} 同属 ${seen.get(s)} 与 ${gn}——同一对比引用的组之间样本须互斥`)
+          }
+          seen.set(s, gn)
+        }
+      }
+    }
+  }
+  for (const [dname, owners] of derivedNameOwners.value) {
+    if (owners.size > 1) issues.push(`派生对比 ${dname} 撞名: ${[...owners].join(' / ')}——改组名或组序列`)
+  }
+  return [...new Set(issues)]
+})
+
+// 非阻断提示(sccoda 直通约定)
+const designWarns = computed(() => {
+  const warns: string[] = []
+  for (const sc of designScopes.value) {
+    for (const c of sc.comparisons) {
+      if (c.coding === 'vs_ref' && c.groups.length > 2 && c.ref && c.ref !== c.groups[0]) {
+        warns.push(`[${sc.scope}] 对比 ${c.name || '(未命名)'}: 多组 entry 直通 sccoda 时 ref 须为首组(首柱即基线)`)
+      }
+    }
+  }
+  return warns
+})
+
+// 构建 design JSON(空 scope 不输出;consecutive 缺省不写)
+const buildDesignJson = (): Record<string, unknown> => {
+  const out: Record<string, unknown> = {}
+  for (const sc of designScopes.value) {
+    const groups: Record<string, string[]> = {}
+    for (const g of sc.groups) {
+      const n = g.name.trim()
+      if (n) groups[n] = g.samples
+    }
+    const comparisons: Record<string, unknown> = {}
+    for (const c of sc.comparisons) {
+      const n = c.name.trim()
+      if (!n) continue
+      const entry: Record<string, unknown> = { groups: c.groups }
+      if (c.coding && c.coding !== 'consecutive') entry.coding = c.coding
+      if (c.coding === 'vs_ref' && c.ref) entry.ref = c.ref
+      comparisons[n] = entry
+    }
+    if (Object.keys(groups).length && Object.keys(comparisons).length) {
+      const block: Record<string, unknown> = { groups, comparisons }
+      if (sc.tests.length) block.tests = sc.tests
+      out[sc.scope] = block
+    }
+  }
+  return out
+}
+const designJsonPreview = computed(() => JSON.stringify(buildDesignJson(), null, 2))
+
+// 从 meta 的 group 列自动识别组(只补缺,不动已建组);每个 meta 通常自带 group 列
+const seedGroupsFromMeta = (sc: DesignScopeRow, quiet = false) => {
+  const byGroup = new Map<string, string[]>()
+  for (const s of samplesOfScope(sc.scope)) {
+    const g = s.group.trim()
+    if (!g) continue
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(s.id)
+  }
+  let added = 0
+  for (const [g, samples] of byGroup) {
+    if (!sc.groups.some((x: DesignGroupRow) => x.name.trim() === g)) {
+      sc.groups.push({ name: g, samples: [...samples] })
+      added++
+    }
+  }
+  if (!quiet) ElMessage.info(added ? `已从 group 列导入 ${added} 个组` : 'group 列没有可导入的新组')
+  return added
+}
+
+// design 对象 → 表单状态(JSON 粘贴 ↔ 表单 共用装载器)
+const loadDesignObject = (stored: Record<string, any>) => {
+  const tissues = [...new Set(designSamples.value.map(s => s.tissue))]
+  const scopeKeys = tissues.length ? tissues : ['UNKNOWN']
+  const toScope = (scope: string, block: any): DesignScopeRow => ({
+    scope,
+    groups: Object.entries(block?.groups || {}).map(([name, samples]) => ({ name, samples: [...(samples as string[])] })),
+    comparisons: Object.entries(block?.comparisons || {}).map(([name, e]: any) => ({
+      name, groups: [...(e?.groups || [])], ref: e?.ref || '', coding: e?.coding || 'consecutive'
+    })),
+    tests: Array.isArray(block?.tests) ? [...block.tests] : ['pairwise']
+  })
+  designScopes.value = scopeKeys.map(s => toScope(s, stored[s]))
+  // 存量 JSON 有而当前 meta tissue 没有的 scope(样本变动遗留)保留展示,便于发现
+  for (const [scope, block] of Object.entries(stored)) {
+    if (scope.startsWith('_') || scopeKeys.includes(scope)) continue
+    designScopes.value.push(toScope(scope, block))
+  }
+  // 自动识别:某 scope 没有组时,直接从 meta 的 group 列建组(组注册表不该手敲)
+  for (const sc of designScopes.value) {
+    if (!sc.groups.length) seedGroupsFromMeta(sc, true)
+  }
+  designActiveScope.value = designScopes.value[0]?.scope || ''
 }
 
 const openDesign = (row: SampleMeta) => {
   designMeta.value = row
-  designSampleNames.value = parseSampleNames(row.metaContent)
-  try {
-    const parsed = row.comparisonJson ? JSON.parse(row.comparisonJson) : []
-    designRows.value = (Array.isArray(parsed) ? parsed : []).map((c: Record<string, unknown>) => ({
-      comparison_id: String(c.comparison_id || ''),
-      control_group_name: String(c.control_group_name || ''),
-      experiment_group_name: String(c.experiment_group_name || ''),
-      control_samples: Array.isArray(c.control_samples) ? [...(c.control_samples as string[])] : [],
-      experiment_samples: Array.isArray(c.experiment_samples) ? [...(c.experiment_samples as string[])] : []
-    }))
-  } catch {
-    designRows.value = []
-  }
+  designSamples.value = parseSampleRows(row.metaContent)
+  let stored: Record<string, any> = {}
+  try { stored = row.designJson ? JSON.parse(row.designJson) : {} } catch { stored = {} }
+  loadDesignObject(stored)
+  designEditMode.value = 'form'
+  // JSON 面板初值:有存量原文(含 _ 注释键)按原文,否则按表单构建
+  designJsonText.value = Object.keys(stored).length
+    ? JSON.stringify(stored, null, 2) : JSON.stringify(buildDesignJson(), null, 2)
+  designJsonMsg.value = ''
   designVisible.value = true
 }
 
-const addDesignRow = () => {
-  designRows.value.push({ comparison_id: '', control_group_name: '', experiment_group_name: '', control_samples: [], experiment_samples: [] })
+// ===== JSON 粘贴模式(2026-11-27 用户要求:直接粘贴 design JSON 的入口) =====
+const designEditMode = ref<'form' | 'json'>('form')
+const designJsonText = ref('')
+const designJsonMsg = ref('')
+const designJsonOk = ref(true)
+
+const onDesignModeChange = (mode: string | number | boolean | undefined) => {
+  if (mode === 'json') {
+    designJsonText.value = JSON.stringify(buildDesignJson(), null, 2)
+    designJsonMsg.value = ''
+    return
+  }
+  // JSON → 表单:解析并装载;失败留在 JSON 模式
+  try {
+    const obj = JSON.parse(designJsonText.value || '{}')
+    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+      throw new Error('design JSON 顶层须为对象 {scope: {groups, comparisons, ...}}')
+    }
+    loadDesignObject(obj)
+    designJsonMsg.value = ''
+  } catch (e: any) {
+    ElMessage.error('JSON 无法转表单: ' + (e?.message || e))
+    designEditMode.value = 'json'
+  }
+}
+
+const formatDesignJsonText = () => {
+  try {
+    designJsonText.value = JSON.stringify(JSON.parse(designJsonText.value || '{}'), null, 2)
+    designJsonOk.value = true
+    designJsonMsg.value = 'JSON 合法,已格式化'
+  } catch (e: any) {
+    designJsonOk.value = false
+    designJsonMsg.value = 'JSON 解析失败: ' + (e?.message || e)
+  }
+}
+
+const validateDesignJsonText = () => {
+  try {
+    const obj = JSON.parse(designJsonText.value || '{}')
+    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+      throw new Error('顶层须为对象 {scope: {groups, comparisons, ...}}')
+    }
+    loadDesignObject(obj)
+    if (designIssues.value.length) {
+      designJsonOk.value = false
+      designJsonMsg.value = '校验未通过: ' + designIssues.value.join(';')
+      return
+    }
+    designJsonOk.value = true
+    designJsonMsg.value = 'JSON 合法,校验通过(' + designWarns.value.length + ' 条提示)'
+  } catch (e: any) {
+    designJsonOk.value = false
+    designJsonMsg.value = 'JSON 解析失败: ' + (e?.message || e)
+  }
 }
 
 const saveDesign = async () => {
   if (!designMeta.value) return
-  const ids = new Set<string>()
-  const known = new Set(designSampleNames.value)
-  for (const r of designRows.value) {
-    const cid = r.comparison_id.trim()
-    if (!cid) { ElMessage.warning('对比名称不能为空'); return }
-    if (ids.has(cid)) { ElMessage.warning(`对比名称重复: ${cid}`); return }
-    ids.add(cid)
-    if (!r.control_samples.length || !r.experiment_samples.length) {
-      ElMessage.warning(`[${cid}] 对照样本与实验样本各至少 1 个`); return
+  // JSON 粘贴模式:原文直存(保留 _ 注释键),先按同一套规则校验
+  if (designEditMode.value === 'json') {
+    let text = designJsonText.value.trim()
+    if (!text) text = '{}'
+    try {
+      const obj = JSON.parse(text)
+      if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+        throw new Error('顶层须为对象 {scope: {groups, comparisons, ...}}')
+      }
+      loadDesignObject(obj)
+    } catch (e) {
+      ElMessage.error('JSON 解析失败,无法保存: ' + (e instanceof Error ? e.message : String(e)))
+      return
     }
-    for (const s of [...r.control_samples, ...r.experiment_samples]) {
-      if (!known.has(s)) { ElMessage.warning(`[${cid}] 样本 ${s} 不在该样本信息中`); return }
+    if (designIssues.value.length) { ElMessage.warning('请先解决校验问题: ' + designIssues.value[0]); return }
+    designSaving.value = true
+    try {
+      const hasContent = text !== '{}'
+      await updateSampleMeta({ ...designMeta.value, designJson: hasContent ? text : undefined })
+      ElMessage.success('实验设计已保存')
+      designVisible.value = false
+      loadMetaList()
+    } catch (e) {
+      ElMessage.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      designSaving.value = false
     }
+    return
   }
+  if (designIssues.value.length) { ElMessage.warning('请先解决校验问题'); return }
   designSaving.value = true
   try {
-    const payload = designRows.value.map(r => {
-      const item: Record<string, unknown> = {
-        comparison_id: r.comparison_id.trim(),
-        control_samples: r.control_samples,
-        experiment_samples: r.experiment_samples
-      }
-      if (r.control_group_name.trim()) item.control_group_name = r.control_group_name.trim()
-      if (r.experiment_group_name.trim()) item.experiment_group_name = r.experiment_group_name.trim()
-      return item
-    })
-    await updateSampleMeta({ ...designMeta.value, comparisonJson: payload.length ? JSON.stringify(payload) : undefined })
-    ElMessage.success('实验设计关系已保存')
+    const built = buildDesignJson()
+    const hasContent = Object.keys(built).length > 0
+    await updateSampleMeta({ ...designMeta.value, designJson: hasContent ? JSON.stringify(built) : undefined })
+    ElMessage.success('实验设计已保存')
     designVisible.value = false
     loadMetaList()
   } catch (e) {
@@ -1582,6 +2013,18 @@ const handleCancel = async (row: Pipeline) => {
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('取消失败')
   }
+}
+
+const versionTip = (row: any) => {
+  const parts: string[] = []
+  if (row.latestWorkflowVersion) {
+    const src = row.latestVersionSource === 'git' ? '派发采集' : row.latestVersionSource === 'inferred' ? '历史推断' : '未知'
+    parts.push(`最近执行版本: ${row.latestWorkflowVersion}（来源:${src}）`)
+  } else {
+    parts.push('尚无执行记录')
+  }
+  if (row.templateWorkflowVersion) parts.push(`模板导入版本: ${row.templateWorkflowVersion}`)
+  return parts.join('\n')
 }
 
 const fileRefSummary = (row: SampleMeta) => {
@@ -2000,7 +2443,7 @@ const handleCreateAnalysis = async () => {
       name: analysisName.value || undefined,
       metaContent: metaContent.value,
       metaType: metaType.value,
-      comparisonJson: comparisonJson.value || undefined,
+      designJson: designJson.value || undefined,
       extraParams: Object.keys(overrides).length ? JSON.stringify(overrides) : undefined,
       description: analysisDescription.value || undefined
     })
@@ -2020,7 +2463,7 @@ const handleEdit = (row: Pipeline) => {
   editForm.name = row.name
   editForm.metaType = row.metaType || 'text'
   editForm.metaContent = row.metaContent || ''
-  editForm.comparisonJson = row.comparisonJson || ''
+  editForm.designJson = row.designJson || ''
   editVisible.value = true
   loadMetaTemplate(row.templateId)
 }
@@ -2034,14 +2477,14 @@ const editForm = reactive({
   name: '',
   metaType: 'text',
   metaContent: '',
-  comparisonJson: ''
+  designJson: ''
 })
 
 const fillEditFromSampleMeta = (sm: SampleMeta) => {
   editForm.metaType = sm.metaMode === 'path' ? 'path' : 'text'
   editForm.metaContent = sm.metaContent || ''
-  editForm.comparisonJson = sm.comparisonJson || ''
-  const n = editForm.comparisonJson ? (JSON.parse(editForm.comparisonJson) as unknown[]).length : 0
+  editForm.designJson = sm.designJson || ''
+  const n = countDesignComparisons(editForm.designJson)
   ElMessage.success(`已填入「${sm.name}」` + (n ? `,含 ${n} 个实验对比` : ''))
 }
 
@@ -2117,7 +2560,7 @@ const handleSaveEdit = async () => {
       name: editForm.name,
       metaType: editForm.metaType,
       metaContent: editForm.metaContent,
-      comparisonJson: editForm.comparisonJson
+      designJson: editForm.designJson
     } as any)
     ElMessage.success('已保存')
     editVisible.value = false
@@ -2494,5 +2937,58 @@ watch(metaTsvContent, (val) => {
 .meta-header-input:disabled {
   color: #606266;
   cursor: not-allowed;
+}
+/* --- 实验设计弹窗(2026-11-26) --- */
+.design-sub-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin: 8px 0 6px;
+}
+.design-seq {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: #fafcff;
+}
+.design-seq-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.design-seq-row + .design-seq-row {
+  border-top: 1px dashed #ebeef5;
+}
+.design-seq-no {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  background: #409eff;
+  color: #fff;
+  font-size: 11px;
+}
+.design-seq-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.design-seq-ops {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+.design-seq-empty {
+  padding: 4px 2px;
+  font-size: 12px;
+  color: #909399;
 }
 </style>

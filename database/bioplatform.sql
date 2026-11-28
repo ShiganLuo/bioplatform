@@ -119,7 +119,7 @@ CREATE TABLE `sample_meta` (
     `name`         VARCHAR(128) NOT NULL COMMENT 'meta名称，如 RNA-seq WT vs KO',
     `meta_mode`    VARCHAR(32)  NOT NULL DEFAULT 'fastq' COMMENT '模式: fastq/pacbio/ms/scrnaseq',
     `meta_content` TEXT         NOT NULL COMMENT 'TSV内容',
-    `comparison_json` TEXT      DEFAULT NULL COMMENT '实验设计关系JSON(Omics --comparison 列表形态)',
+    `design_json` TEXT      DEFAULT NULL COMMENT '实验设计关系JSON(Omics --design 列表形态)',
     `description`  VARCHAR(512) DEFAULT NULL,
     `created_by`   BIGINT       DEFAULT NULL,
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -166,7 +166,7 @@ CREATE TABLE `pipelines` (
     `project_id`   BIGINT        DEFAULT NULL COMMENT '关联 projects.id',
     `meta_content` TEXT          DEFAULT NULL COMMENT '元数据内容',
     `meta_type`    VARCHAR(32)   DEFAULT NULL COMMENT '元数据类型',
-    `comparison_json` TEXT       DEFAULT NULL COMMENT '实验设计关系JSON(Omics --comparison 列表形态)',
+    `design_json` TEXT       DEFAULT NULL COMMENT '实验设计关系JSON(Omics --design 列表形态)',
     `extra_params` JSON          DEFAULT NULL COMMENT '额外参数',
     `description`  TEXT          DEFAULT NULL,
     `category`     VARCHAR(64)   DEFAULT NULL COMMENT 'e.g. QC, Alignment, Assembly, Annotation',
@@ -540,7 +540,8 @@ INSERT INTO `permissions` (`id`, `name`, `permission`, `type`, `parent_id`, `pat
 (124, 'Delete Sample',   'project:sample:delete',3, 21,  NULL,               8),
 (125, 'Edit File',       'data:edit',            3, 41,  NULL,               4),
 (126, 'Verify Files',    'data:verify',          3, 41,  NULL,               5),
-(127, 'Host Shell Execute','agent:tool:shell',   3, 50,  NULL,               3);
+(127, 'Host Shell Execute','agent:tool:shell',   3, 50,  NULL,               3),
+(128, 'Calibrate Resources','pipeline:calibrate', 3, 31,  NULL,               5);
 
 -- ----------------------------
 -- Admin role -> all permissions
